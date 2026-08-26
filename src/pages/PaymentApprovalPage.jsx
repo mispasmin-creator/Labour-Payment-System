@@ -42,7 +42,8 @@ export function PaymentApprovalPage() {
       item.workId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.work.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.incharge.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.firmName && item.firmName.toLowerCase().includes(searchTerm.toLowerCase()));
+      (item.firmName && item.firmName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.workRemark && item.workRemark.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesIncharge = !inchargeFilter || item.incharge === inchargeFilter;
     const matchesFirm = !firmFilter || item.firmName === firmFilter;
     return matchesSearch && matchesIncharge && matchesFirm;
@@ -225,6 +226,7 @@ export function PaymentApprovalPage() {
                 <th>Firm</th>
                 <th>Supervisor</th>
                 <th>Work Activity</th>
+                <th>Work Remark</th>
                 <th>Headcount</th>
                 <th>Total Amount</th>
                 {activeTab === 'history' && <th>Current Status</th>}
@@ -263,6 +265,21 @@ export function PaymentApprovalPage() {
                   <td>
                     <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.work}
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      style={{
+                        maxWidth: 160,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: entry.workRemark ? '#334155' : '#94A3B8',
+                        fontStyle: entry.workRemark ? 'normal' : 'italic'
+                      }}
+                      title={entry.workRemark || 'No remark'}
+                    >
+                      {entry.workRemark || '-'}
                     </div>
                   </td>
                   <td>

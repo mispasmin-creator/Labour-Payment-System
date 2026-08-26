@@ -61,6 +61,7 @@ export function formatEntriesForExport(entries) {
       Firm: e.firmName || '-',
       Incharge: e.incharge,
       Work: e.work,
+      'Work Remark': e.workRemark || '',
       'Labour (Count)': e.labourCount,
       Hours: e.hours,
       Qty: e.qty,
@@ -90,6 +91,7 @@ export function formatFMSForExport(entries) {
     Firm: e.firmName || '-',
     Incharge: e.incharge,
     Work: e.work,
+    'Work Remark': e.workRemark || '',
     'No of Labour': e.labourCount,
     Hours: e.hours,
     Qty: e.qty,
@@ -171,6 +173,7 @@ export function printWorkSlip(entry) {
           <div class="card"><div class="label">Shift Timing</div><div class="val">${entry.shift}</div></div>
           <div class="card"><div class="label">Supervisor / Incharge</div><div class="val">${entry.incharge}</div></div>
           <div class="card"><div class="label">Work Description</div><div class="val">${entry.work}</div></div>
+          <div class="card"><div class="label">Work Remark</div><div class="val">${entry.workRemark || '-'}</div></div>
           <div class="card"><div class="label">Labour Count × Rate</div><div class="val">${entry.labourCount} persons × ₹${entry.rate}/person</div></div>
           <div class="card" style="grid-column: span 2;"><div class="label">Total Amount Payable</div><div class="val" style="color: #059669; font-size: 20px;">₹${Number(entry.totalAmount).toLocaleString('en-IN')}</div></div>
         </div>

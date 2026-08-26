@@ -9,6 +9,7 @@ import {
   submitPayment,
   submitTally,
   saveMasterData,
+  updateWorkRemark as updateWorkRemarkApi,
   getScriptUrl,
   setScriptUrl as setScriptUrlApi,
   resetToDemoData
@@ -474,6 +475,18 @@ export function AppProvider({ children }) {
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0)
   };
 
+  const editWorkRemark = useCallback(async (workId, workRemark) => {
+    try {
+      await updateWorkRemarkApi(workId, workRemark);
+      setEntries(prev => prev.map(e => (e.workId === workId ? { ...e, workRemark } : e)));
+      showToast('Work Remark updated successfully', 'success');
+      return true;
+    } catch (err) {
+      showToast('Failed to update remark', 'error');
+      return false;
+    }
+  }, [showToast]);
+
   const value = {
     entries,
     masterData,
@@ -502,6 +515,7 @@ export function AppProvider({ children }) {
     payEntry,
     tallyEntry,
     updateMaster,
+    editWorkRemark,
     refreshData,
     resetDemo
   };

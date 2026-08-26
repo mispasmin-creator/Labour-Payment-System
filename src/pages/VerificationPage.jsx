@@ -83,7 +83,8 @@ export function VerificationPage() {
       item.workId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.work.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.incharge.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.firmName && item.firmName.toLowerCase().includes(searchTerm.toLowerCase()));
+      (item.firmName && item.firmName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.workRemark && item.workRemark.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesIncharge = !inchargeFilter || item.incharge === inchargeFilter;
     const matchesFirm = !firmFilter || item.firmName === firmFilter;
     return matchesSearch && matchesIncharge && matchesFirm;
@@ -219,6 +220,7 @@ export function VerificationPage() {
                 <th>Firm</th>
                 <th>Incharge</th>
                 <th>Work Activity</th>
+                <th>Work Remark</th>
                 <th>Labourers</th>
                 <th>Amount</th>
                 {activeTab === 'history' && <th>Current Status</th>}
@@ -248,6 +250,21 @@ export function VerificationPage() {
                   <td>
                     <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.work}
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      style={{
+                        maxWidth: 160,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: entry.workRemark ? '#334155' : '#94A3B8',
+                        fontStyle: entry.workRemark ? 'normal' : 'italic'
+                      }}
+                      title={entry.workRemark || 'No remark'}
+                    >
+                      {entry.workRemark || '-'}
                     </div>
                   </td>
                   <td>
@@ -332,6 +349,12 @@ export function VerificationPage() {
                   <strong style={{ color: '#059669', fontSize: '1.05rem' }}>
                     ₹{Number(selectedEntry.totalAmount).toLocaleString('en-IN')}
                   </strong>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ color: '#64748B' }}>Work Remark:</span>{' '}
+                  <span style={{ color: selectedEntry.workRemark ? '#0F172A' : '#94A3B8', fontWeight: selectedEntry.workRemark ? 600 : 400, fontStyle: selectedEntry.workRemark ? 'normal' : 'italic' }}>
+                    {selectedEntry.workRemark || 'No remark provided'}
+                  </span>
                 </div>
               </div>
 

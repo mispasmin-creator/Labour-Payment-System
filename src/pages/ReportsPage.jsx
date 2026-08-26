@@ -205,6 +205,7 @@ export function ReportsPage() {
               <th>Firm</th>
               <th>Incharge</th>
               <th>Work Type</th>
+              <th>Work Remark</th>
               <th>Count</th>
               <th>Total Amount</th>
               <th>Status</th>
@@ -213,7 +214,7 @@ export function ReportsPage() {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
                   No records match your filter criteria.
                 </td>
               </tr>
@@ -232,6 +233,21 @@ export function ReportsPage() {
                   </td>
                   <td>{item.incharge}</td>
                   <td>{item.work}</td>
+                  <td>
+                    <div
+                      style={{
+                        maxWidth: 160,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: item.workRemark ? '#334155' : '#94A3B8',
+                        fontStyle: item.workRemark ? 'normal' : 'italic'
+                      }}
+                      title={item.workRemark || 'No remark'}
+                    >
+                      {item.workRemark || '-'}
+                    </div>
+                  </td>
                   <td>{item.labourCount}</td>
                   <td>₹{Number(item.totalAmount).toLocaleString('en-IN')}</td>
                   <td><StatusBadge status={item.status} /></td>

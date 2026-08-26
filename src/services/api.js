@@ -289,14 +289,16 @@ export async function fetchEntries() {
                 tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
                 tallyLedger: local.tallyLedger || remote.tallyLedger,
                 labourNames: (local.labourNames && local.labourNames.length > 0) ? local.labourNames : (remote.labourNames || []),
-                firmName: local.firmName || remote.firmName || ''
+                firmName: local.firmName || remote.firmName || '',
+                workRemark: local.workRemark || remote.workRemark || ''
               };
             }
 
             return {
               ...remote,
               labourNames: (remote.labourNames && remote.labourNames.length > 0) ? remote.labourNames : (local.labourNames || []),
-              firmName: remote.firmName || local.firmName || ''
+              firmName: remote.firmName || local.firmName || '',
+              workRemark: remote.workRemark || local.workRemark || ''
             };
           });
 
@@ -349,6 +351,7 @@ export async function submitWorkEntry(entryData) {
     labourCount,
     rate,
     totalAmount,
+    workRemark: entryData.workRemark || '',
     status: 'Pending Verification',
     verificationPlanned: timestamp,
     verificationActual: null,
@@ -493,6 +496,27 @@ export async function submitTally(workId, tallyVoucher, tallyLedger) {
   localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(updatedEntries));
   // Send in background
   sendToAppsScript('recordTally', { workId, tallyVoucher, tallyLedger }).catch(err => console.warn('Tally sync failed:', err));
+
+  return updatedEntries.find(i => i.workId === workId);
+}
+
+/**
+ * Update Work Remark for an entry
+ */
+export async function updateWorkRemark(workId, workRemark) {
+  const entries = getStoredEntries();
+  const updatedEntries = entries.map(item => {
+    if (item.workId === workId) {
+      return {
+        ...item,
+        workRemark: workRemark || ''
+      };
+    }
+    return item;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(updatedEntries));
+  sendToAppsScript('updateWorkRemark', { workId, workRemark }).catch(err => console.warn('Work Remark sync failed:', err));
 
   return updatedEntries.find(i => i.workId === workId);
 }

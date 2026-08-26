@@ -67,6 +67,7 @@ export function NewEntryPage() {
     hours: 8,
     qty: 100,
     rate: 450,
+    workRemark: '',
     labourNames: ['']
   });
 
@@ -193,6 +194,7 @@ export function NewEntryPage() {
         rate: rate,
         labourCount: count,
         totalAmount: computedTotal,
+        workRemark: (formData.workRemark || '').trim(),
         labourNames: validNames
       };
 
@@ -348,6 +350,23 @@ export function NewEntryPage() {
                     onChange={e => setFormData({ ...formData, rate: Number(e.target.value) })}
                   />
                   {errors.rate && <div className="form-error">{errors.rate}</div>}
+                </div>
+              </div>
+
+              {/* Work Remark Input Field */}
+              <div style={{ marginTop: 14 }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Work Remark</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#64748B' }}>Optional comment/description</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Enter remark (e.g. Extra maintenance work, kiln cleaning, overtime, etc.)..."
+                    value={formData.workRemark}
+                    onChange={e => setFormData({ ...formData, workRemark: e.target.value })}
+                  />
                 </div>
               </div>
             </div>

@@ -122,6 +122,12 @@ function doGet(e) {
         break;
       }
 
+      case 'updateWorkRemark': {
+        const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+        result = handleUpdateWorkRemark(ss, payloadData);
+        break;
+      }
+
       default:
         result = { error: 'Unknown GET action: ' + action, status: 'error' };
     }
@@ -176,6 +182,10 @@ function doPost(e) {
 
       case 'updateMasterData':
         response = handleUpdateMasterData(ss, payload.data);
+        break;
+
+      case 'updateWorkRemark':
+        response = handleUpdateWorkRemark(ss, payload.data);
         break;
 
       default:
@@ -361,6 +371,23 @@ function isValidWorkRow(row) {
 }
 
 /**
+ * Ensure Work Remark column exists in a sheet
+ */
+function ensureWorkRemarkCol(sheet) {
+  if (!sheet) return 0;
+  let remarkCol = findColIndex(sheet, ['work remark', 'remark', 'remarks', 'work description', 'notes'], 0);
+  if (remarkCol === 0) {
+    const headerRow = getHeaderRowIndex(sheet);
+    const lastCol = Math.max(sheet.getLastColumn(), 1);
+    remarkCol = lastCol + 1;
+    sheet.getRange(headerRow, remarkCol).setValue('Work Remark');
+    sheet.getRange(headerRow, remarkCol).setFontWeight('bold').setBackground('#A4C2F4');
+    SpreadsheetApp.flush();
+  }
+  return remarkCol;
+}
+
+/**
  * Create New Work Entry:
  * Writes directly to the first empty row (Row 7 for FMS, Row 2 for Entry)
  */
@@ -381,6 +408,7 @@ function handleCreateEntry(ss, data) {
   const rate = Number(data.rate) || 0;
   const totalAmount = Number(data.totalAmount) || (labourCount * rate);
   const status = 'Pending Verification';
+  const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
 
   // 1. Write to Entry sheet (first empty row after header)
   if (entrySheet) {
@@ -405,7 +433,15 @@ function handleCreateEntry(ss, data) {
     for (let i = 0; i < labourNames.length; i++) {
       entryRow.push(labourNames[i]);
     }
-    writeRowToFirstEmpty(entrySheet, entryRow, entryStartDataRow);
+    const targetEntryRow = writeRowToFirstEmpty(entrySheet, entryRow, entryStartDataRow);
+
+    // Save Work Remark in Entry Sheet
+    if (workRemark) {
+      const remarkCol = ensureWorkRemarkCol(entrySheet);
+      if (remarkCol > 0) {
+        entrySheet.getRange(targetEntryRow, remarkCol).setValue(workRemark);
+      }
+    }
   }
 
   // 2. Write to FMS sheet (first empty row after header, e.g. Row 7)
@@ -438,7 +474,15 @@ function handleCreateEntry(ss, data) {
       '',                           // Col V (22): Actual 4
       ''                            // Col W (23): Delay 4
     ];
-    writeRowToFirstEmpty(fmsSheet, fmsRow, fmsStartDataRow);
+    const targetFmsRow = writeRowToFirstEmpty(fmsSheet, fmsRow, fmsStartDataRow);
+
+    // Save Work Remark in FMS Sheet
+    if (workRemark) {
+      const fmsRemarkCol = ensureWorkRemarkCol(fmsSheet);
+      if (fmsRemarkCol > 0) {
+        fmsSheet.getRange(targetFmsRow, fmsRemarkCol).setValue(workRemark);
+      }
+    }
   }
 
   return {
@@ -447,6 +491,7 @@ function handleCreateEntry(ss, data) {
     timestamp: timestamp,
     labourCount: labourCount,
     labourNames: labourNames,
+    workRemark: workRemark,
     message: 'Entry created successfully'
   };
 }
@@ -705,11 +750,14 @@ function getEntriesData(ss) {
   const mainSheet = fmsSheet || entrySheet;
   if (!mainSheet || mainSheet.getLastRow() < 1) return [];
 
-  // Extract dynamic labour names from Entry sheet
+  // Extract dynamic labour names & work remarks from Entry sheet
   const labourMap = {};
+  const workRemarkMap = {};
   if (entrySheet && entrySheet.getLastRow() >= 1) {
     const entryHeaderRow = getHeaderRowIndex(entrySheet);
     const entryData = entrySheet.getDataRange().getValues();
+    const entryRemarkCol = findColIndex(entrySheet, ['work remark', 'remark', 'remarks', 'work description', 'notes'], 0) - 1;
+
     for (let i = entryHeaderRow; i < entryData.length; i++) {
       const row = entryData[i];
       const wId = String(row[1] || '').trim();
@@ -717,11 +765,14 @@ function getEntriesData(ss) {
       const names = [];
       for (let c = 12; c < row.length; c++) {
         const val = String(row[c] || '').trim();
-        if (val && !val.toLowerCase().startsWith('labour')) {
+        if (val && !val.toLowerCase().startsWith('labour') && c !== entryRemarkCol) {
           names.push(val);
         }
       }
       labourMap[wId] = names;
+      if (entryRemarkCol >= 0 && row[entryRemarkCol]) {
+        workRemarkMap[wId] = String(row[entryRemarkCol]).trim();
+      }
     }
   }
 
@@ -745,6 +796,8 @@ function getEntriesData(ss) {
   const p4Col = findColIndex(mainSheet, ['planned 4'], 21) - 1;
   const a4Col = findColIndex(mainSheet, ['actual 4'], 22) - 1;
   const d4Col = findColIndex(mainSheet, ['delay 4'], 23) - 1;
+
+  const fmsRemarkCol = findColIndex(mainSheet, ['work remark', 'remark', 'remarks', 'work description', 'notes'], 0) - 1;
 
   const entries = [];
   // Loop starting from row after detected header row
@@ -782,6 +835,8 @@ function getEntriesData(ss) {
     const firmCol = findColIndex(mainSheet, ['firm', 'firm name', 'company'], 0) - 1;
     const firmName = (firmCol >= 0 && row[firmCol]) ? String(row[firmCol]).trim() : '';
 
+    const workRemark = (fmsRemarkCol >= 0 && row[fmsRemarkCol]) ? String(row[fmsRemarkCol]).trim() : (workRemarkMap[workId] || '');
+
     entries.push({
       timestamp: row[0],
       workId: workId,
@@ -796,6 +851,7 @@ function getEntriesData(ss) {
       totalAmount: Number(row[9]) || 0,
       rate: Number(row[6]) ? (Number(row[9]) / Number(row[6])) : 0,
       status: currentStatus,
+      workRemark: workRemark,
       labourNames: labourMap[workId] || [],
       verificationPlanned: verificationPlanned,
       verificationActual: verificationActual,
@@ -813,6 +869,43 @@ function getEntriesData(ss) {
   }
 
   return entries;
+}
+
+/**
+ * Update Work Remark for an entry in Google Sheet
+ */
+function handleUpdateWorkRemark(ss, data) {
+  const { workId, workRemark } = data;
+  if (!workId) return { status: 'error', message: 'Work ID required' };
+
+  const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
+  const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
+
+  if (entrySheet && entrySheet.getLastRow() >= 1) {
+    const remarkCol = ensureWorkRemarkCol(entrySheet);
+    const headerRow = getHeaderRowIndex(entrySheet);
+    const dataRange = entrySheet.getDataRange().getValues();
+    for (let i = headerRow; i < dataRange.length; i++) {
+      if (String(dataRange[i][1] || '').trim() === workId) {
+        entrySheet.getRange(i + 1, remarkCol).setValue(workRemark || '');
+        break;
+      }
+    }
+  }
+
+  if (fmsSheet && fmsSheet.getLastRow() >= 1) {
+    const remarkCol = ensureWorkRemarkCol(fmsSheet);
+    const headerRow = getHeaderRowIndex(fmsSheet);
+    const dataRange = fmsSheet.getDataRange().getValues();
+    for (let i = headerRow; i < dataRange.length; i++) {
+      if (String(dataRange[i][1] || dataRange[i][0] || '').trim() === workId) {
+        fmsSheet.getRange(i + 1, remarkCol).setValue(workRemark || '');
+        break;
+      }
+    }
+  }
+
+  return { status: 'success', workId: workId, workRemark: workRemark || '' };
 }
 
 /**

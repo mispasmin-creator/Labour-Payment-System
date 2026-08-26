@@ -44,6 +44,7 @@ export function TallyPage() {
       item.work.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.incharge.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.firmName && item.firmName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (item.workRemark && item.workRemark.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.paymentRef && item.paymentRef.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.tallyVoucher && item.tallyVoucher.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesIncharge = !inchargeFilter || item.incharge === inchargeFilter;
@@ -193,6 +194,7 @@ export function TallyPage() {
                 <th>Firm</th>
                 <th>Supervisor</th>
                 <th>Work Activity</th>
+                <th>Work Remark</th>
                 <th>Headcount</th>
                 <th>Amount</th>
                 {activeTab === 'history' && <th>Status</th>}
@@ -220,8 +222,23 @@ export function TallyPage() {
                     <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
                   </td>
                   <td>
-                    <div style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {entry.work}
+                    </div>
+                  </td>
+                  <td>
+                    <div
+                      style={{
+                        maxWidth: 160,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: entry.workRemark ? '#334155' : '#94A3B8',
+                        fontStyle: entry.workRemark ? 'normal' : 'italic'
+                      }}
+                      title={entry.workRemark || 'No remark'}
+                    >
+                      {entry.workRemark || '-'}
                     </div>
                   </td>
                   <td>
@@ -289,6 +306,12 @@ export function TallyPage() {
                 <div>
                   <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Supervisor:</span>
                   <div style={{ fontWeight: 600 }}>{selectedEntry.incharge}</div>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Work Remark:</span>
+                  <div style={{ color: selectedEntry.workRemark ? '#0F172A' : '#94A3B8', fontWeight: selectedEntry.workRemark ? 600 : 400, fontStyle: selectedEntry.workRemark ? 'normal' : 'italic' }}>
+                    {selectedEntry.workRemark || 'No remark provided'}
+                  </div>
                 </div>
               </div>
 

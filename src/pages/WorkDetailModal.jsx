@@ -227,6 +227,16 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
           </div>
         </div>
 
+        {/* Work Remark Display */}
+        <div className="card" style={{ marginBottom: 16, padding: '14px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
+            Work Remark / Description
+          </div>
+          <div style={{ fontSize: '0.92rem', color: entry.workRemark ? '#1E293B' : '#94A3B8', fontStyle: entry.workRemark ? 'normal' : 'italic' }}>
+            {entry.workRemark || 'No remark provided for this work order.'}
+          </div>
+        </div>
+
         {/* Assigned Labourers List (Only shown in Verification step) */}
         {showLabourNames && (
           <div className="card" style={{ marginBottom: 16, padding: '16px' }}>
