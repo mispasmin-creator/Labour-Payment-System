@@ -146,11 +146,11 @@ export function ReportsPage() {
               onChange={e => setStatusFilter(e.target.value)}
             >
               <option value="">All Stages</option>
-              <option value="Pending Verification">1. Pending Verification</option>
-              <option value="Verified (Pending Approval)">2. Verified (Pending Approval)</option>
-              <option value="Approved (Pending Payment)">3. Approved (Pending Payment)</option>
-              <option value="Paid (Pending Tally)">4. Paid (Pending Tally)</option>
-              <option value="Tally Complete">5. Tally Complete</option>
+              <option value="Pending Verification">Pending Verification</option>
+              <option value="Verified (Pending Approval)">Verified (Pending Approval)</option>
+              <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
+              <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
+              <option value="Tally Complete">Tally Complete</option>
             </select>
           </div>
 

@@ -29,10 +29,10 @@ export const SYSTEM_MODULES = [
   { id: 'dashboard', label: 'Dashboard Overview', path: '/' },
   { id: 'new_entry', label: 'New Work Entry (Form)', path: '/new-entry' },
   { id: 'tracker', label: 'All Work Orders Master Grid', path: '/tracker' },
-  { id: 'verification', label: '1. Work Verification', path: '/verification' },
-  { id: 'approval', label: '2. Payment Approval', path: '/approval' },
-  { id: 'payment', label: '3. Payment Disbursal', path: '/payment' },
-  { id: 'tally', label: '4. Tally Entry', path: '/tally' },
+  { id: 'verification', label: 'Work Verification', path: '/verification' },
+  { id: 'approval', label: 'Payment Approval', path: '/approval' },
+  { id: 'payment', label: 'Payment Disbursal', path: '/payment' },
+  { id: 'tally', label: 'Tally Entry', path: '/tally' },
   { id: 'reports', label: 'Reports & Export', path: '/reports' },
   { id: 'admin', label: 'Administration & User Access', path: '/admin' }
 ];

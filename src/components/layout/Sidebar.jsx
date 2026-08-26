@@ -109,13 +109,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           {hasPermission('verification') && (
             <NavLink
               to="/verification"
-              title="1. Verification"
+              title="Verification"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
                 <ShieldCheck size={18} />
-                <span>1. Verification</span>
+                <span>Verification</span>
               </div>
               {counts.pendingVerification > 0 && (
                 <span className="sidebar-badge amber">{counts.pendingVerification}</span>
@@ -127,13 +127,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           {hasPermission('approval') && (
             <NavLink
               to="/approval"
-              title="2. Payment Approval"
+              title="Payment Approval"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
                 <CheckCircle2 size={18} />
-                <span>2. Payment Approval</span>
+                <span>Payment Approval</span>
               </div>
               {counts.pendingApproval > 0 && (
                 <span className="sidebar-badge amber">{counts.pendingApproval}</span>
@@ -145,13 +145,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           {hasPermission('payment') && (
             <NavLink
               to="/payment"
-              title="3. Payment Disbursal"
+              title="Payment Disbursal"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
                 <CreditCard size={18} />
-                <span>3. Payment Disbursal</span>
+                <span>Payment Disbursal</span>
               </div>
               {counts.pendingPayment > 0 && (
                 <span className="sidebar-badge amber">{counts.pendingPayment}</span>
@@ -163,13 +163,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           {hasPermission('tally') && (
             <NavLink
               to="/tally"
-              title="4. Tally Entry"
+              title="Tally Entry"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
                 <FileCheck2 size={18} />
-                <span>4. Tally Entry</span>
+                <span>Tally Entry</span>
               </div>
               {counts.pendingTally > 0 && (
                 <span className="sidebar-badge amber">{counts.pendingTally}</span>

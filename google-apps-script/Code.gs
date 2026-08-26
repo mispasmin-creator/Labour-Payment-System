@@ -780,7 +780,7 @@ function getEntriesData(ss) {
     }
 
     const firmCol = findColIndex(mainSheet, ['firm', 'firm name', 'company'], 0) - 1;
-    const firmName = (firmCol >= 0 && row[firmCol]) ? String(row[firmCol]).trim() : (data && data.firmName ? data.firmName : '');
+    const firmName = (firmCol >= 0 && row[firmCol]) ? String(row[firmCol]).trim() : '';
 
     entries.push({
       timestamp: row[0],

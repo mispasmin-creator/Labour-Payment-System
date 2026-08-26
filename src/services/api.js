@@ -152,7 +152,7 @@ export async function fetchMasterData() {
   if (url) {
     try {
       const sep = url.includes('?') ? '&' : '?';
-      const response = await fetch(`${url}${sep}action=getMasterData`);
+      const response = await fetch(`${url}${sep}action=getMasterData`, { redirect: 'follow' });
       if (response.ok) {
         const json = await response.json();
         if (json && (json.incharges || json.labourers)) {

@@ -132,7 +132,7 @@ export function DashboardPage() {
         >
           <div className="metric-card-top">
             <span className="metric-title" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1E293B' }}>
-              1. Verification
+              Verification
             </span>
             <div className="metric-icon-wrap" style={{ background: '#FEF3C7', color: '#D97706' }}>
               <Clock size={18} />
@@ -166,7 +166,7 @@ export function DashboardPage() {
         >
           <div className="metric-card-top">
             <span className="metric-title" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1E293B' }}>
-              2. Payment Approval
+              Payment Approval
             </span>
             <div className="metric-icon-wrap" style={{ background: '#EFF6FF', color: '#2563EB' }}>
               <ShieldCheck size={18} />
@@ -200,7 +200,7 @@ export function DashboardPage() {
         >
           <div className="metric-card-top">
             <span className="metric-title" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1E293B' }}>
-              3. Payment Disbursal
+              Payment Disbursal
             </span>
             <div className="metric-icon-wrap" style={{ background: '#EEF2FF', color: '#4F46E5' }}>
               <CreditCard size={18} />
@@ -234,7 +234,7 @@ export function DashboardPage() {
         >
           <div className="metric-card-top">
             <span className="metric-title" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#1E293B' }}>
-              4. Tally Entry
+              Tally Entry
             </span>
             <div className="metric-icon-wrap" style={{ background: '#ECFDF5', color: '#059669' }}>
               <FileCheck2 size={18} />
