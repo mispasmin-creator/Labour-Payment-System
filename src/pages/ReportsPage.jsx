@@ -2,49 +2,46 @@ import React, { useState } from 'react';
 import {
   FileSpreadsheet,
   Download,
-  Filter,
   Calendar,
-  IndianRupee,
+  Filter,
   Users,
-  Clock,
+  IndianRupee,
   Layers,
-  FileCheck2,
-  Table
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatDate, formatDateTime } from '../utils/dateUtils';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { formatDate } from '../utils/dateUtils';
 import {
   exportToCSV,
   formatEntriesForExport,
-  formatFMSForExport,
-  formatWorkflowForExport
+  formatFMSForExport
 } from '../utils/exportUtils';
 
 export function ReportsPage() {
-  const { entries, masterData } = useApp();
-
+  const { entries, masterData, refreshData, syncing } = useApp();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [inchargeFilter, setInchargeFilter] = useState('');
   const [firmFilter, setFirmFilter] = useState('');
+  const [inchargeFilter, setInchargeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
   const uniqueFirms = Array.from(new Set(entries.map(e => e.firmName).filter(Boolean)));
 
-  // Filter entries
-  const filtered = entries.filter(e => {
-    if (inchargeFilter && e.incharge !== inchargeFilter) return false;
-    if (firmFilter && e.firmName !== firmFilter) return false;
-    if (statusFilter && e.status !== statusFilter) return false;
-    if (dateFrom && e.date < dateFrom) return false;
-    if (dateTo && e.date > dateTo) return false;
+  // Filtered entries
+  const filtered = entries.filter(item => {
+    if (dateFrom && new Date(item.date) < new Date(dateFrom)) return false;
+    if (dateTo && new Date(item.date) > new Date(dateTo)) return false;
+    if (firmFilter && item.firmName !== firmFilter) return false;
+    if (inchargeFilter && item.incharge !== inchargeFilter) return false;
+    if (statusFilter && item.status !== statusFilter) return false;
     return true;
   });
 
-  const totalFilteredAmount = filtered.reduce((s, e) => s + (Number(e.totalAmount) || 0), 0);
-  const totalFilteredLabourers = filtered.reduce((s, e) => s + (Number(e.labourCount) || 0), 0);
-  const completedCount = filtered.filter(e => e.status === 'Tally Complete').length;
+  const totalFilteredAmount = filtered.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
+  const totalFilteredLabourers = filtered.reduce((sum, item) => sum + (Number(item.labourCount) || 0), 0);
+  const completedCount = filtered.filter(item => item.status === 'Tally Complete').length;
 
   const handleExportEntrySheet = () => {
     const formatted = formatEntriesForExport(filtered);
@@ -54,11 +51,6 @@ export function ReportsPage() {
   const handleExportFMSSheet = () => {
     const formatted = formatFMSForExport(filtered);
     exportToCSV('FMS_Sheet_Export', formatted);
-  };
-
-  const handleExportWorkflowSheet = () => {
-    const formatted = formatWorkflowForExport(filtered);
-    exportToCSV('Workflow_4Stage_Sheet_Export', formatted);
   };
 
   return (
@@ -72,17 +64,24 @@ export function ReportsPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            onClick={refreshData}
+            disabled={syncing}
+            className="btn btn-outline-green btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            title="Sync Data"
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
+          </button>
+
           <button onClick={handleExportEntrySheet} className="btn btn-outline-green btn-sm">
             <Download size={14} />
             <span>Entry Sheet CSV</span>
           </button>
-          <button onClick={handleExportFMSSheet} className="btn btn-outline-green btn-sm">
+          <button onClick={handleExportFMSSheet} className="btn btn-primary btn-sm">
             <Download size={14} />
             <span>FMS Sheet CSV</span>
-          </button>
-          <button onClick={handleExportWorkflowSheet} className="btn btn-primary btn-sm">
-            <Download size={14} />
-            <span>Workflow Sheet CSV</span>
           </button>
         </div>
       </div>
@@ -209,32 +208,36 @@ export function ReportsPage() {
               <th>Count</th>
               <th>Total Amount</th>
               <th>Status</th>
-              <th>Payment Ref</th>
-              <th>Tally Voucher</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map(item => (
-              <tr key={item.workId}>
-                <td>
-                  <span className="work-id-badge">{item.workId}</span>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
+                  No records match your filter criteria.
                 </td>
-                <td>{formatDate(item.date)}</td>
-                <td>{item.shift || '-'}</td>
-                <td>
-                  <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                    {item.firmName || '-'}
-                  </span>
-                </td>
-                <td>{item.incharge}</td>
-                <td>{item.work}</td>
-                <td>{item.labourCount}</td>
-                <td>₹{Number(item.totalAmount).toLocaleString('en-IN')}</td>
-                <td><StatusBadge status={item.status} /></td>
-                <td>{item.paymentRef || '-'}</td>
-                <td>{item.tallyVoucher || '-'}</td>
               </tr>
-            ))}
+            ) : (
+              filtered.map(item => (
+                <tr key={item.workId}>
+                  <td>
+                    <span className="work-id-badge">{item.workId}</span>
+                  </td>
+                  <td>{formatDate(item.date)}</td>
+                  <td>{item.shift || '-'}</td>
+                  <td>
+                    <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
+                      {item.firmName || '-'}
+                    </span>
+                  </td>
+                  <td>{item.incharge}</td>
+                  <td>{item.work}</td>
+                  <td>{item.labourCount}</td>
+                  <td>₹{Number(item.totalAmount).toLocaleString('en-IN')}</td>
+                  <td><StatusBadge status={item.status} /></td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
