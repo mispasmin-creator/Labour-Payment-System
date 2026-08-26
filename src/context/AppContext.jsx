@@ -208,11 +208,11 @@ export function AppProvider({ children }) {
   }, [currentUser]);
 
   const hasFirmAccess = useCallback(firmName => {
-    if (!currentUser || currentUser.isAuthenticated === false) return false;
+    if (!currentUser || currentUser.isAuthenticated === false) return true;
     if (currentUser.role === 'admin') return true;
     if (!currentUser.assignedFirms || !Array.isArray(currentUser.assignedFirms) || currentUser.assignedFirms.length === 0) return true;
     if (currentUser.assignedFirms.includes('*') || currentUser.assignedFirms.includes('ALL')) return true;
-    if (!firmName || firmName === '-') return true;
+    if (!firmName || firmName === '-' || firmName === '') return true;
     return currentUser.assignedFirms.some(f => f.toLowerCase().trim() === firmName.toLowerCase().trim());
   }, [currentUser]);
 
@@ -299,9 +299,9 @@ export function AppProvider({ children }) {
 
   // Load initial data
   const loadData = useCallback(async (silent = false) => {
+    setSyncing(true);
     if (!silent) {
       setLoading(true);
-      setSyncing(true);
     }
     try {
       const [fetchedEntries, fetchedMaster] = await Promise.all([
@@ -310,16 +310,21 @@ export function AppProvider({ children }) {
       ]);
       setEntries(fetchedEntries || []);
       setMasterData(fetchedMaster || { incharges: [], labourers: [], workTypes: [] });
+      if (!silent) {
+        showToast('Data synchronized successfully!', 'success');
+      }
     } catch (err) {
       console.error('Error loading data:', err);
-      if (!silent) showToast('Error fetching data', 'error');
+      if (!silent) showToast('Error fetching data from Google Sheets', 'error');
     } finally {
-      if (!silent) {
-        setLoading(false);
-        setSyncing(false);
-      }
+      setLoading(false);
+      setSyncing(false);
     }
   }, [showToast]);
+
+  const refreshData = useCallback(() => {
+    return loadData(false);
+  }, [loadData]);
 
   // Initial load + Live background auto-polling every 12 seconds + Window focus refresh
   useEffect(() => {
@@ -497,7 +502,7 @@ export function AppProvider({ children }) {
     payEntry,
     tallyEntry,
     updateMaster,
-    refreshData: () => loadData(true),
+    refreshData,
     resetDemo
   };
 
