@@ -193,25 +193,35 @@ export async function fetchMasterData() {
   };
 }
 
-/**
- * Robust Sync Helper with POST for Google Apps Script Web App
- */
 export async function sendToAppsScript(action, data) {
   const url = getScriptUrl();
   if (!url) return false;
 
   try {
-    const res = await fetch(url, {
+    // Primary: POST with text/plain (mode: 'no-cors' prevents browser CORS preflight blocks)
+    await fetch(url, {
       method: 'POST',
+      mode: 'no-cors',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8'
       },
       body: JSON.stringify({ action, data })
     });
-    return res.ok;
+    return true;
   } catch (postErr) {
-    console.warn('Google Sheets POST sync error:', postErr);
-    return false;
+    console.warn('POST sync failed, trying GET fallback:', postErr);
+    try {
+      const sep = url.includes('?') ? '&' : '?';
+      const encodedData = encodeURIComponent(JSON.stringify(data));
+      await fetch(`${url}${sep}action=${action}&data=${encodedData}`, {
+        method: 'GET',
+        mode: 'no-cors'
+      });
+      return true;
+    } catch (getErr) {
+      console.error('All sync channels failed:', getErr);
+      return false;
+    }
   }
 }
 
