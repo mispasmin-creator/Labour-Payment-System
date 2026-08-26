@@ -37,15 +37,27 @@ export function Navbar({ onToggleSidebar }) {
       </div>
 
       <div className="navbar-actions">
-        {/* Refresh Button */}
+        {/* Refresh / Sync Button for All Users */}
         <button
           onClick={refreshData}
           disabled={syncing}
-          className="btn btn-secondary btn-sm"
-          title="Refresh Data"
+          className="btn btn-outline-green btn-sm"
+          title="Sync & Refresh Data from Google Sheets"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontWeight: 700,
+            padding: '6px 14px',
+            borderRadius: 10,
+            background: syncing ? '#F1F5F9' : '#ECFDF5',
+            borderColor: '#A7F3D0',
+            color: '#065F46',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          }}
         >
-          <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-          <span className="hide-mobile">Sync</span>
+          <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
+          <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
         </button>
 
         {/* User Badge */}

@@ -16,7 +16,8 @@ import {
   IndianRupee,
   Layers,
   Sparkles,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { MetricCard } from '../components/common/MetricCard';
@@ -27,7 +28,7 @@ import { WorkDetailModal } from './WorkDetailModal';
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { entries, counts } = useApp();
+  const { entries, counts, refreshData, syncing } = useApp();
   const [selectedWorkId, setSelectedWorkId] = useState(null);
 
   // Compute average delays
@@ -49,15 +50,15 @@ export function DashboardPage() {
       completed: entries.filter(e => ['Verified (Pending Approval)', 'Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.verificationActual)).length
     },
     approval: {
-      pending: entries.filter(e => e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual)).length,
+      pending: entries.filter(e => e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual)).length,
       completed: entries.filter(e => ['Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.approvalActual)).length
     },
     payment: {
-      pending: entries.filter(e => e.status === 'Approved (Pending Payment)' || (e.approvalActual && !e.paymentActual && !e.tallyActual)).length,
+      pending: entries.filter(e => e.status === 'Approved (Pending Payment)' || e.status === 'Approved' || (e.approvalActual && !e.paymentActual)).length,
       completed: entries.filter(e => ['Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.paymentActual)).length
     },
     tally: {
-      pending: entries.filter(e => e.status === 'Paid (Pending Tally)' || (e.paymentActual && !e.tallyActual)).length,
+      pending: entries.filter(e => e.status === 'Paid (Pending Tally)' || e.status === 'Paid' || (e.paymentActual && !e.tallyActual)).length,
       completed: entries.filter(e => e.status === 'Tally Complete' || Boolean(e.tallyActual)).length
     }
   };
@@ -85,6 +86,22 @@ export function DashboardPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={refreshData}
+            disabled={syncing}
+            className="btn btn-lg"
+            style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              color: '#FFFFFF',
+              border: '1px solid rgba(255,255,255,0.4)',
+              fontWeight: 700
+            }}
+            title="Sync & Refresh Data from Google Sheets"
+          >
+            <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync Live Data'}</span>
+          </button>
+
           <button
             onClick={() => navigate('/new-entry')}
             className="btn btn-lg"

@@ -3,7 +3,8 @@ import {
   TableProperties,
   Search,
   Download,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -12,7 +13,7 @@ import { WorkDetailModal } from './WorkDetailModal';
 import { exportToCSV, formatEntriesForExport } from '../utils/exportUtils';
 
 export function WorkTrackerPage() {
-  const { entries } = useApp();
+  const { entries, refreshData, syncing } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -55,6 +56,16 @@ export function WorkTrackerPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={refreshData}
+            disabled={syncing}
+            className="btn btn-outline-green btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
+          </button>
+
           <button onClick={handleExportCSV} className="btn btn-secondary btn-sm">
             <Download size={15} />
             <span>Export Filtered ({filteredEntries.length})</span>
