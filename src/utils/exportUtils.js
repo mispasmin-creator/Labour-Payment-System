@@ -241,3 +241,347 @@ export function printWorkSlip(entry) {
     printWindow.print();
   }, 500);
 }
+
+/**
+ * Format Incharge Wise Detailed Labour records for CSV export
+ */
+export function formatInchargeWiseForExport(records) {
+  return records.map((r, idx) => ({
+    'Sr No': idx + 1,
+    'Labour Name': r.labourName,
+    'Incharge': r.incharge,
+    'Firm': r.firmName || '-',
+    'Date': r.date,
+    'Shift': r.shift || '-',
+    'Work Type': r.work,
+    'Work Remark': r.workRemark || '',
+    'Days': r.days,
+    'Rate (₹)': r.rate,
+    'Amount (₹)': r.amount,
+    'Qty Made': r.qtyMade || 0,
+    'Status': r.status,
+    'Work ID': r.workId
+  }));
+}
+
+/**
+ * Trigger print dialog for the full Incharge Wise Labour Report (A4 layout)
+ */
+export function printInchargeWiseReport({ filters = {}, summary = {}, inchargeSummary = [], labourSummary = [], workTypeSummary = [], detailedRows = [] }) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+
+  const filterEntries = [
+    { label: 'Date Range', val: `${filters.dateFrom || 'All'} to ${filters.dateTo || 'All'}` },
+    { label: 'Incharge', val: filters.incharge || 'All Incharges' },
+    { label: 'Shift', val: filters.shift || 'All Shifts' },
+    { label: 'Firm', val: filters.firm || 'All Firms' },
+    { label: 'Labour', val: filters.labour || 'All Labourers' },
+    { label: 'Work Type', val: filters.workType || 'All Work Types' }
+  ];
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Incharge Wise Labour Report</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 12mm;
+          }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 10px;
+            font-size: 11px;
+            line-height: 1.35;
+          }
+          .header {
+            border-bottom: 2px solid #059669;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #065f46;
+            margin: 0;
+          }
+          .subtitle {
+            font-size: 11px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 2px;
+          }
+          .badge {
+            background: #ecfdf5;
+            color: #047857;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 10px;
+            border: 1px solid #a7f3d0;
+          }
+          .filter-box {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px 12px;
+          }
+          .filter-item { font-size: 10px; }
+          .filter-label { color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 9px; }
+          .filter-val { color: #0f172a; font-weight: 700; }
+          
+          .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+          }
+          .kpi-card {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 6px;
+            padding: 8px 10px;
+            text-align: center;
+          }
+          .kpi-label { font-size: 9px; font-weight: 700; color: #065f46; text-transform: uppercase; }
+          .kpi-val { font-size: 15px; font-weight: 800; color: #047857; margin-top: 2px; }
+
+          .section-title {
+            font-size: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 14px 0 6px 0;
+            border-left: 3px solid #059669;
+            padding-left: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 14px;
+            font-size: 10px;
+          }
+          th, td {
+            border: 1px solid #cbd5e1;
+            padding: 5px 7px;
+            text-align: left;
+          }
+          th {
+            background: #f1f5f9;
+            font-weight: 700;
+            color: #334155;
+            text-transform: uppercase;
+            font-size: 9px;
+          }
+          tr:nth-child(even) td {
+            background: #f8fafc;
+          }
+          .num { text-align: right; font-variant-numeric: tabular-nums; }
+          .bold { font-weight: 700; }
+          .emerald { color: #047857; font-weight: 700; }
+          
+          .footer {
+            margin-top: 20px;
+            padding-top: 14px;
+            border-top: 1px dashed #94a3b8;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #475569;
+          }
+          .sign-box { text-align: center; width: 140px; }
+          .sign-line { border-bottom: 1px solid #334155; height: 28px; margin-bottom: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">LABOUR PAYMENT SYSTEM</h1>
+            <div class="subtitle">INCHARGE WISE LABOUR REPORT & MIS ANALYTICS</div>
+          </div>
+          <div>
+            <span class="badge">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </div>
+        </div>
+
+        <div class="filter-box">
+          ${filterEntries.map(f => `
+            <div class="filter-item">
+              <div class="filter-label">${f.label}</div>
+              <div class="filter-val">${f.val}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Unique Labourers</div>
+            <div class="kpi-val">${summary.uniqueLabourers || 0} Persons</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Working Days</div>
+            <div class="kpi-val">${summary.totalDays || 0} Days</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Labour Amount</div>
+            <div class="kpi-val">₹${(summary.totalAmount || 0).toLocaleString('en-IN')}</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Amount / Labour</div>
+            <div class="kpi-val">₹${(summary.avgPerLabour || 0).toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        ${inchargeSummary.length > 0 ? `
+          <div class="section-title">1. Incharge Summary</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Incharge</th>
+                <th class="num">Labourers</th>
+                <th class="num">Total Days</th>
+                <th class="num">Total Amount</th>
+                <th class="num">Avg / Labour</th>
+                <th class="num">Avg / Day</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inchargeSummary.map(inc => `
+                <tr>
+                  <td class="bold">${inc.incharge}</td>
+                  <td class="num">${inc.uniqueLabourers}</td>
+                  <td class="num">${inc.totalDays}</td>
+                  <td class="num emerald">₹${Number(inc.totalAmount).toLocaleString('en-IN')}</td>
+                  <td class="num">₹${Number(inc.avgPerLabour).toLocaleString('en-IN')}</td>
+                  <td class="num">₹${Number(inc.avgPerDay).toLocaleString('en-IN')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        ${labourSummary.length > 0 ? `
+          <div class="section-title">2. Labour Wise Summary</div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Labour Name</th>
+                <th class="num">Total Days</th>
+                <th class="num">Total Amount</th>
+                <th class="num">Avg Amount / Day</th>
+                <th class="num">Work Entries</th>
+                <th>Work Types</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${labourSummary.slice(0, 30).map((l, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td class="bold">${l.labourName}</td>
+                  <td class="num">${l.totalDays}</td>
+                  <td class="num emerald">₹${Number(l.totalAmount).toLocaleString('en-IN')}</td>
+                  <td class="num">₹${Number(l.avgAmountPerDay).toLocaleString('en-IN')}</td>
+                  <td class="num">${l.workEntries}</td>
+                  <td>${l.workTypes.join(', ')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        ${workTypeSummary.length > 0 ? `
+          <div class="section-title">3. Type of Work Analysis</div>
+          <table>
+            <thead>
+              <tr>
+                <th>Work Type</th>
+                <th class="num">Labour Count</th>
+                <th class="num">Total Days</th>
+                <th class="num">Total Amount</th>
+                <th class="num">Qty Made</th>
+                <th class="num">Avg Qty/Labour</th>
+                <th class="num">Avg Amt/Labour</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${workTypeSummary.map(w => `
+                <tr>
+                  <td class="bold">${w.workType}</td>
+                  <td class="num">${w.labourCount}</td>
+                  <td class="num">${w.totalDays}</td>
+                  <td class="num emerald">₹${Number(w.totalAmount).toLocaleString('en-IN')}</td>
+                  <td class="num">${w.qtyMade}</td>
+                  <td class="num">${w.avgQtyPerLabour}</td>
+                  <td class="num">₹${Number(w.avgAmountPerLabour).toLocaleString('en-IN')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        ` : ''}
+
+        ${detailedRows.length > 0 ? `
+          <div class="section-title">4. Detailed Labour Entries (${detailedRows.length} Records)</div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Labour Name</th>
+                <th>Incharge</th>
+                <th>Date</th>
+                <th>Shift</th>
+                <th>Work Type</th>
+                <th>Remark</th>
+                <th class="num">Days</th>
+                <th class="num">Amount</th>
+                <th class="num">Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${detailedRows.slice(0, 50).map((r, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td class="bold">${r.labourName}</td>
+                  <td>${r.incharge}</td>
+                  <td>${r.date}</td>
+                  <td>${r.shift}</td>
+                  <td>${r.work}</td>
+                  <td>${r.workRemark || '-'}</td>
+                  <td class="num">${r.days}</td>
+                  <td class="num emerald">₹${Number(r.amount).toLocaleString('en-IN')}</td>
+                  <td class="num">${r.qtyMade || 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${detailedRows.length > 50 ? `<div style="font-size: 9px; color: #64748b; font-style: italic; margin-bottom: 10px;">* Showing first 50 detailed records in print view. Full dataset exported via CSV/Excel.</div>` : ''}
+        ` : ''}
+
+        <div class="footer">
+          <div class="sign-box"><div class="sign-line"></div><div>Incharge / Supervisor</div></div>
+          <div class="sign-box"><div class="sign-line"></div><div>Site Verifier</div></div>
+          <div class="sign-box"><div class="sign-line"></div><div>Accounts Approver</div></div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 500);
+}

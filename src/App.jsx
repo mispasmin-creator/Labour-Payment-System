@@ -10,6 +10,7 @@ import { PaymentPage } from './pages/PaymentPage';
 import { TallyPage } from './pages/TallyPage';
 import { WorkTrackerPage } from './pages/WorkTrackerPage';
 import { ReportsPage } from './pages/ReportsPage';
+import { InchargeWiseReportPage } from './pages/InchargeWiseReportPage';
 import { LoginPage } from './pages/LoginPage';
 import { AdministrationPage } from './pages/AdministrationPage';
 
@@ -41,6 +42,7 @@ function AppRoutes() {
         <Route path="tally" element={<TallyPage />} />
         <Route path="tracker" element={<WorkTrackerPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports/incharge-wise" element={<InchargeWiseReportPage />} />
         <Route path="admin" element={<AdministrationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

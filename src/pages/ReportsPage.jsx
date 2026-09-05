@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileSpreadsheet,
   Download,
@@ -8,7 +9,8 @@ import {
   IndianRupee,
   Layers,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  UserCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -20,6 +22,7 @@ import {
 } from '../utils/exportUtils';
 
 export function ReportsPage() {
+  const navigate = useNavigate();
   const { entries, masterData, refreshData, syncing } = useApp();
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -63,7 +66,24 @@ export function ReportsPage() {
           </h1>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={() => navigate('/reports/incharge-wise')}
+            className="btn btn-primary btn-sm"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+              boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
+              fontWeight: 800
+            }}
+            title="Open Dedicated Incharge Wise Labour MIS Analytics & Report"
+          >
+            <Users size={16} />
+            <span>👥 Incharge Wise Report</span>
+          </button>
+
           <button
             onClick={refreshData}
             disabled={syncing}
@@ -79,7 +99,7 @@ export function ReportsPage() {
             <Download size={14} />
             <span>Entry Sheet CSV</span>
           </button>
-          <button onClick={handleExportFMSSheet} className="btn btn-primary btn-sm">
+          <button onClick={handleExportFMSSheet} className="btn btn-secondary btn-sm">
             <Download size={14} />
             <span>FMS Sheet CSV</span>
           </button>
