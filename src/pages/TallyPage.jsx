@@ -10,7 +10,8 @@ import {
   CheckCheck,
   History,
   ListFilter,
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -27,6 +28,7 @@ export function TallyPage() {
   const [firmFilter, setFirmFilter] = useState('');
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [timelineWorkId, setTimelineWorkId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pending vs History
   const pendingTally = entries.filter(
@@ -71,11 +73,17 @@ export function TallyPage() {
 
   const handleConfirmTally = async e => {
     e.preventDefault();
-    if (!selectedEntry) return;
+    if (!selectedEntry || isSubmitting) return;
 
-    const voucherNo = selectedEntry.tallyVoucher || `TL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    await tallyEntry(selectedEntry.workId, voucherNo, 'Direct Labour Charges - Operations');
-    setSelectedEntry(null);
+    setIsSubmitting(true);
+    try {
+      const voucherNo = selectedEntry.tallyVoucher || `TL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      await tallyEntry(selectedEntry.workId, voucherNo, 'Direct Labour Charges - Operations');
+      setSelectedEntry(null);
+      setActiveTab('history');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -339,10 +347,20 @@ export function TallyPage() {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="btn btn-success"
               >
-                <CheckCheck size={16} />
-                <span>Confirm & Mark Tally Complete</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Posting Tally & Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCheck size={16} />
+                    <span>Confirm & Mark Tally Complete</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

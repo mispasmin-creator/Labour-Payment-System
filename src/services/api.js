@@ -374,8 +374,11 @@ export async function submitWorkEntry(entryData) {
   entries.unshift(newEntry);
   localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(entries));
 
-  const url = getScriptUrl();
-  await sendToAppsScript('submitLaborPayment', newEntry);
+  // Sync to Google Sheets in background without blocking UI
+  sendToAppsScript('submitLaborPayment', newEntry).catch(err => {
+    console.warn('Background sync to Google Sheets failed:', err);
+  });
+
   return newEntry;
 }
 

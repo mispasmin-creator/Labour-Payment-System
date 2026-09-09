@@ -73,6 +73,7 @@ export function NewEntryPage() {
   });
 
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Auto pre-fill first Incharge, Shift, Firm Name & Work Type when masterData loads
   useEffect(() => {
@@ -178,6 +179,7 @@ export function NewEntryPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    setIsSubmitting(true);
     try {
       const validNames = formData.labourNames.map(n => (n ? n.trim() : '')).filter(Boolean);
       const count = validNames.length > 0 ? validNames.length : 1;
@@ -203,6 +205,7 @@ export function NewEntryPage() {
       navigate('/tracker');
     } catch (err) {
       console.error(err);
+      setIsSubmitting(false);
     }
   };
 
@@ -480,12 +483,12 @@ export function NewEntryPage() {
               <div style={{ marginTop: 24 }}>
                 <button
                   type="submit"
-                  disabled={syncing}
+                  disabled={isSubmitting}
                   className="btn btn-primary btn-lg"
                   style={{ width: '100%', fontWeight: 700 }}
                 >
                   <CheckCircle2 size={18} />
-                  <span>{syncing ? 'Submitting Entry...' : 'Submit Work Entry'}</span>
+                  <span>{isSubmitting ? 'Submitting Entry...' : 'Submit Work Entry'}</span>
                 </button>
               </div>
             </div>

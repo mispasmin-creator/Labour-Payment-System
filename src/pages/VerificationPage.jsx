@@ -8,7 +8,8 @@ import {
   Users,
   Eye,
   History,
-  ListFilter
+  ListFilter,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -26,6 +27,8 @@ export function VerificationPage() {
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [timelineWorkId, setTimelineWorkId] = useState(null);
   const [remarks, setRemarks] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verifyingId, setVerifyingId] = useState(null);
 
   const getModalLabourers = entry => {
     if (!entry) return [];
@@ -99,9 +102,15 @@ export function VerificationPage() {
   };
 
   const handleConfirmVerify = async () => {
-    if (!selectedEntry) return;
-    await verifyEntry(selectedEntry.workId, remarks);
-    setSelectedEntry(null);
+    if (!selectedEntry || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await verifyEntry(selectedEntry.workId, remarks);
+      setSelectedEntry(null);
+      setActiveTab('history');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -412,10 +421,20 @@ export function VerificationPage() {
               <button
                 type="button"
                 onClick={handleConfirmVerify}
+                disabled={isSubmitting}
                 className="btn btn-primary"
               >
-                <CheckCircle2 size={16} />
-                <span>Confirm & Mark Verified</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Verifying & Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>Confirm & Mark Verified</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

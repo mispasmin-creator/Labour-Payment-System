@@ -10,7 +10,9 @@ import {
   Briefcase,
   History,
   ListFilter,
-  Eye
+  Eye,
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -26,6 +28,8 @@ export function PaymentApprovalPage() {
   const [firmFilter, setFirmFilter] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
   const [timelineWorkId, setTimelineWorkId] = useState(null);
+  const [approvingId, setApprovingId] = useState(null);
+  const [isBatchApproving, setIsBatchApproving] = useState(false);
 
   // Pending vs History
   const pendingApproval = entries.filter(
@@ -79,9 +83,26 @@ export function PaymentApprovalPage() {
   };
 
   const handleBatchApprove = async () => {
-    if (selectedIds.length === 0) return;
-    await approveBatch(selectedIds);
-    setSelectedIds([]);
+    if (selectedIds.length === 0 || isBatchApproving) return;
+    setIsBatchApproving(true);
+    try {
+      await approveBatch(selectedIds);
+      setSelectedIds([]);
+      setActiveTab('history');
+    } finally {
+      setIsBatchApproving(false);
+    }
+  };
+
+  const handleSingleApprove = async workId => {
+    if (approvingId) return;
+    setApprovingId(workId);
+    try {
+      await approveEntry(workId);
+      setActiveTab('history');
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   return (
@@ -181,11 +202,20 @@ export function PaymentApprovalPage() {
           {activeTab === 'pending' && selectedIds.length > 0 && (
             <button
               onClick={handleBatchApprove}
-              disabled={selectedIds.length === 0}
+              disabled={selectedIds.length === 0 || isBatchApproving}
               className="btn btn-indigo"
             >
-              <CheckCheck size={16} />
-              <span>Approve Selected ({selectedIds.length})</span>
+              {isBatchApproving ? (
+                <>
+                  <RefreshCw size={16} className="animate-spin" />
+                  <span>Approving {selectedIds.length}...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCheck size={16} />
+                  <span>Approve Selected ({selectedIds.length})</span>
+                </>
+              )}
             </button>
           )}
         </div>
@@ -301,11 +331,21 @@ export function PaymentApprovalPage() {
                   <td>
                     {activeTab === 'pending' ? (
                       <button
-                        onClick={() => approveEntry(entry.workId)}
+                        onClick={() => handleSingleApprove(entry.workId)}
+                        disabled={approvingId === entry.workId}
                         className="btn btn-indigo btn-sm"
                       >
-                        <CheckCircle2 size={14} />
-                        <span>Approve</span>
+                        {approvingId === entry.workId ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Approving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={14} />
+                            <span>Approve</span>
+                          </>
+                        )}
                       </button>
                     ) : (
                       <button

@@ -3,17 +3,13 @@ import confetti from 'canvas-confetti';
 import {
   fetchEntries,
   fetchMasterData,
-  submitWorkEntry,
-  submitVerification,
-  submitApproval,
-  submitPayment,
-  submitTally,
   saveMasterData,
-  updateWorkRemark as updateWorkRemarkApi,
   getScriptUrl,
   setScriptUrl as setScriptUrlApi,
-  resetToDemoData
+  resetToDemoData,
+  sendToAppsScript
 } from '../services/api';
+import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
 
 export const AppContext = createContext();
 
@@ -348,74 +344,257 @@ export function AppProvider({ children }) {
     };
   }, [loadData]);
 
-  // Create Work Entry
+  // Create Work Entry (Instant 0ms UI update)
   const createEntry = useCallback(async entryData => {
-    try {
-      const newEntry = await submitWorkEntry(entryData);
-      setEntries(prev => [newEntry, ...prev.filter(e => e.workId !== newEntry.workId)]);
-      showToast(`Work entry created: ${newEntry.workId}`, 'success');
-      triggerCelebration();
-      return newEntry;
-    } catch (err) {
-      showToast('Failed to create entry: ' + err.message, 'error');
-      throw err;
-    }
+    const timestamp = getNowTimestamp();
+    const labourCount = Number(entryData.labourCount) || (entryData.labourNames ? entryData.labourNames.length : 1);
+    const rate = Number(entryData.rate) || 0;
+    const totalAmount = labourCount * rate;
+
+    let newEntry = null;
+
+    setEntries(prev => {
+      let maxNum = 0;
+      prev.forEach(e => {
+        if (e.workId && e.workId.startsWith('WRK-')) {
+          const num = parseInt(e.workId.replace('WRK-', ''), 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+      });
+      const workId = entryData.workId || `WRK-${String(maxNum + 1).padStart(4, '0')}`;
+
+      newEntry = {
+        ...entryData,
+        workId,
+        timestamp,
+        labourCount,
+        rate,
+        totalAmount,
+        firmName: entryData.firmName || entryData.firm || 'PMMPL',
+        workRemark: entryData.workRemark || '',
+        status: 'Pending Verification',
+        verificationPlanned: timestamp,
+        verificationActual: null,
+        verificationDelay: '-',
+        approvalPlanned: null,
+        approvalActual: null,
+        approvalDelay: '-',
+        paymentPlanned: null,
+        paymentActual: null,
+        paymentDelay: '-',
+        paymentMethod: '',
+        paymentRef: '',
+        tallyPlanned: null,
+        tallyActual: null,
+        tallyDelay: '-',
+        tallyVoucher: '',
+        tallyLedger: ''
+      };
+
+      const next = [newEntry, ...prev.filter(e => e.workId !== newEntry.workId)];
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`Work entry created: ${newEntry?.workId}`, 'success');
+    triggerCelebration();
+
+    // Background sync to Google Apps Script
+    sendToAppsScript('submitLaborPayment', newEntry).catch(err => {
+      console.warn('Background sync to Google Sheets failed:', err);
+    });
+
+    return newEntry;
   }, [showToast, triggerCelebration]);
 
-  // Stage 1: Verify Work
+  // Stage 1: Verify Work (Instant 0ms UI update)
   const verifyEntry = useCallback(async (workId, remarks = '') => {
-    try {
-      const updated = await submitVerification(workId, remarks);
-      setEntries(prev => prev.map(e => (e.workId === workId ? updated : e)));
-      showToast(`${workId} verified successfully`, 'success');
-      triggerCelebration();
-      return updated;
-    } catch (err) {
-      showToast('Failed to verify entry: ' + err.message, 'error');
-      throw err;
-    }
+    const now = getNowTimestamp();
+    let updatedItem = null;
+
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          const delayInfo = calculateWorkflowDelay(e.verificationPlanned, now);
+          updatedItem = {
+            ...e,
+            status: 'Verified (Pending Approval)',
+            verificationActual: now,
+            verificationDelay: delayInfo.formatted,
+            verificationRemarks: remarks,
+            approvalPlanned: now
+          };
+          return updatedItem;
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`${workId} verified successfully`, 'success');
+    triggerCelebration();
+
+    // Background sync
+    sendToAppsScript('verifyWork', { workId, remarks }).catch(err =>
+      console.warn('Verification sync failed:', err)
+    );
+
+    return updatedItem;
   }, [showToast, triggerCelebration]);
 
-  // Stage 2: Approve Payment
+  // Stage 2: Approve Payment (Instant 0ms UI update)
   const approveEntry = useCallback(async workId => {
-    try {
-      const updated = await submitApproval(workId);
-      setEntries(prev => prev.map(e => (e.workId === workId ? updated : e)));
-      showToast(`${workId} approved for payment`, 'success');
-      triggerCelebration();
-      return updated;
-    } catch (err) {
-      showToast('Failed to approve entry: ' + err.message, 'error');
-      throw err;
-    }
+    const now = getNowTimestamp();
+    let updatedItem = null;
+
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          const delayInfo = calculateWorkflowDelay(e.approvalPlanned, now);
+          updatedItem = {
+            ...e,
+            status: 'Approved (Pending Payment)',
+            approvalActual: now,
+            approvalDelay: delayInfo.formatted,
+            paymentPlanned: now
+          };
+          return updatedItem;
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`${workId} approved for payment`, 'success');
+    triggerCelebration();
+
+    // Background sync
+    sendToAppsScript('approvePayment', { workId }).catch(err =>
+      console.warn('Approval sync failed:', err)
+    );
+
+    return updatedItem;
   }, [showToast, triggerCelebration]);
 
-  // Stage 3: Record Payment
-  const payEntry = useCallback(async (workId, paymentMethod, paymentRef) => {
-    try {
-      const updated = await submitPayment(workId, paymentMethod, paymentRef);
-      setEntries(prev => prev.map(e => (e.workId === workId ? updated : e)));
-      showToast(`Payment recorded for ${workId}`, 'success');
-      triggerCelebration();
-      return updated;
-    } catch (err) {
-      showToast('Failed to record payment: ' + err.message, 'error');
-      throw err;
-    }
+  // Stage 2 Batch: Approve Multiple Payments (Instant 0ms UI update)
+  const approveBatch = useCallback(async workIds => {
+    if (!Array.isArray(workIds) || workIds.length === 0) return;
+    const now = getNowTimestamp();
+
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (workIds.includes(e.workId)) {
+          const delayInfo = calculateWorkflowDelay(e.approvalPlanned, now);
+          return {
+            ...e,
+            status: 'Approved (Pending Payment)',
+            approvalActual: now,
+            approvalDelay: delayInfo.formatted,
+            paymentPlanned: now
+          };
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`${workIds.length} entries approved for payment`, 'success');
+    triggerCelebration();
+
+    // Background batch sync
+    workIds.forEach(workId => {
+      sendToAppsScript('approvePayment', { workId }).catch(err =>
+        console.warn('Batch approval sync failed:', err)
+      );
+    });
   }, [showToast, triggerCelebration]);
 
-  // Stage 4: Record Tally
-  const tallyEntry = useCallback(async (workId, tallyVoucher, tallyLedger) => {
-    try {
-      const updated = await submitTally(workId, tallyVoucher, tallyLedger);
-      setEntries(prev => prev.map(e => (e.workId === workId ? updated : e)));
-      showToast(`Tally posted for ${workId}`, 'success');
-      triggerCelebration();
-      return updated;
-    } catch (err) {
-      showToast('Failed to post tally: ' + err.message, 'error');
-      throw err;
-    }
+  // Stage 3: Record Payment (Instant 0ms UI update)
+  const payEntry = useCallback(async (workId, paymentMethod = 'Direct Payment', paymentRef = '') => {
+    const now = getNowTimestamp();
+    let updatedItem = null;
+
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          const delayInfo = calculateWorkflowDelay(e.paymentPlanned, now);
+          updatedItem = {
+            ...e,
+            status: 'Paid (Pending Tally)',
+            paymentActual: now,
+            paymentDelay: delayInfo.formatted,
+            paymentMethod: paymentMethod || 'Direct Payment',
+            paymentRef: paymentRef || '',
+            tallyPlanned: now
+          };
+          return updatedItem;
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`Payment recorded for ${workId}`, 'success');
+    triggerCelebration();
+
+    // Background sync
+    sendToAppsScript('recordPayment', { workId, paymentMethod, paymentRef }).catch(err =>
+      console.warn('Payment sync failed:', err)
+    );
+
+    return updatedItem;
+  }, [showToast, triggerCelebration]);
+
+  // Stage 4: Record Tally (Instant 0ms UI update)
+  const tallyEntry = useCallback(async (workId, tallyVoucher = '', tallyLedger = 'Direct Labour Charges') => {
+    const now = getNowTimestamp();
+    let updatedItem = null;
+
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          const delayInfo = calculateWorkflowDelay(e.tallyPlanned, now);
+          updatedItem = {
+            ...e,
+            status: 'Tally Complete',
+            tallyActual: now,
+            tallyDelay: delayInfo.formatted,
+            tallyVoucher: tallyVoucher || '',
+            tallyLedger: tallyLedger || 'Direct Labour Charges'
+          };
+          return updatedItem;
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    showToast(`Tally posted for ${workId}`, 'success');
+    triggerCelebration();
+
+    // Background sync
+    sendToAppsScript('recordTally', { workId, tallyVoucher, tallyLedger }).catch(err =>
+      console.warn('Tally sync failed:', err)
+    );
+
+    return updatedItem;
   }, [showToast, triggerCelebration]);
 
   // Update Master Data
@@ -475,16 +654,21 @@ export function AppProvider({ children }) {
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0)
   };
 
-  const editWorkRemark = useCallback(async (workId, workRemark) => {
-    try {
-      await updateWorkRemarkApi(workId, workRemark);
-      setEntries(prev => prev.map(e => (e.workId === workId ? { ...e, workRemark } : e)));
-      showToast('Work Remark updated successfully', 'success');
-      return true;
-    } catch (err) {
-      showToast('Failed to update remark', 'error');
-      return false;
-    }
+  const editWorkRemark = useCallback((workId, workRemark) => {
+    setEntries(prev => {
+      const next = prev.map(e => (e.workId === workId ? { ...e, workRemark } : e));
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+    showToast('Work Remark updated successfully', 'success');
+
+    sendToAppsScript('updateWorkRemark', { workId, workRemark }).catch(err => {
+      console.warn('Remark sync failed:', err);
+    });
+
+    return true;
   }, [showToast]);
 
   const value = {
@@ -512,6 +696,7 @@ export function AppProvider({ children }) {
     createEntry,
     verifyEntry,
     approveEntry,
+    approveBatch,
     payEntry,
     tallyEntry,
     updateMaster,

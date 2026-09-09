@@ -9,7 +9,8 @@ import {
   ListFilter,
   Eye,
   Receipt,
-  Building2
+  Building2,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -25,6 +26,7 @@ export function PaymentPage() {
   const [firmFilter, setFirmFilter] = useState('');
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [timelineWorkId, setTimelineWorkId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pending vs History
   const pendingPayment = entries.filter(
@@ -67,10 +69,16 @@ export function PaymentPage() {
 
   const handleConfirmPayment = async e => {
     e.preventDefault();
-    if (!selectedEntry) return;
+    if (!selectedEntry || isSubmitting) return;
 
-    await payEntry(selectedEntry.workId, 'Direct Payment', '');
-    setSelectedEntry(null);
+    setIsSubmitting(true);
+    try {
+      await payEntry(selectedEntry.workId, 'Direct Payment', '');
+      setSelectedEntry(null);
+      setActiveTab('history');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -339,10 +347,20 @@ export function PaymentPage() {
               </button>
               <button
                 type="submit"
+                disabled={isSubmitting}
                 className="btn btn-teal"
               >
-                <CheckCircle2 size={16} />
-                <span>Confirm & Mark as Paid</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    <span>Disbursing & Moving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    <span>Confirm & Mark as Paid</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
