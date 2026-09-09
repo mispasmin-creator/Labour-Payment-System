@@ -21,7 +21,8 @@ import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
 
 export function TallyPage() {
-  const { entries, tallyEntry, syncing } = useApp();
+  const { entries, tallyEntry, syncing, canPerformAction } = useApp();
+  const canTally = canPerformAction('tally');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -264,13 +265,23 @@ export function TallyPage() {
                   )}
                   <td>
                     {activeTab === 'pending' ? (
-                      <button
-                        onClick={() => handleOpenTallyModal(entry)}
-                        className="btn btn-success btn-sm"
-                      >
-                        <BookOpen size={14} />
-                        <span>Submit Tally</span>
-                      </button>
+                      canTally ? (
+                        <button
+                          onClick={() => handleOpenTallyModal(entry)}
+                          className="btn btn-success btn-sm"
+                        >
+                          <BookOpen size={14} />
+                          <span>Submit Tally</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setTimelineWorkId(entry.workId)}
+                          className="btn btn-outline-green btn-sm"
+                        >
+                          <Eye size={14} />
+                          <span>View</span>
+                        </button>
+                      )
                     ) : (
                       <button
                         onClick={() => setTimelineWorkId(entry.workId)}

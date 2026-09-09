@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -27,7 +28,8 @@ const DEFAULT_FIRMS = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
 
 export function NewEntryPage() {
   const navigate = useNavigate();
-  const { masterData, createEntry, syncing, currentUser, hasFirmAccess } = useApp();
+  const { masterData, createEntry, syncing, currentUser, hasFirmAccess, canPerformAction } = useApp();
+  const canCreate = canPerformAction('new_entry');
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -481,15 +483,30 @@ export function NewEntryPage() {
               </div>
 
               <div style={{ marginTop: 24 }}>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn btn-primary btn-lg"
-                  style={{ width: '100%', fontWeight: 700 }}
-                >
-                  <CheckCircle2 size={18} />
-                  <span>{isSubmitting ? 'Submitting Entry...' : 'Submit Work Entry'}</span>
-                </button>
+                {canCreate ? (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn btn-primary btn-lg"
+                    style={{ width: '100%', fontWeight: 700 }}
+                  >
+                    <CheckCircle2 size={18} />
+                    <span>{isSubmitting ? 'Submitting Entry...' : 'Submit Work Entry'}</span>
+                  </button>
+                ) : (
+                  <div style={{
+                    background: '#EFF6FF',
+                    border: '1px solid #BFDBFE',
+                    color: '#1E40AF',
+                    padding: '12px 16px',
+                    borderRadius: 10,
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    fontSize: '0.9rem'
+                  }}>
+                    👁️ View-Only Access (New Entry Submission Disabled)
+                  </div>
+                )}
               </div>
             </div>
           </div>

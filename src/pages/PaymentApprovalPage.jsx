@@ -21,7 +21,8 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { WorkDetailModal } from './WorkDetailModal';
 
 export function PaymentApprovalPage() {
-  const { entries, approveEntry, approveBatch, syncing } = useApp();
+  const { entries, approveEntry, approveBatch, syncing, canPerformAction } = useApp();
+  const canApprove = canPerformAction('approval');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -330,23 +331,33 @@ export function PaymentApprovalPage() {
                   )}
                   <td>
                     {activeTab === 'pending' ? (
-                      <button
-                        onClick={() => handleSingleApprove(entry.workId)}
-                        disabled={approvingId === entry.workId}
-                        className="btn btn-indigo btn-sm"
-                      >
-                        {approvingId === entry.workId ? (
-                          <>
-                            <RefreshCw size={14} className="animate-spin" />
-                            <span>Approving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 size={14} />
-                            <span>Approve</span>
-                          </>
-                        )}
-                      </button>
+                      canApprove ? (
+                        <button
+                          onClick={() => handleSingleApprove(entry.workId)}
+                          disabled={approvingId === entry.workId}
+                          className="btn btn-indigo btn-sm"
+                        >
+                          {approvingId === entry.workId ? (
+                            <>
+                              <RefreshCw size={14} className="animate-spin" />
+                              <span>Approving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 size={14} />
+                              <span>Approve</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setTimelineWorkId(entry.workId)}
+                          className="btn btn-outline-green btn-sm"
+                        >
+                          <Eye size={14} />
+                          <span>View</span>
+                        </button>
+                      )
                     ) : (
                       <button
                         onClick={() => setTimelineWorkId(entry.workId)}

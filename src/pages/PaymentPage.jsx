@@ -19,7 +19,8 @@ import { WorkDetailModal } from './WorkDetailModal';
 import { Modal } from '../components/common/Modal';
 
 export function PaymentPage() {
-  const { entries, payEntry, syncing } = useApp();
+  const { entries, payEntry, syncing, canPerformAction } = useApp();
+  const canDisburse = canPerformAction('payment');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -262,13 +263,23 @@ export function PaymentPage() {
                   )}
                   <td>
                     {activeTab === 'pending' ? (
-                      <button
-                        onClick={() => handleOpenPayModal(entry)}
-                        className="btn btn-teal btn-sm"
-                      >
-                        <Receipt size={14} />
-                        <span>Record Payment</span>
-                      </button>
+                      canDisburse ? (
+                        <button
+                          onClick={() => handleOpenPayModal(entry)}
+                          className="btn btn-teal btn-sm"
+                        >
+                          <Receipt size={14} />
+                          <span>Record Payment</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setTimelineWorkId(entry.workId)}
+                          className="btn btn-outline-green btn-sm"
+                        >
+                          <Eye size={14} />
+                          <span>View</span>
+                        </button>
+                      )
                     ) : (
                       <button
                         onClick={() => setTimelineWorkId(entry.workId)}

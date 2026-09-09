@@ -208,3 +208,27 @@ export const INITIAL_ENTRIES = [
     verificationDelay: '-'
   }
 ];
+
+export const DEFAULT_LOGIN_USERS = [
+  {
+    id: 'usr_admin',
+    username: 'admin',
+    password: 'admin123',
+    name: 'Administrator',
+    role: 'admin',
+    status: 'active',
+    assignedFirms: ['*'],
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
+  },
+  {
+    id: 'usr_bhupendra',
+    username: 'DME',
+    password: 'user123',
+    name: 'Bhupendra',
+    role: 'user',
+    status: 'active',
+    assignedFirms: ['*'],
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally']
+  }
+];
+

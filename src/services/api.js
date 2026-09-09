@@ -3,14 +3,15 @@
  * Handles communication with Google Apps Script Web App with offline LocalStorage fallback.
  */
 
-import { INITIAL_ENTRIES, INITIAL_MASTER_DATA } from '../utils/mockData';
+import { INITIAL_ENTRIES, INITIAL_MASTER_DATA, DEFAULT_LOGIN_USERS } from '../utils/mockData';
 import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
 
 const STORAGE_KEYS = {
   SCRIPT_URL: 'labour_sys_script_url',
   ENTRIES: 'labour_sys_entries',
   MASTER: 'labour_sys_master',
-  ROLE: 'labour_sys_current_role'
+  ROLE: 'labour_sys_current_role',
+  USERS: 'labour_sys_users_db'
 };
 
 const INVALID_ROW_KEYWORDS = [
@@ -232,6 +233,48 @@ export async function saveMasterData(masterData) {
   localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(masterData));
   await sendToAppsScript('updateMasterData', masterData);
   return { success: true, data: masterData };
+}
+
+/**
+ * Fetch Users from "Login Page" Sheet in Google Sheets
+ */
+export async function fetchUsers() {
+  const url = getScriptUrl();
+
+  if (url) {
+    try {
+      const sep = url.includes('?') ? '&' : '?';
+      const response = await fetch(`${url}${sep}action=getUsers`, { redirect: 'follow' });
+      if (response.ok) {
+        const json = await response.json();
+        if (json && Array.isArray(json.users) && json.users.length > 0) {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(json.users));
+          return json.users;
+        }
+      }
+    } catch (e) {
+      console.warn('Google Sheets fetchUsers failed, using cached/default users:', e);
+    }
+  }
+
+  const stored = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.USERS) : null;
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length >= DEFAULT_LOGIN_USERS.length) return parsed;
+    } catch (e) {}
+  }
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_LOGIN_USERS));
+  return DEFAULT_LOGIN_USERS;
+}
+
+/**
+ * Save / Update Users in "Login Page" Sheet in Google Sheets
+ */
+export async function saveUsersToRemote(users) {
+  localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  await sendToAppsScript('updateUsers', { users });
+  return { success: true, data: users };
 }
 
 /**

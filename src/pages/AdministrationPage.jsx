@@ -24,13 +24,14 @@ import {
   FileSpreadsheet,
   PlusCircle,
   TableProperties,
-  LayoutDashboard
+  LayoutDashboard,
+  Zap
 } from 'lucide-react';
 import { useApp, SYSTEM_MODULES } from '../context/AppContext';
 import { Modal } from '../components/common/Modal';
 
 export function AdministrationPage() {
-  const { users, currentUser, masterData, addUser, updateUser, deleteUser } = useApp();
+  const { users, currentUser, masterData, addUser, updateUser, deleteUser, getAccessLevel } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
@@ -51,16 +52,28 @@ export function AdministrationPage() {
     role: 'user',
     status: 'active',
     assignedFirms: ['*'],
-    permissions: ['dashboard', 'new_entry', 'tracker', 'verification']
+    permissions: SYSTEM_MODULES.reduce((acc, m) => {
+      acc[m.id] = 'full';
+      return acc;
+    }, {})
   });
 
   const [formErrors, setFormErrors] = useState({});
 
+  // Helper to extract access map for a user
+  const getUserAccessMap = userObj => {
+    const map = {};
+    SYSTEM_MODULES.forEach(m => {
+      map[m.id] = getAccessLevel(userObj, m.id);
+    });
+    return map;
+  };
+
   // Filtered user list
   const filteredUsers = (users || []).filter(u => {
     const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.username.toLowerCase().includes(searchTerm.toLowerCase());
+      (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.username || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = !roleFilter || u.role === roleFilter;
     return matchesSearch && matchesRole;
   });
@@ -71,6 +84,10 @@ export function AdministrationPage() {
   const handleOpenAddModal = () => {
     setEditingUser(null);
     setShowModalPassword(false);
+    const initialPerms = {};
+    SYSTEM_MODULES.forEach(m => {
+      initialPerms[m.id] = ['dashboard', 'new_entry', 'tracker'].includes(m.id) ? 'full' : 'view';
+    });
     setFormData({
       name: '',
       username: '',
@@ -78,7 +95,7 @@ export function AdministrationPage() {
       role: 'user',
       status: 'active',
       assignedFirms: ['*'],
-      permissions: ['dashboard', 'new_entry', 'tracker', 'verification']
+      permissions: initialPerms
     });
     setFormErrors({});
     setIsModalOpen(true);
@@ -87,41 +104,36 @@ export function AdministrationPage() {
   const handleOpenEditModal = userToEdit => {
     setEditingUser(userToEdit);
     setShowModalPassword(false);
+    const currentMap = getUserAccessMap(userToEdit);
     setFormData({
-      name: userToEdit.name,
+      name: userToEdit.name || userToEdit.username,
       username: userToEdit.username,
       password: userToEdit.password || '',
       role: userToEdit.role || 'user',
       status: userToEdit.status || 'active',
       assignedFirms: Array.isArray(userToEdit.assignedFirms) && userToEdit.assignedFirms.length > 0 ? userToEdit.assignedFirms : ['*'],
-      permissions: userToEdit.permissions || []
+      permissions: currentMap
     });
     setFormErrors({});
     setIsModalOpen(true);
   };
 
-  const handleTogglePermission = moduleId => {
-    setFormData(prev => {
-      const exists = prev.permissions.includes(moduleId);
-      const updated = exists
-        ? prev.permissions.filter(p => p !== moduleId)
-        : [...prev.permissions, moduleId];
-      return { ...prev, permissions: updated };
+  const handleSetModuleAccess = (moduleId, level) => {
+    setFormData(prev => ({
+      ...prev,
+      permissions: {
+        ...(typeof prev.permissions === 'object' && !Array.isArray(prev.permissions) ? prev.permissions : {}),
+        [moduleId]: level
+      }
+    }));
+  };
+
+  const handleSetAllAccess = level => {
+    const updated = {};
+    SYSTEM_MODULES.forEach(m => {
+      updated[m.id] = level;
     });
-  };
-
-  const handleSelectAllPermissions = () => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: SYSTEM_MODULES.map(m => m.id)
-    }));
-  };
-
-  const handleDeselectAllPermissions = () => {
-    setFormData(prev => ({
-      ...prev,
-      permissions: []
-    }));
+    setFormData(prev => ({ ...prev, permissions: updated }));
   };
 
   // Firm Access Handlers
@@ -155,7 +167,9 @@ export function AdministrationPage() {
     if (!formData.name.trim()) errors.name = 'Full name is required';
     if (!formData.username.trim()) errors.username = 'Username is required';
     if (!formData.password || !formData.password.trim()) errors.password = 'Password is required';
-    if (formData.permissions.length === 0) errors.permissions = 'At least 1 module permission must be granted';
+
+    const activeCount = Object.values(formData.permissions || {}).filter(v => v === 'view' || v === 'full').length;
+    if (activeCount === 0) errors.permissions = 'At least 1 module permission (View or Full Access) must be granted';
 
     // Duplicate username check
     const existing = users.find(
@@ -174,10 +188,22 @@ export function AdministrationPage() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Convert permissions map to format supported by app
+    const permsArray = [];
+    Object.entries(formData.permissions || {}).forEach(([mId, lvl]) => {
+      if (lvl === 'full') permsArray.push(mId); // or mId:full
+      else if (lvl === 'view') permsArray.push(`${mId}:view`);
+    });
+
+    const userPayload = {
+      ...formData,
+      permissions: permsArray
+    };
+
     if (editingUser) {
-      updateUser(editingUser.id, formData);
+      updateUser(editingUser.id, userPayload);
     } else {
-      addUser(formData);
+      addUser(userPayload);
     }
     setIsModalOpen(false);
   };
@@ -192,8 +218,8 @@ export function AdministrationPage() {
   };
 
   const handleDeleteUser = userToDelete => {
-    if (userToDelete.username === 'admin') {
-      alert('The primary Admin account cannot be deleted.');
+    if (userToDelete.username === 'admin' || userToDelete.username === 'admin13') {
+      alert('Primary Admin accounts cannot be deleted.');
       return;
     }
     if (userToDelete.username === currentUser?.username) {
@@ -230,7 +256,7 @@ export function AdministrationPage() {
             <span>User Management & Access Control</span>
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#64748B', marginTop: 4 }}>
-            Create users, manage roles, and customize granular permissions for each module.
+            Manage user roles, assigned firms, and granular <strong>View</strong> vs <strong>Full Access</strong> permissions.
           </p>
         </div>
 
@@ -283,198 +309,248 @@ export function AdministrationPage() {
         <table className="data-table">
           <thead>
             <tr>
-              <th>User</th>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Assigned Firms</th>
-              <th>Status</th>
-              <th>Permitted Modules & Access</th>
-              <th>Actions</th>
+              <th>USER</th>
+              <th>USERNAME</th>
+              <th>ROLE</th>
+              <th>ASSIGNED FIRMS</th>
+              <th>STATUS</th>
+              <th>PERMITTED MODULES & ACCESS</th>
+              <th style={{ textAlign: 'center' }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.map(u => (
-              <tr key={u.id}>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: '50%',
-                      background: u.role === 'admin' ? '#ECFDF5' : '#EFF6FF',
-                      color: u.role === 'admin' ? '#059669' : '#2563EB',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontWeight: 700,
-                      fontSize: '0.9rem',
-                      flexShrink: 0
+            {filteredUsers.map(u => {
+              const accessMap = getUserAccessMap(u);
+              return (
+                <tr key={u.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        background: u.role === 'admin' ? '#ECFDF5' : '#EFF6FF',
+                        color: u.role === 'admin' ? '#059669' : '#2563EB',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: '0.95rem',
+                        flexShrink: 0
+                      }}>
+                        {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.92rem' }}>
+                          {u.name || u.username}
+                        </div>
+                        {u.username === currentUser?.username && (
+                          <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: 700, marginTop: 2 }}>
+                            (Current You)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.84rem',
+                      background: '#F8FAFC',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #E2E8F0',
+                      fontWeight: 600,
+                      color: '#334155'
                     }}>
-                      {u.name ? u.name.charAt(0).toUpperCase() : 'U'}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700, color: '#0F172A' }}>{u.name}</div>
-                      {u.username === currentUser?.username && (
-                        <span style={{ fontSize: '0.7rem', color: '#059669', fontWeight: 700 }}>
-                          (Current You)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', background: '#F8FAFC', padding: '3px 8px', borderRadius: 4, border: '1px solid #E2E8F0', fontWeight: 600 }}>
-                    {u.username}
-                  </span>
-                </td>
-                <td>
-                  <span style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    background: u.role === 'admin' ? '#ECFDF5' : '#EFF6FF',
-                    color: u.role === 'admin' ? '#065F46' : '#1E40AF',
-                    border: `1px solid ${u.role === 'admin' ? '#A7F3D0' : '#BFDBFE'}`
-                  }}>
-                    {u.role === 'admin' ? 'Admin' : 'User'}
-                  </span>
-                </td>
-                <td>
-                  {(!u.assignedFirms || u.assignedFirms.includes('*') || u.assignedFirms.includes('ALL')) ? (
+                      {u.username}
+                    </span>
+                  </td>
+                  <td>
                     <span style={{
                       fontSize: '0.75rem',
-                      fontWeight: 700,
-                      color: '#047857',
-                      background: '#ECFDF5',
-                      padding: '3px 8px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      padding: '4px 10px',
                       borderRadius: 6,
-                      border: '1px solid #A7F3D0',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4
+                      background: u.role === 'admin' ? '#D1FAE5' : '#DBEAFE',
+                      color: u.role === 'admin' ? '#065F46' : '#1E40AF',
+                      border: `1px solid ${u.role === 'admin' ? '#6EE7B7' : '#93C5FD'}`
                     }}>
-                      🏢 All Firms
+                      {u.role === 'admin' ? 'ADMIN' : 'USER'}
                     </span>
-                  ) : (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 200 }}>
-                      {u.assignedFirms.map(f => (
-                        <span key={f} style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          background: '#F1F5F9',
-                          color: '#334155',
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          border: '1px solid #E2E8F0'
-                        }}>
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  <button
-                    onClick={() => handleToggleStatus(u)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: 0
-                    }}
-                    title="Click to toggle status"
-                  >
-                    {u.status === 'active' ? (
+                  </td>
+                  <td>
+                    {(!u.assignedFirms || u.assignedFirms.includes('*') || u.assignedFirms.includes('ALL')) ? (
                       <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        background: '#DCFCE7',
-                        color: '#15803D',
                         fontSize: '0.75rem',
                         fontWeight: 700,
-                        padding: '3px 8px',
+                        color: '#065F46',
+                        background: '#ECFDF5',
+                        padding: '4px 10px',
                         borderRadius: 6,
-                        border: '1px solid #86EFAC'
+                        border: '1px solid #A7F3D0',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
                       }}>
-                        <Check size={12} /> Active
+                        📊 All Firms
                       </span>
                     ) : (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 5,
-                        background: '#F1F5F9',
-                        color: '#64748B',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: 6,
-                        border: '1px solid #CBD5E1'
-                      }}>
-                        <X size={12} /> Inactive
-                      </span>
-                    )}
-                  </button>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 360 }}>
-                    {(u.permissions || []).map(permId => {
-                      const mod = SYSTEM_MODULES.find(m => m.id === permId);
-                      if (!mod) return null;
-                      return (
-                        <span
-                          key={permId}
-                          style={{
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: 200 }}>
+                        {u.assignedFirms.map(f => (
+                          <span key={f} style={{
                             fontSize: '0.72rem',
                             fontWeight: 600,
-                            background: '#F8FAFC',
+                            background: '#F1F5F9',
                             color: '#334155',
-                            border: '1px solid #E2E8F0',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            border: '1px solid #E2E8F0'
+                          }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      onClick={() => handleToggleStatus(u)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: 0
+                      }}
+                      title="Click to toggle status"
+                    >
+                      {u.status === 'active' ? (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #86EFAC'
+                        }}>
+                          <Check size={13} /> Active
+                        </span>
+                      ) : (
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: '#F1F5F9',
+                          color: '#64748B',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          border: '1px solid #CBD5E1'
+                        }}>
+                          <X size={13} /> Inactive
+                        </span>
+                      )}
+                    </button>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxWidth: 440 }}>
+                      {SYSTEM_MODULES.map(mod => {
+                        const level = accessMap[mod.id];
+                        if (!level || level === 'none') return null;
+                        const isFull = level === 'full';
+                        return (
+                          <span
+                            key={mod.id}
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 600,
+                              background: isFull ? '#FFFFFF' : '#F8FAFC',
+                              color: isFull ? '#0F172A' : '#475569',
+                              border: isFull ? '1px solid #CBD5E1' : '1px solid #E2E8F0',
+                              borderRadius: 6,
+                              padding: '3px 8px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 5,
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+                            }}
+                          >
+                            {getModuleIcon(mod.id)}
+                            <span>{mod.label.replace(/^\d+\.\s*/, '')}</span>
+                            {!isFull && (
+                              <span style={{
+                                fontSize: '0.64rem',
+                                background: '#EFF6FF',
+                                color: '#2563EB',
+                                padding: '1px 5px',
+                                borderRadius: 4,
+                                fontWeight: 700
+                              }}>
+                                View
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <button
+                        onClick={() => handleOpenEditModal(u)}
+                        style={{
+                          background: '#FFFFFF',
+                          border: '1px solid #10B981',
+                          color: '#059669',
+                          borderRadius: 6,
+                          padding: '5px 12px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="Edit user & permissions"
+                      >
+                        <Edit2 size={13} color="#059669" />
+                        <span>Edit</span>
+                      </button>
+
+                      {u.username !== 'admin' && u.username !== 'admin13' && (
+                        <button
+                          onClick={() => handleDeleteUser(u)}
+                          style={{
+                            background: '#FFFFFF',
+                            border: '1px solid #FCA5A5',
+                            color: '#EF4444',
                             borderRadius: 6,
-                            padding: '2px 7px',
+                            padding: '5px 8px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 4
+                            justifyContent: 'center',
+                            cursor: 'pointer'
                           }}
+                          title="Delete user"
                         >
-                          {getModuleIcon(permId)}
-                          <span>{mod.label.replace(/^\d+\.\s*/, '')}</span>
-                        </span>
-                      );
-                    })}
-                  </div>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button
-                      onClick={() => handleOpenEditModal(u)}
-                      className="btn btn-outline-green btn-sm"
-                      title="Edit user & permissions"
-                    >
-                      <Edit2 size={13} />
-                      <span>Edit</span>
-                    </button>
-
-                    {u.username !== 'admin' && (
-                      <button
-                        onClick={() => handleDeleteUser(u)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ color: '#EF4444', borderColor: '#FCA5A5' }}
-                        title="Delete user"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                          <Trash2 size={14} color="#EF4444" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -484,7 +560,7 @@ export function AdministrationPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingUser ? `Edit User: ${editingUser.name}` : 'Add New User & Set Permissions'}
-        maxWidth="640px"
+        maxWidth="720px"
       >
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
@@ -571,18 +647,20 @@ export function AdministrationPage() {
                 value={formData.role}
                 onChange={e => {
                   const r = e.target.value;
+                  const newPerms = {};
+                  SYSTEM_MODULES.forEach(m => {
+                    newPerms[m.id] = r === 'admin' ? 'full' : ['dashboard', 'new_entry', 'tracker'].includes(m.id) ? 'full' : 'view';
+                  });
                   setFormData({
                     ...formData,
                     role: r,
                     assignedFirms: r === 'admin' ? ['*'] : formData.assignedFirms,
-                    permissions: r === 'admin'
-                      ? SYSTEM_MODULES.map(m => m.id)
-                      : ['dashboard', 'new_entry', 'tracker', 'verification']
+                    permissions: newPerms
                   });
                 }}
               >
-                <option value="admin">Admin</option>
-                <option value="user">User</option>
+                <option value="admin">Admin (All Access Default)</option>
+                <option value="user">User (Granular Access)</option>
               </select>
             </div>
           </div>
@@ -673,34 +751,42 @@ export function AdministrationPage() {
             )}
           </div>
 
-          {/* Granular Module Permissions Selector */}
+          {/* Granular Module Permissions Selector: View vs Full Access */}
           <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 12, padding: '16px', marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>
-                  Granular Module Access Permissions
+                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0F172A' }}>
+                  Granular Module Access: View vs Full Access
                 </div>
                 <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                  Select modules this user is allowed to access and operate.
+                  Configure <strong>View Only</strong> (Read reports & data) vs <strong>Full Access</strong> (Action/Disburse/Approve).
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
-                  onClick={handleSelectAllPermissions}
+                  onClick={() => handleSetAllAccess('full')}
                   className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                  style={{ fontSize: '0.74rem', padding: '3px 8px', color: '#059669', borderColor: '#A7F3D0' }}
                 >
-                  Select All
+                  ⚡ All Full Access
                 </button>
                 <button
                   type="button"
-                  onClick={handleDeselectAllPermissions}
+                  onClick={() => handleSetAllAccess('view')}
                   className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '3px 8px' }}
+                  style={{ fontSize: '0.74rem', padding: '3px 8px', color: '#2563EB', borderColor: '#BFDBFE' }}
                 >
-                  Clear All
+                  👁️ All View Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetAllAccess('none')}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.74rem', padding: '3px 8px' }}
+                >
+                  ❌ Clear All
                 </button>
               </div>
             </div>
@@ -711,35 +797,89 @@ export function AdministrationPage() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {SYSTEM_MODULES.map(module => {
-                const isChecked = formData.permissions.includes(module.id);
+                const currentLevel = formData.permissions?.[module.id] || 'none';
                 return (
-                  <label
+                  <div
                     key={module.id}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 10,
-                      background: isChecked ? '#ECFDF5' : '#FFFFFF',
-                      border: `1px solid ${isChecked ? '#A7F3D0' : '#CBD5E1'}`,
+                      justifyContent: 'space-between',
+                      background: currentLevel === 'full' ? '#ECFDF5' : currentLevel === 'view' ? '#EFF6FF' : '#FFFFFF',
+                      border: `1px solid ${currentLevel === 'full' ? '#A7F3D0' : currentLevel === 'view' ? '#BFDBFE' : '#E2E8F0'}`,
                       borderRadius: 8,
                       padding: '8px 12px',
-                      cursor: 'pointer',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => handleTogglePermission(module.id)}
-                      style={{ accentColor: '#059669', width: 16, height: 16 }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: isChecked ? 700 : 500, color: isChecked ? '#065F46' : '#334155' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
                       {getModuleIcon(module.id)}
                       <span>{module.label}</span>
                     </div>
-                  </label>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSetModuleAccess(module.id, 'none')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: currentLevel === 'none' ? 800 : 500,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          border: currentLevel === 'none' ? '1px solid #CBD5E1' : '1px solid transparent',
+                          background: currentLevel === 'none' ? '#F1F5F9' : 'transparent',
+                          color: currentLevel === 'none' ? '#475569' : '#94A3B8',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        No Access
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSetModuleAccess(module.id, 'view')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: currentLevel === 'view' ? 800 : 500,
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          border: currentLevel === 'view' ? '1px solid #93C5FD' : '1px solid transparent',
+                          background: currentLevel === 'view' ? '#DBEAFE' : 'transparent',
+                          color: currentLevel === 'view' ? '#1E40AF' : '#64748B',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <Eye size={12} />
+                        <span>View Only</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSetModuleAccess(module.id, 'full')}
+                        style={{
+                          fontSize: '0.72rem',
+                          fontWeight: currentLevel === 'full' ? 800 : 500,
+                          padding: '3px 10px',
+                          borderRadius: 6,
+                          border: currentLevel === 'full' ? '1px solid #6EE7B7' : '1px solid transparent',
+                          background: currentLevel === 'full' ? '#D1FAE5' : 'transparent',
+                          color: currentLevel === 'full' ? '#065F46' : '#64748B',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4
+                        }}
+                      >
+                        <Zap size={12} />
+                        <span>Full Access</span>
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>

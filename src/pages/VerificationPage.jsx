@@ -19,7 +19,8 @@ import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
 
 export function VerificationPage() {
-  const { entries, masterData, verifyEntry, syncing } = useApp();
+  const { entries, masterData, verifyEntry, syncing, canPerformAction } = useApp();
+  const canVerify = canPerformAction('verification');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -416,26 +417,32 @@ export function VerificationPage() {
                 onClick={() => setSelectedEntry(null)}
                 className="btn btn-secondary"
               >
-                Cancel
+                Close
               </button>
-              <button
-                type="button"
-                onClick={handleConfirmVerify}
-                disabled={isSubmitting}
-                className="btn btn-primary"
-              >
-                {isSubmitting ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    <span>Verifying & Moving...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={16} />
-                    <span>Confirm & Mark Verified</span>
-                  </>
-                )}
-              </button>
+              {canVerify ? (
+                <button
+                  type="button"
+                  onClick={handleConfirmVerify}
+                  disabled={isSubmitting}
+                  className="btn btn-primary"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      <span>Verifying & Moving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} />
+                      <span>Confirm & Mark Verified</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div style={{ fontSize: '0.8rem', color: '#2563EB', background: '#EFF6FF', padding: '6px 12px', borderRadius: 6, fontWeight: 600 }}>
+                  👁️ View-Only Access (Verification Action Disabled)
+                </div>
+              )}
             </div>
           </div>
         )}

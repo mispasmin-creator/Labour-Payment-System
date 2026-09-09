@@ -3,12 +3,15 @@ import confetti from 'canvas-confetti';
 import {
   fetchEntries,
   fetchMasterData,
+  fetchUsers,
+  saveUsersToRemote,
   saveMasterData,
   getScriptUrl,
   setScriptUrl as setScriptUrlApi,
   resetToDemoData,
   sendToAppsScript
 } from '../services/api';
+import { DEFAULT_LOGIN_USERS } from '../utils/mockData';
 import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
 
 export const AppContext = createContext();
@@ -34,61 +37,27 @@ export const SYSTEM_MODULES = [
   { id: 'admin', label: 'Administration & User Access', path: '/admin' }
 ];
 
-export const DEFAULT_USERS = [
-  {
-    id: 'usr_admin',
-    username: 'admin',
-    password: 'admin123',
-    name: 'Administrator',
-    role: 'admin',
-    status: 'active',
-    assignedFirms: ['*'],
-    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
-  },
-  {
-    id: 'usr_supervisor',
-    username: 'supervisor',
-    password: 'user123',
-    name: 'Site Supervisor (Ops)',
-    role: 'user',
-    status: 'active',
-    assignedFirms: ['*'],
-    permissions: ['dashboard', 'new_entry', 'tracker', 'verification']
-  },
-  {
-    id: 'usr_finance',
-    username: 'finance',
-    password: 'user123',
-    name: 'Finance & Payment Officer',
-    role: 'user',
-    status: 'active',
-    assignedFirms: ['*'],
-    permissions: ['dashboard', 'approval', 'payment', 'reports']
-  },
-  {
-    id: 'usr_tally',
-    username: 'tally_user',
-    password: 'user123',
-    name: 'Tally Accounts Officer',
-    role: 'user',
-    status: 'active',
-    assignedFirms: ['*'],
-    permissions: ['dashboard', 'tally', 'reports']
-  }
-];
+export { DEFAULT_LOGIN_USERS };
 
 export function AppProvider({ children }) {
   const [entries, setEntries] = useState([]);
   const [masterData, setMasterData] = useState({ incharges: [], labourers: [], shifts: [], workTypes: [] });
   const [currentRole, setCurrentRole] = useState(ROLES.ALL);
 
-  // Users database
+  // Users database from "Login Page" Sheet / LocalStorage / Preset
   const [users, setUsers] = useState(() => {
     try {
       const stored = localStorage.getItem('labour_sys_users_db');
-      return stored ? JSON.parse(stored) : DEFAULT_USERS;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // If stored contains old store users like 'admin13' or 'Store Head', reset to DEFAULT_LOGIN_USERS
+        const hasOldStoreUser = Array.isArray(parsed) && parsed.some(u => u.username === 'admin13' || u.username === 'Store Head');
+        if (Array.isArray(parsed) && parsed.length > 0 && !hasOldStoreUser) return parsed;
+      }
+      localStorage.setItem('labour_sys_users_db', JSON.stringify(DEFAULT_LOGIN_USERS));
+      return DEFAULT_LOGIN_USERS;
     } catch (e) {
-      return DEFAULT_USERS;
+      return DEFAULT_LOGIN_USERS;
     }
   });
 
@@ -97,7 +66,7 @@ export function AppProvider({ children }) {
       const stored = localStorage.getItem('labour_sys_auth_user');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === 'object') {
+        if (parsed && typeof parsed === 'object' && parsed.isAuthenticated && parsed.username !== 'admin13') {
           return {
             id: parsed.id || 'usr_admin',
             username: parsed.username || 'admin',
@@ -107,11 +76,12 @@ export function AppProvider({ children }) {
             permissions: (Array.isArray(parsed.permissions) && parsed.permissions.length > 0)
               ? parsed.permissions
               : SYSTEM_MODULES.map(m => m.id),
-            isAuthenticated: parsed.isAuthenticated !== false
+            isAuthenticated: true
           };
         }
       }
     } catch (e) {}
+    // Default to Administrator
     return {
       id: 'usr_admin',
       username: 'admin',
@@ -140,6 +110,7 @@ export function AppProvider({ children }) {
   const saveUsers = useCallback(newUsers => {
     setUsers(newUsers);
     localStorage.setItem('labour_sys_users_db', JSON.stringify(newUsers));
+    saveUsersToRemote(newUsers).catch(err => console.warn('Users remote sync failed:', err));
   }, []);
 
   const addUser = useCallback(userData => {
@@ -197,12 +168,57 @@ export function AppProvider({ children }) {
     showToast('User account removed.', 'info');
   }, [users, saveUsers, showToast]);
 
-  const hasPermission = useCallback(moduleId => {
+  const hasPermission = useCallback((moduleId, requiredLevel = 'view') => {
     if (!currentUser || currentUser.isAuthenticated === false) return false;
     if (currentUser.role === 'admin') return true;
-    if (!currentUser.permissions || !Array.isArray(currentUser.permissions)) return true;
-    return currentUser.permissions.includes(moduleId);
+    if (!currentUser.permissions) return true;
+
+    const perms = currentUser.permissions;
+
+    // If permissions is an array
+    if (Array.isArray(perms)) {
+      const isFull = perms.includes(`${moduleId}:full`) || perms.includes(moduleId);
+      const isView = perms.includes(`${moduleId}:view`) || isFull;
+      if (requiredLevel === 'view') return isView;
+      if (requiredLevel === 'full' || requiredLevel === 'action') {
+        // If user specifically has ':view' without ':full' or standard moduleId
+        if (perms.includes(`${moduleId}:view`) && !perms.includes(`${moduleId}:full`) && !perms.includes(moduleId)) {
+          return false;
+        }
+        return isFull;
+      }
+    }
+
+    // If permissions is an object/map
+    if (typeof perms === 'object') {
+      const lvl = perms[moduleId];
+      if (!lvl || lvl === 'none') return false;
+      if (requiredLevel === 'view') return lvl === 'view' || lvl === 'full';
+      if (requiredLevel === 'full' || requiredLevel === 'action') return lvl === 'full';
+    }
+
+    return false;
   }, [currentUser]);
+
+  const canPerformAction = useCallback(moduleId => {
+    return hasPermission(moduleId, 'full');
+  }, [hasPermission]);
+
+  const getAccessLevel = useCallback((userObj, moduleId) => {
+    if (!userObj) return 'none';
+    if (userObj.role === 'admin') return 'full';
+    const perms = userObj.permissions;
+    if (!perms) return 'none';
+
+    if (Array.isArray(perms)) {
+      if (perms.includes(`${moduleId}:full`)) return 'full';
+      if (perms.includes(`${moduleId}:view`)) return 'view';
+      if (perms.includes(moduleId)) return 'full';
+    } else if (typeof perms === 'object') {
+      return perms[moduleId] || 'none';
+    }
+    return 'none';
+  }, []);
 
   const hasFirmAccess = useCallback(firmName => {
     if (!currentUser || currentUser.isAuthenticated === false) return true;
@@ -214,31 +230,39 @@ export function AppProvider({ children }) {
   }, [currentUser]);
 
   const login = useCallback((username, password, role = 'admin') => {
-    const inputUname = username.trim().toLowerCase();
-    const matchedUser = users.find(u => u.username.toLowerCase() === inputUname);
+    const inputUname = String(username || '').trim().toLowerCase();
+    // Match by username or by display Name
+    const matchedUser = users.find(
+      u => String(u.username || '').toLowerCase().trim() === inputUname ||
+           String(u.name || '').toLowerCase().trim() === inputUname
+    );
 
     if (matchedUser) {
       if (matchedUser.status === 'inactive') {
         showToast('This user account is inactive. Please contact Admin.', 'error');
         return false;
       }
-      // If password provided and doesn't match
-      if (password && matchedUser.password && password !== matchedUser.password) {
+      // If password is required and provided
+      if (matchedUser.password && password && String(password).trim() !== String(matchedUser.password).trim()) {
         showToast('Incorrect password entered.', 'error');
         return false;
       }
 
+      const isAdmin = matchedUser.role === 'admin' || (Array.isArray(matchedUser.permissions) && matchedUser.permissions.includes('admin'));
+
       const userObj = {
         id: matchedUser.id,
         username: matchedUser.username,
-        role: matchedUser.role,
-        displayName: matchedUser.name,
+        role: isAdmin ? 'admin' : 'user',
+        displayName: matchedUser.name || matchedUser.username,
         assignedFirms: matchedUser.assignedFirms || ['*'],
-        permissions: matchedUser.permissions || [],
+        permissions: isAdmin
+          ? SYSTEM_MODULES.map(m => m.id)
+          : (matchedUser.permissions && matchedUser.permissions.length > 0 ? matchedUser.permissions : ['dashboard', 'new_entry', 'tracker']),
         isAuthenticated: true
       };
       setCurrentUser(userObj);
-      setCurrentRole(matchedUser.role === 'admin' ? ROLES.ALL : ROLES.INCHARGE);
+      setCurrentRole(isAdmin ? ROLES.ALL : ROLES.INCHARGE);
       localStorage.setItem('labour_sys_auth_user', JSON.stringify(userObj));
       showToast(`Welcome back, ${userObj.displayName}!`, 'success');
       return true;
@@ -250,7 +274,7 @@ export function AppProvider({ children }) {
       id: `usr_${Date.now()}`,
       username: username.trim(),
       role: normalizedRole,
-      displayName: normalizedRole === 'admin' ? 'Administrator' : 'Site Supervisor',
+      displayName: normalizedRole === 'admin' ? (username || 'Administrator') : (username || 'Site Supervisor'),
       assignedFirms: ['*'],
       permissions: normalizedRole === 'admin' ? SYSTEM_MODULES.map(m => m.id) : ['dashboard', 'new_entry', 'tracker', 'verification'],
       isAuthenticated: true
@@ -294,19 +318,23 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Load initial data
+  // Load initial data including Live Users from "Login Page" sheet
   const loadData = useCallback(async (silent = false) => {
     setSyncing(true);
     if (!silent) {
       setLoading(true);
     }
     try {
-      const [fetchedEntries, fetchedMaster] = await Promise.all([
+      const [fetchedEntries, fetchedMaster, fetchedUsers] = await Promise.all([
         fetchEntries(),
-        fetchMasterData()
+        fetchMasterData(),
+        fetchUsers()
       ]);
       setEntries(fetchedEntries || []);
       setMasterData(fetchedMaster || { incharges: [], labourers: [], workTypes: [] });
+      if (fetchedUsers && Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
+        setUsers(fetchedUsers);
+      }
       if (!silent) {
         showToast('Data synchronized successfully!', 'success');
       }
@@ -689,6 +717,8 @@ export function AppProvider({ children }) {
     updateUser,
     deleteUser,
     hasPermission,
+    canPerformAction,
+    getAccessLevel,
     hasFirmAccess,
     login,
     logout,

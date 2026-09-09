@@ -4,6 +4,7 @@
  * =========================================================================
  * 
  * Header-Name Matched & Fully Resilient Dynamic Version
+ * Supports "Login Page" Sheet for User Authentication & Role Permissions
  * 
  * Exact Entry Sheet Headers:
  * Col A (1)  : Timestamp
@@ -48,13 +49,30 @@
  * Col W (23) : Planned 4
  * Col X (24) : Actual 4
  * Col Y (25) : Delay 4
+ * 
+ * Exact Login Page Sheet Headers:
+ * Col A: Username
+ * Col B: Password
+ * Col C: Name
+ * Col D: Administrate
+ * Col E: Store Issue
+ * Col F: Issue Data View
+ * Col G: Inventory
+ * Col H: Create Indent
+ * Col I: Create PO
+ * Col J: Indent Approval View
+ * Col K: Indent Approval Action
+ * Col L: Update Vendor View
+ * Col M: Update Vendor Action
+ * Col N: Three Party Approval View
  */
 
 const SHEET_NAMES = {
   ENTRY: 'Entry',
   FMS: 'FMS',
   WORKFLOW: 'Workflow',
-  MASTER: 'Master'
+  MASTER: 'Master',
+  LOGIN: 'Login Page'
 };
 
 const STANDARD_ENTRY_HEADERS = [
@@ -113,6 +131,44 @@ const STANDARD_FMS_HEADERS = [
   'Delay 4'
 ];
 
+const STANDARD_LOGIN_HEADERS = [
+  'Username',
+  'Password',
+  'Name',
+  'Administrate',
+  'Dashboard Overview',
+  'New Work Entry (Form)',
+  'All Work Orders Master Grid',
+  'Work Verification',
+  'Payment Approval',
+  'Payment Disbursal',
+  'Tally Entry',
+  'Reports & Export'
+];
+
+const DEFAULT_LOGIN_USERS = [
+  {
+    id: 'usr_admin',
+    username: 'admin',
+    password: 'admin123',
+    name: 'Administrator',
+    role: 'admin',
+    status: 'active',
+    assignedFirms: ['*'],
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
+  },
+  {
+    id: 'usr_bhupendra',
+    username: 'DME',
+    password: 'user123',
+    name: 'Bhupendra',
+    role: 'user',
+    status: 'active',
+    assignedFirms: ['*'],
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally']
+  }
+];
+
 /**
  * Format timestamp as "9/9/2026 15:30:00"
  */
@@ -147,6 +203,11 @@ function doGet(e) {
         result = getMasterData(ss);
         break;
 
+      case 'getUsers':
+      case 'getLoginUsers':
+        result = { users: getUsersData(ss) };
+        break;
+
       case 'getEntries':
         result = { entries: getEntriesData(ss) };
         break;
@@ -155,6 +216,7 @@ function doGet(e) {
         result = {
           master: getMasterData(ss),
           entries: getEntriesData(ss),
+          users: getUsersData(ss),
           status: 'success'
         };
         break;
@@ -198,6 +260,13 @@ function doGet(e) {
       case 'updateMasterData': {
         const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
         result = handleUpdateMasterData(ss, payloadData);
+        break;
+      }
+
+      case 'updateUsers':
+      case 'saveUsers': {
+        const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+        result = handleUpdateUsers(ss, payloadData);
         break;
       }
 
@@ -267,6 +336,11 @@ function doPost(e) {
         response = handleUpdateMasterData(ss, data);
         break;
 
+      case 'updateUsers':
+      case 'saveUsers':
+        response = handleUpdateUsers(ss, data);
+        break;
+
       case 'updateWorkRemark':
         response = handleUpdateWorkRemark(ss, data);
         break;
@@ -328,6 +402,24 @@ function ensureEntryHeader(entrySheet) {
   if (!colD.includes('firm')) {
     entrySheet.getRange(headerRow, 1, 1, STANDARD_ENTRY_HEADERS.length).setValues([STANDARD_ENTRY_HEADERS]);
     entrySheet.getRange(headerRow, 1, 1, STANDARD_ENTRY_HEADERS.length).setFontWeight('bold').setBackground('#D9EAD3');
+    SpreadsheetApp.flush();
+  }
+}
+
+/**
+ * Ensure Login Page Sheet exists and has standard headers
+ */
+function ensureLoginPageHeader(loginSheet) {
+  if (!loginSheet) return;
+  if (loginSheet.getLastRow() < 1) {
+    loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setValues([STANDARD_LOGIN_HEADERS]);
+    loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
+
+    const sampleRows = [
+      ['admin', 'admin123', 'Administrator', true, true, true, true, true, true, true, true, true],
+      ['DME', 'user123', 'Bhupendra', false, true, true, true, true, true, true, true, false]
+    ];
+    loginSheet.getRange(2, 1, sampleRows.length, STANDARD_LOGIN_HEADERS.length).setValues(sampleRows);
     SpreadsheetApp.flush();
   }
 }
@@ -723,6 +815,209 @@ function handleRecordTally(ss, data) {
 }
 
 /**
+ * Fetch Users from "Login Page" Sheet
+ */
+function getUsersData(ss) {
+  let loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
+                   ss.getSheetByName('Login Page') ||
+                   ss.getSheetByName('Login') ||
+                   ss.getSheetByName('Users') ||
+                   ss.getSheetByName('User');
+
+  if (!loginSheet) {
+    loginSheet = ss.insertSheet('Login Page');
+    ensureLoginPageHeader(loginSheet);
+  }
+
+  if (loginSheet.getLastRow() < 1) {
+    ensureLoginPageHeader(loginSheet);
+  }
+
+  const values = loginSheet.getDataRange().getValues();
+  if (values.length < 2) {
+    return DEFAULT_LOGIN_USERS;
+  }
+
+  let headerRow = 0;
+  let usernameCol = 0, passwordCol = 1, nameCol = 2;
+
+  for (let r = 0; r < Math.min(values.length, 5); r++) {
+    const row = values[r].map(v => String(v || '').toLowerCase().trim());
+    if (row.includes('username') || row.includes('user') || (row.includes('password') && row.includes('name'))) {
+      headerRow = r;
+      for (let c = 0; c < row.length; c++) {
+        const h = row[c];
+        if (h === 'username' || h === 'user name' || h === 'user') usernameCol = c;
+        else if (h === 'password' || h === 'pass') passwordCol = c;
+        else if (h === 'name' || h === 'full name' || h === 'display name') nameCol = c;
+      }
+      break;
+    }
+  }
+
+  const headerKeys = values[headerRow].map(v => String(v || '').toLowerCase().trim());
+  const users = [];
+
+  for (let i = headerRow + 1; i < values.length; i++) {
+    const row = values[i];
+    const username = String(row[usernameCol] || '').trim();
+    if (!username) continue;
+
+    const password = String(row[passwordCol] || '').trim();
+    const name = String(row[nameCol] || username).trim();
+
+    const permissions = ['dashboard'];
+    let isAdmin = false;
+    let hasDashboard = true;
+    let hasNewEntry = false;
+    let hasTracker = false;
+    let hasVerification = false;
+    let hasApproval = false;
+    let hasApprovalView = false;
+    let hasPayment = false;
+    let hasPaymentView = false;
+    let hasTally = false;
+    let hasTallyView = false;
+    let hasReports = false;
+
+    for (let c = 0; c < headerKeys.length; c++) {
+      const h = headerKeys[c];
+      const val = row[c];
+      const valStr = String(val || '').toLowerCase().trim();
+      const isTrue = val === true || valStr === 'true' || val === 1 || valStr === 'yes' || valStr === 'full' || valStr === 'view';
+      const isViewOnly = valStr === 'view';
+
+      if (isTrue) {
+        if (h.includes('administrate') || h.includes('admin') || h === 'all') {
+          isAdmin = true;
+        }
+        if (h.includes('dashboard')) {
+          hasDashboard = true;
+        }
+        if (h.includes('new work entry') || h.includes('new entry') || h.includes('create indent') || h.includes('entry form') || h === 'entry') {
+          hasNewEntry = true;
+        }
+        if (h.includes('master grid') || h.includes('work orders') || h.includes('tracker') || h.includes('store issue') || h.includes('inventory')) {
+          hasTracker = true;
+        }
+        if (h.includes('work verification') || h.includes('verification') || h.includes('verify')) {
+          hasVerification = true;
+        }
+        if (h.includes('payment approval') || h.includes('indent approval') || h.includes('approval')) {
+          if (isViewOnly || h.includes('view')) hasApprovalView = true;
+          else hasApproval = true;
+        }
+        if (h.includes('payment disbursal') || h.includes('create po') || h.includes('disbursal') || h.includes('payment')) {
+          if (isViewOnly || h.includes('view') || h.includes('three party')) hasPaymentView = true;
+          else hasPayment = true;
+        }
+        if (h.includes('tally entry') || h.includes('tally') || h.includes('update vendor') || h.includes('accounts')) {
+          if (isViewOnly || h.includes('view')) hasTallyView = true;
+          else hasTally = true;
+        }
+        if (h.includes('reports') || h.includes('export')) {
+          hasReports = true;
+        }
+      }
+    }
+
+    if (isAdmin || username.toLowerCase() === 'admin') {
+      users.push({
+        id: 'usr_' + (i - headerRow),
+        username: username,
+        password: password,
+        name: name,
+        role: 'admin',
+        status: 'active',
+        assignedFirms: ['*'],
+        permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
+      });
+    } else {
+      if (hasNewEntry) permissions.push('new_entry');
+      if (hasTracker || (!hasNewEntry && !hasApproval && !hasPayment && !hasTally)) permissions.push('tracker');
+      if (hasVerification) permissions.push('verification');
+
+      if (hasApproval) permissions.push('approval');
+      else if (hasApprovalView) permissions.push('approval:view');
+
+      if (hasPayment) permissions.push('payment');
+      else if (hasPaymentView) permissions.push('payment:view');
+
+      if (hasTally) permissions.push('tally');
+      else if (hasTallyView) permissions.push('tally:view');
+
+      if (hasReports || hasTracker || hasApprovalView || hasPaymentView || hasTallyView) {
+        permissions.push('reports');
+      }
+
+      users.push({
+        id: 'usr_' + (i - headerRow),
+        username: username,
+        password: password,
+        name: name,
+        role: 'user',
+        status: 'active',
+        assignedFirms: ['*'],
+        permissions: Array.from(new Set(permissions))
+      });
+    }
+  }
+
+  return users.length > 0 ? users : DEFAULT_LOGIN_USERS;
+}
+
+/**
+ * Update Users into "Login Page" Sheet
+ */
+function handleUpdateUsers(ss, data) {
+  let loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
+                   ss.getSheetByName('Login Page') ||
+                   ss.getSheetByName('Login') ||
+                   ss.getSheetByName('Users');
+
+  if (!loginSheet) {
+    loginSheet = ss.insertSheet('Login Page');
+  }
+
+  const usersList = Array.isArray(data) ? data : (data.users || []);
+  if (usersList.length === 0) return { status: 'error', message: 'No users provided' };
+
+  loginSheet.clearContents();
+  loginSheet.appendRow(STANDARD_LOGIN_HEADERS);
+  loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
+
+  const rows = usersList.map(u => {
+    const isAdmin = u.role === 'admin' || (Array.isArray(u.permissions) && u.permissions.includes('admin'));
+    const perms = Array.isArray(u.permissions) ? u.permissions : [];
+
+    const hasFull = mod => isAdmin || perms.includes(mod) || perms.includes(`${mod}:full`);
+    const hasView = mod => isAdmin || hasFull(mod) || perms.includes(`${mod}:view`);
+
+    return [
+      u.username || '',
+      u.password || '',
+      u.name || u.displayName || u.username || '',
+      isAdmin,
+      isAdmin || hasView('dashboard'),
+      isAdmin || hasFull('new_entry'),
+      isAdmin || hasView('tracker'),
+      isAdmin || hasFull('verification') || hasView('verification'),
+      isAdmin || hasFull('approval') || hasView('approval'),
+      isAdmin || hasFull('payment') || hasView('payment'),
+      isAdmin || hasFull('tally') || hasView('tally'),
+      isAdmin || hasView('reports')
+    ];
+  });
+
+  if (rows.length > 0) {
+    loginSheet.getRange(2, 1, rows.length, STANDARD_LOGIN_HEADERS.length).setValues(rows);
+  }
+  SpreadsheetApp.flush();
+
+  return { status: 'success', message: 'Users updated in Login Page sheet' };
+}
+
+/**
  * Fetch Full Master Data
  */
 function getMasterData(ss) {
@@ -741,7 +1036,7 @@ function getMasterData(ss) {
   const defaultFirms = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
 
   if (!masterSheet || masterSheet.getLastRow() < 1) {
-    return { incharges: [], labourers: [], shifts: defaultShifts, workTypes: defaultWorkTypes, firmNames: defaultFirms };
+    return { incharges: [], labourers: [], shifts: defaultShifts, workTypes: defaultWorkTypes, firmNames: defaultFirms, users: getUsersData(ss) };
   }
 
   const values = masterSheet.getDataRange().getValues();
@@ -792,7 +1087,8 @@ function getMasterData(ss) {
     labourers,
     shifts: shifts.length > 0 ? shifts : defaultShifts,
     workTypes: workTypes.length > 0 ? workTypes : defaultWorkTypes,
-    firmNames: firmNames.length > 0 ? firmNames : defaultFirms
+    firmNames: firmNames.length > 0 ? firmNames : defaultFirms,
+    users: getUsersData(ss)
   };
 }
 
@@ -997,4 +1293,11 @@ function handleUpdateMasterData(ss, data) {
 function ensureAllSheetsAndHeaders(ss) {
   const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY) || ss.insertSheet(SHEET_NAMES.ENTRY);
   ensureEntryHeader(entrySheet);
+
+  const loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
+                     ss.getSheetByName('Login Page') ||
+                     ss.getSheetByName('Login') ||
+                     ss.getSheetByName('Users') ||
+                     ss.insertSheet('Login Page');
+  ensureLoginPageHeader(loginSheet);
 }
