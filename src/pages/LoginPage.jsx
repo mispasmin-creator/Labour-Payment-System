@@ -118,18 +118,20 @@ export function LoginPage() {
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{
-            width: 54,
-            height: 54,
-            borderRadius: 14,
-            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+            width: 60,
+            height: 60,
+            borderRadius: 16,
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#FFFFFF',
             marginBottom: 14,
-            boxShadow: '0 8px 20px -4px rgba(5, 150, 105, 0.4)'
+            padding: 6,
+            boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden'
           }}>
-            <Layers size={28} />
+            <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
 
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>

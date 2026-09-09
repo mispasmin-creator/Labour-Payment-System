@@ -158,9 +158,12 @@ export function printWorkSlip(entry) {
       </head>
       <body>
         <div class="header">
-          <div>
-            <div class="logo">Labour Payment System - Work Order Slip</div>
-            <div style="font-size: 13px; color: #64748b;">Labour Payment & Workflow Tracking System</div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src="/logo.png" alt="Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; padding: 2px;" />
+            <div>
+              <div class="logo">Labour Payment System - Work Order Slip</div>
+              <div style="font-size: 13px; color: #64748b;">Labour Payment & Workflow Tracking System</div>
+            </div>
           </div>
           <div>
             <span class="badge">${entry.status}</span>
@@ -407,9 +410,12 @@ export function printInchargeWiseReport({ filters = {}, summary = {}, inchargeSu
       </head>
       <body>
         <div class="header">
-          <div>
-            <h1 class="title">LABOUR PAYMENT SYSTEM</h1>
-            <div class="subtitle">INCHARGE WISE LABOUR REPORT & MIS ANALYTICS</div>
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src="/logo.png" alt="Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; padding: 2px;" />
+            <div>
+              <h1 class="title">LABOUR PAYMENT SYSTEM</h1>
+              <div class="subtitle">INCHARGE WISE LABOUR REPORT & MIS ANALYTICS</div>
+            </div>
           </div>
           <div>
             <span class="badge">Generated: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>

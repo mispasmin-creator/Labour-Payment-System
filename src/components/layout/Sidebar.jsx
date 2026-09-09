@@ -38,7 +38,7 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
         <div className="sidebar-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
             <div className="navbar-logo-badge" style={{ width: 34, height: 34, flexShrink: 0 }}>
-              <Layers size={18} />
+              <img src="/logo.png" alt="Logo" />
             </div>
             {!isCollapsed && (
               <div className="brand-info" style={{ minWidth: 0, overflow: 'hidden' }}>

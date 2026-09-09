@@ -231,15 +231,25 @@ button, input, select, textarea {
 }
 
 .navbar-logo-badge {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-700) 100%);
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  box-shadow: var(--shadow-green);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.navbar-logo-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-text-title {
@@ -1381,3 +1391,49 @@ button, input, select, textarea {
   max-width: 400px;
   margin: 0 auto 20px;
 }
+
+/* =========================================================
+   Searchable Select / Combobox Component
+   ========================================================= */
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.searchable-select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-trigger:hover:not(.disabled) {
+  border-color: var(--primary-400) !important;
+}
+
+.searchable-select-trigger:focus-visible {
+  border-color: var(--primary-500) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+}
+
+.searchable-select-dropdown div[role="listbox"]::-webkit-scrollbar {
+  width: 6px;
+}
+
+.searchable-select-dropdown div[role="listbox"]::-webkit-scrollbar-track {
+  background: #F8FAFC;
+}
+
+.searchable-select-dropdown div[role="listbox"]::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
+}
+
+.searchable-select-dropdown div[role="listbox"]::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { INITIAL_MASTER_DATA } from '../utils/mockData';
+import { SearchableSelect } from '../components/common/SearchableSelect';
 
 const DEFAULT_SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
 const DEFAULT_WORK_TYPES = [
@@ -94,8 +95,8 @@ export function NewEntryPage() {
   }, [masterData]);
 
   // Handle Work Type selection and auto-suggest rate if matched
-  const handleWorkTypeChange = e => {
-    const enteredWork = e.target.value;
+  const handleWorkTypeChange = val => {
+    const enteredWork = typeof val === 'string' ? val : val?.target?.value || '';
     const allWorks = Array.isArray(masterData?.workTypes) ? masterData.workTypes : [];
     const matched = allWorks.find(
       w => (typeof w === 'string' ? w : w?.name || '').toLowerCase() === enteredWork.trim().toLowerCase()
@@ -249,30 +250,27 @@ export function NewEntryPage() {
                   <label className="form-label">
                     Shift <span className="required">*</span>
                   </label>
-                  <select
-                    className="form-select"
+                  <SearchableSelect
+                    options={shiftsList}
                     value={formData.shift}
-                    onChange={e => setFormData({ ...formData, shift: e.target.value })}
-                  >
-                    {shiftsList.map(sh => (
-                      <option key={sh} value={sh}>{sh}</option>
-                    ))}
-                  </select>
+                    onChange={val => setFormData({ ...formData, shift: val })}
+                    placeholder="-- Select Shift --"
+                    searchPlaceholder="Search shift..."
+                  />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">
                     Firm Name <span className="required">*</span>
                   </label>
-                  <select
-                    className="form-select"
+                  <SearchableSelect
+                    options={activeFirms}
                     value={formData.firmName}
-                    onChange={e => setFormData({ ...formData, firmName: e.target.value })}
-                  >
-                    {activeFirms.map(firm => (
-                      <option key={firm} value={firm}>{firm}</option>
-                    ))}
-                  </select>
+                    onChange={val => setFormData({ ...formData, firmName: val })}
+                    placeholder="-- Select Firm --"
+                    searchPlaceholder="Search firm name..."
+                    error={errors.firmName}
+                  />
                   {errors.firmName && <div className="form-error">{errors.firmName}</div>}
                 </div>
               </div>
@@ -282,16 +280,14 @@ export function NewEntryPage() {
                   <label className="form-label">
                     Incharge / Supervisor <span className="required">*</span>
                   </label>
-                  <select
-                    className="form-select"
+                  <SearchableSelect
+                    options={inchargesList}
                     value={formData.incharge}
-                    onChange={e => setFormData({ ...formData, incharge: e.target.value })}
-                  >
-                    <option value="">-- Select Incharge --</option>
-                    {inchargesList.map(inc => (
-                      <option key={inc} value={inc}>{inc}</option>
-                    ))}
-                  </select>
+                    onChange={val => setFormData({ ...formData, incharge: val })}
+                    placeholder="-- Select Incharge --"
+                    searchPlaceholder="Search supervisor..."
+                    error={errors.incharge}
+                  />
                   {errors.incharge && <div className="form-error">{errors.incharge}</div>}
                 </div>
 
@@ -299,16 +295,14 @@ export function NewEntryPage() {
                   <label className="form-label">
                     Work Type / Activity <span className="required">*</span>
                   </label>
-                  <select
-                    className="form-select"
+                  <SearchableSelect
+                    options={activeWorks}
                     value={formData.work}
                     onChange={handleWorkTypeChange}
-                  >
-                    <option value="">-- Select Work Activity --</option>
-                    {activeWorks.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
+                    placeholder="-- Select Work Activity --"
+                    searchPlaceholder="Search work activity..."
+                    error={errors.work}
+                  />
                   {errors.work && <div className="form-error">{errors.work}</div>}
                 </div>
               </div>
@@ -409,16 +403,15 @@ export function NewEntryPage() {
                       {index + 1}
                     </div>
 
-                    <select
-                      className="labour-slot-select"
+                    <SearchableSelect
+                      compact={true}
+                      options={availableLabourers}
                       value={name}
-                      onChange={e => handleLabourNameChange(index, e.target.value)}
-                    >
-                      <option value="">-- Choose Labourer --</option>
-                      {availableLabourers.map(lab => (
-                        <option key={lab} value={lab}>{lab}</option>
-                      ))}
-                    </select>
+                      onChange={val => handleLabourNameChange(index, val)}
+                      placeholder="-- Choose Labourer --"
+                      searchPlaceholder="Search labourer..."
+                      style={{ flex: 1 }}
+                    />
 
                     {formData.labourNames.length > 1 && (
                       <button

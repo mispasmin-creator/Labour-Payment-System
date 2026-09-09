@@ -26,7 +26,7 @@ export function Navbar({ onToggleSidebar }) {
 
         <Link to="/" className="navbar-brand">
           <div className="navbar-logo-badge">
-            <Layers size={22} />
+            <img src="/logo.png" alt="Logo" />
           </div>
           <div>
             <div className="brand-text-title">
