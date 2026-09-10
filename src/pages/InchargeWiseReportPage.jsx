@@ -720,7 +720,7 @@ export function InchargeWiseReportPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Incharge Wise Labour Report
+                Report
               </h1>
               <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '4px 10px', fontWeight: 700 }}>
                 MIS Analytics

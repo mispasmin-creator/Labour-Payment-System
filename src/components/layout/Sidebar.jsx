@@ -180,13 +180,13 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           {hasPermission('reports') && (
             <NavLink
               to="/reports/incharge-wise"
-              title="Incharge Wise Report"
+              title="Report"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
                 <FileSpreadsheet size={18} />
-                <span>Incharge Wise Report</span>
+                <span>Report</span>
               </div>
             </NavLink>
           )}
