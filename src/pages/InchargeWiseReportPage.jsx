@@ -710,24 +710,24 @@ export function InchargeWiseReportPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
-            onClick={() => navigate('/reports')}
+            onClick={() => navigate('/')}
             className="btn btn-secondary btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
           >
             <ArrowLeft size={16} />
-            <span>Reports Hub</span>
+            <span>Dashboard</span>
           </button>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Labour MIS & Executive Report Sheet
+                Incharge Wise Labour Report
               </h1>
               <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '4px 10px', fontWeight: 700 }}>
-                Enterprise Ledger
+                MIS Analytics
               </span>
             </div>
             <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '3px 0 0 0' }}>
-              Structured audit-ready reporting by Incharge, Labourer, Work Activity, Output & Payment Ledgers
+              Supervisor-wise labour deployments, working days, production output & payroll payments
             </p>
           </div>
         </div>

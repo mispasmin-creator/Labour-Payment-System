@@ -178,35 +178,17 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
           )}
 
           {hasPermission('reports') && (
-            <>
-              <NavLink
-                to="/reports"
-                end
-                title="Reports & Export"
-                className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                onClick={handleLinkClick}
-              >
-                <div className="sidebar-link-content">
-                  <FileSpreadsheet size={18} />
-                  <span>Reports & Export</span>
-                </div>
-              </NavLink>
-
-              <NavLink
-                to="/reports/incharge-wise"
-                title="Incharge Wise Report"
-                className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-                onClick={handleLinkClick}
-              >
-                <div className="sidebar-link-content">
-                  <Users size={18} />
-                  <span>Incharge Wise Report</span>
-                </div>
-                <span className="badge badge-emerald" style={{ fontSize: '0.65rem', padding: '2px 6px', fontWeight: 800 }}>
-                  NEW
-                </span>
-              </NavLink>
-            </>
+            <NavLink
+              to="/reports/incharge-wise"
+              title="Incharge Wise Report"
+              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+              onClick={handleLinkClick}
+            >
+              <div className="sidebar-link-content">
+                <FileSpreadsheet size={18} />
+                <span>Incharge Wise Report</span>
+              </div>
+            </NavLink>
           )}
 
           {/* Administration & User Management */}

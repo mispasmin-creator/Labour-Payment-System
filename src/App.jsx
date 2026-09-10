@@ -40,8 +40,7 @@ function AppRoutes() {
         <Route path="approval" element={<PaymentApprovalPage />} />
         <Route path="payment" element={<PaymentPage />} />
         <Route path="tally" element={<TallyPage />} />
-        <Route path="tracker" element={<WorkTrackerPage />} />
-        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports" element={<InchargeWiseReportPage />} />
         <Route path="reports/incharge-wise" element={<InchargeWiseReportPage />} />
         <Route path="admin" element={<AdministrationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
