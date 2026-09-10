@@ -8,25 +8,23 @@ import {
   IndianRupee,
   Briefcase,
   Layers,
-  Sparkles,
   RefreshCw,
   Download,
   Printer,
   Search,
   ChevronDown,
   TrendingUp,
-  BarChart3,
   UserCheck,
-  CheckCircle2,
-  Clock,
   Building2,
   CalendarDays,
   FileSpreadsheet,
   RotateCcw,
   ArrowUpDown,
-  FileText,
   Boxes,
-  User
+  User,
+  Scale,
+  Eye,
+  CheckCircle2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -51,23 +49,33 @@ export function InchargeWiseReportPage() {
   const [workTypeFilter, setWorkTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  // Section-Level Dedicated Labour Selection (affects ONLY Labour Wise Summary section)
+  // Section-Level Dedicated Labour Selection (for drill-down)
   const [selectedSectionLabour, setSelectedSectionLabour] = useState('');
 
-  // Active section tab / view filter for tables
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'incharge', 'labour', 'workType', 'dateShift', 'detailed'
+  // Active Report Requirement / Mode:
+  // 'incharge' = Incharge Summary
+  // 'labour'   = Labour Wise Payout
+  // 'workType' = Work Activity & Output
+  // 'dateShift'= Date & Shift Analysis
+  // 'detailed' = Master Detailed Ledger
+  const [reportMode, setReportMode] = useState('incharge');
   
-  // Table search & sorting & pagination for main detailed table
-  const [searchDetailed, setSearchDetailed] = useState('');
-  const [sortField, setSortField] = useState('date');
+  // Table search & sorting & pagination for tables
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState('totalAmount');
   const [sortAsc, setSortAsc] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 15;
+  const pageSize = 20;
 
   // Quick Date Range Handler
   const handleQuickDate = range => {
     const now = new Date();
-    const formatYMD = d => d.toISOString().slice(0, 10);
+    const formatYMD = d => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     if (range === 'today') {
       const t = formatYMD(now);
@@ -93,6 +101,7 @@ export function InchargeWiseReportPage() {
       setDateFrom('');
       setDateTo('');
     }
+    setCurrentPage(1);
   };
 
   // 1. Flatten work entries into individual Labour Record rows
@@ -157,7 +166,7 @@ export function InchargeWiseReportPage() {
             workRemark: entry.workRemark || '',
             labourName: name,
             rate: rate,
-            amount: perLabourAmount, // Per labour amount share
+            amount: perLabourAmount,
             days: days,
             qtyMade: qtyMade,
             status: entry.status || 'Pending Verification',
@@ -208,12 +217,12 @@ export function InchargeWiseReportPage() {
     });
   }, [allLabourRecords, dateFrom, dateTo, inchargeFilter, shiftFilter, firmFilter, workTypeFilter, statusFilter]);
 
-  // Unique Labourers in current filtered records (for Labour Wise Summary dropdown)
+  // Unique Labourers in current filtered records
   const availableLabourNames = useMemo(() => {
     return Array.from(new Set(filteredRecords.map(r => r.labourName).filter(Boolean))).sort();
   }, [filteredRecords]);
 
-  // 2. High Level KPI Summary Calculations (Page Level)
+  // 2. High Level KPI Summary Calculations
   const summaryKPI = useMemo(() => {
     const uniqueLabourNames = new Set(filteredRecords.map(r => r.labourName).filter(Boolean));
     const uniqueLabourers = uniqueLabourNames.size;
@@ -257,22 +266,28 @@ export function InchargeWiseReportPage() {
           labourersSet: new Set(),
           totalDays: 0,
           totalAmount: 0,
-          workEntriesSet: new Set()
+          workEntriesSet: new Set(),
+          workIdQty: {}
         };
       }
       map[inc].labourersSet.add(r.labourName);
       map[inc].totalDays += (Number(r.days) || 1);
       map[inc].totalAmount += (Number(r.amount) || 0);
       map[inc].workEntriesSet.add(r.workId);
+      if (map[inc].workIdQty[r.workId] === undefined) {
+        map[inc].workIdQty[r.workId] = Number(r.qtyMade) || 0;
+      }
     });
 
     return Object.values(map).map(item => {
       const uniqueLabourers = item.labourersSet.size;
+      const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
       return {
         incharge: item.incharge,
         uniqueLabourers,
         totalDays: item.totalDays,
         totalAmount: item.totalAmount,
+        qtyMade,
         avgPerLabour: uniqueLabourers > 0 ? Math.round(item.totalAmount / uniqueLabourers) : 0,
         avgPerDay: item.totalDays > 0 ? Math.round(item.totalAmount / item.totalDays) : 0,
         workEntries: item.workEntriesSet.size
@@ -316,7 +331,7 @@ export function InchargeWiseReportPage() {
     })).sort((a, b) => b.totalAmount - a.totalAmount);
   }, [filteredRecords]);
 
-  // Records specific to the selected labour in Labour Wise Summary section
+  // Records specific to the selected labour
   const selectedLabourDetailedRecords = useMemo(() => {
     if (!selectedSectionLabour) return [];
     return filteredRecords
@@ -324,7 +339,7 @@ export function InchargeWiseReportPage() {
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [filteredRecords, selectedSectionLabour]);
 
-  // Stats for selected labour in Labour Wise Summary section
+  // Stats for selected labour
   const selectedLabourStats = useMemo(() => {
     if (!selectedSectionLabour) return null;
     const records = selectedLabourDetailedRecords;
@@ -347,7 +362,49 @@ export function InchargeWiseReportPage() {
     };
   }, [selectedSectionLabour, selectedLabourDetailedRecords]);
 
-  // 5. Date Wise Labour Summary Aggregation
+  // 5. Work Type Analysis Aggregation
+  const workTypeAnalysis = useMemo(() => {
+    const map = {};
+    filteredRecords.forEach(r => {
+      const work = r.work || 'General';
+      if (!map[work]) {
+        map[work] = {
+          workType: work,
+          labourersSet: new Set(),
+          totalDays: 0,
+          totalAmount: 0,
+          workEntriesSet: new Set(),
+          workIdQty: {}
+        };
+      }
+      map[work].labourersSet.add(r.labourName);
+      map[work].totalDays += (Number(r.days) || 1);
+      map[work].totalAmount += (Number(r.amount) || 0);
+      map[work].workEntriesSet.add(r.workId);
+      if (map[work].workIdQty[r.workId] === undefined) {
+        map[work].workIdQty[r.workId] = Number(r.qtyMade) || 0;
+      }
+    });
+
+    return Object.values(map).map(item => {
+      const labourCount = item.labourersSet.size;
+      const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
+      const isTon = isTonBasedWork(item.workType);
+      return {
+        workType: item.workType,
+        isTon,
+        labourCount,
+        totalDays: item.totalDays,
+        totalAmount: item.totalAmount,
+        qtyMade,
+        workEntries: item.workEntriesSet.size,
+        avgQtyPerLabour: labourCount > 0 ? (qtyMade / labourCount).toFixed(1) : '0',
+        avgAmountPerLabour: labourCount > 0 ? Math.round(item.totalAmount / labourCount) : 0
+      };
+    }).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [filteredRecords]);
+
+  // 6. Date & Shift Wise Summary Aggregation
   const dateWiseSummary = useMemo(() => {
     const map = {};
     filteredRecords.forEach(r => {
@@ -374,134 +431,122 @@ export function InchargeWiseReportPage() {
 
     return Object.values(map).map(item => {
       const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
+      const uniqueLabourers = item.labourersSet.size;
       return {
         date: item.date,
-        shift: item.shift,
-        uniqueLabourers: item.labourersSet.size,
-        totalDays: item.totalDays,
-        totalAmount: item.totalAmount,
-        qtyMade,
-        workEntries: item.workIds.size
-      };
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [filteredRecords]);
-
-  // 6. Shift Wise Labour Summary Aggregation
-  const shiftWiseSummary = useMemo(() => {
-    const map = {};
-    filteredRecords.forEach(r => {
-      const shift = r.shift || 'General';
-      if (!map[shift]) {
-        map[shift] = {
-          shift,
-          labourersSet: new Set(),
-          totalDays: 0,
-          totalAmount: 0,
-          workIdQty: {}
-        };
-      }
-      map[shift].labourersSet.add(r.labourName);
-      map[shift].totalDays += (Number(r.days) || 1);
-      map[shift].totalAmount += (Number(r.amount) || 0);
-      if (map[shift].workIdQty[r.workId] === undefined) {
-        map[shift].workIdQty[r.workId] = Number(r.qtyMade) || 0;
-      }
-    });
-
-    return Object.values(map).map(item => {
-      const uniqueLabourers = item.labourersSet.size;
-      const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
-      return {
         shift: item.shift,
         uniqueLabourers,
         totalDays: item.totalDays,
         totalAmount: item.totalAmount,
         qtyMade,
-        avgAmountPerLabour: uniqueLabourers > 0 ? Math.round(item.totalAmount / uniqueLabourers) : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredRecords]);
-
-  // 7. Type of Work Analysis Aggregation
-  const workTypeAnalysis = useMemo(() => {
-    const map = {};
-    filteredRecords.forEach(r => {
-      const work = r.work || 'General';
-      if (!map[work]) {
-        map[work] = {
-          workType: work,
-          labourersSet: new Set(),
-          totalDays: 0,
-          totalAmount: 0,
-          workIdQty: {}
-        };
-      }
-      map[work].labourersSet.add(r.labourName);
-      map[work].totalDays += (Number(r.days) || 1);
-      map[work].totalAmount += (Number(r.amount) || 0);
-      if (map[work].workIdQty[r.workId] === undefined) {
-        map[work].workIdQty[r.workId] = Number(r.qtyMade) || 0;
-      }
-    });
-
-    return Object.values(map).map(item => {
-      const labourCount = item.labourersSet.size;
-      const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
-      return {
-        workType: item.workType,
-        labourCount,
-        totalDays: item.totalDays,
-        totalAmount: item.totalAmount,
-        qtyMade,
-        avgQtyPerLabour: labourCount > 0 ? (qtyMade / labourCount).toFixed(1) : '0',
-        avgAmountPerLabour: labourCount > 0 ? Math.round(item.totalAmount / labourCount) : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredRecords]);
-
-  // 8. Work Type + Date Analysis Aggregation
-  const workTypeDateAnalysis = useMemo(() => {
-    const map = {};
-    filteredRecords.forEach(r => {
-      const key = `${r.date}_${r.shift}_${r.work}`;
-      if (!map[key]) {
-        map[key] = {
-          date: r.date,
-          shift: r.shift,
-          workType: r.work,
-          labourersSet: new Set(),
-          totalDays: 0,
-          totalAmount: 0,
-          workIdQty: {}
-        };
-      }
-      map[key].labourersSet.add(r.labourName);
-      map[key].totalDays += (Number(r.days) || 1);
-      map[key].totalAmount += (Number(r.amount) || 0);
-      if (map[key].workIdQty[r.workId] === undefined) {
-        map[key].workIdQty[r.workId] = Number(r.qtyMade) || 0;
-      }
-    });
-
-    return Object.values(map).map(item => {
-      const qtyMade = Object.values(item.workIdQty).reduce((sum, q) => sum + q, 0);
-      return {
-        date: item.date,
-        shift: item.shift,
-        workType: item.workType,
-        labourCount: item.labourersSet.size,
-        totalDays: item.totalDays,
-        qtyMade,
-        totalAmount: item.totalAmount
+        workEntries: item.workIds.size,
+        avgPerLabour: uniqueLabourers > 0 ? Math.round(item.totalAmount / uniqueLabourers) : 0
       };
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [filteredRecords]);
 
-  // 9. Sorted & Paginated Detailed Table Records
-  const searchedAndSortedDetailedRecords = useMemo(() => {
-    let list = [...filteredRecords];
-    if (searchDetailed.trim()) {
-      const q = searchDetailed.toLowerCase().trim();
+  // Dynamic filter and search on currently active report view
+  const currentViewData = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+
+    if (reportMode === 'incharge') {
+      let list = inchargeSummary;
+      if (q) {
+        list = list.filter(item => item.incharge.toLowerCase().includes(q));
+      }
+      list = [...list].sort((a, b) => {
+        let valA = a[sortField] !== undefined ? a[sortField] : a.totalAmount;
+        let valB = b[sortField] !== undefined ? b[sortField] : b.totalAmount;
+        if (typeof valA === 'string') {
+          valA = valA.toLowerCase();
+          valB = String(valB || '').toLowerCase();
+        }
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      return list;
+    }
+
+    if (reportMode === 'labour') {
+      if (selectedSectionLabour) {
+        let list = selectedLabourDetailedRecords;
+        if (q) {
+          list = list.filter(r =>
+            r.incharge.toLowerCase().includes(q) ||
+            r.work.toLowerCase().includes(q) ||
+            (r.workRemark && r.workRemark.toLowerCase().includes(q))
+          );
+        }
+        return list;
+      } else {
+        let list = labourSummary;
+        if (q) {
+          list = list.filter(item =>
+            item.labourName.toLowerCase().includes(q) ||
+            item.incharges.some(inc => inc.toLowerCase().includes(q)) ||
+            item.workTypes.some(w => w.toLowerCase().includes(q))
+          );
+        }
+        list = [...list].sort((a, b) => {
+          let valA = a[sortField] !== undefined ? a[sortField] : a.totalAmount;
+          let valB = b[sortField] !== undefined ? b[sortField] : b.totalAmount;
+          if (typeof valA === 'string') {
+            valA = valA.toLowerCase();
+            valB = String(valB || '').toLowerCase();
+          }
+          if (valA < valB) return sortAsc ? -1 : 1;
+          if (valA > valB) return sortAsc ? 1 : -1;
+          return 0;
+        });
+        return list;
+      }
+    }
+
+    if (reportMode === 'workType') {
+      let list = workTypeAnalysis;
+      if (q) {
+        list = list.filter(item => item.workType.toLowerCase().includes(q));
+      }
+      list = [...list].sort((a, b) => {
+        let valA = a[sortField] !== undefined ? a[sortField] : a.totalAmount;
+        let valB = b[sortField] !== undefined ? b[sortField] : b.totalAmount;
+        if (typeof valA === 'string') {
+          valA = valA.toLowerCase();
+          valB = String(valB || '').toLowerCase();
+        }
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      return list;
+    }
+
+    if (reportMode === 'dateShift') {
+      let list = dateWiseSummary;
+      if (q) {
+        list = list.filter(item =>
+          item.date.toLowerCase().includes(q) ||
+          item.shift.toLowerCase().includes(q)
+        );
+      }
+      list = [...list].sort((a, b) => {
+        let valA = a[sortField] !== undefined ? a[sortField] : a.date;
+        let valB = b[sortField] !== undefined ? b[sortField] : b.date;
+        if (sortField === 'date') {
+          valA = new Date(valA).getTime();
+          valB = new Date(valB).getTime();
+        }
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      return list;
+    }
+
+    // Default: 'detailed'
+    let list = filteredRecords;
+    if (q) {
       list = list.filter(r =>
         r.labourName.toLowerCase().includes(q) ||
         r.incharge.toLowerCase().includes(q) ||
@@ -511,10 +556,9 @@ export function InchargeWiseReportPage() {
         (r.workId && r.workId.toLowerCase().includes(q))
       );
     }
-
-    list.sort((a, b) => {
-      let valA = a[sortField];
-      let valB = b[sortField];
+    list = [...list].sort((a, b) => {
+      let valA = a[sortField] !== undefined ? a[sortField] : a.date;
+      let valB = b[sortField] !== undefined ? b[sortField] : b.date;
       if (sortField === 'date') {
         valA = new Date(valA).getTime();
         valB = new Date(valB).getTime();
@@ -526,88 +570,111 @@ export function InchargeWiseReportPage() {
       if (valA > valB) return sortAsc ? 1 : -1;
       return 0;
     });
-
     return list;
-  }, [filteredRecords, searchDetailed, sortField, sortAsc]);
+  }, [
+    reportMode,
+    searchTerm,
+    sortField,
+    sortAsc,
+    inchargeSummary,
+    labourSummary,
+    selectedSectionLabour,
+    selectedLabourDetailedRecords,
+    workTypeAnalysis,
+    dateWiseSummary,
+    filteredRecords
+  ]);
 
-  const totalPages = Math.ceil(searchedAndSortedDetailedRecords.length / pageSize) || 1;
-  const paginatedDetailedRecords = useMemo(() => {
+  const totalPages = Math.ceil(currentViewData.length / pageSize) || 1;
+  const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return searchedAndSortedDetailedRecords.slice(start, start + pageSize);
-  }, [searchedAndSortedDetailedRecords, currentPage]);
+    return currentViewData.slice(start, start + pageSize);
+  }, [currentViewData, currentPage, pageSize]);
 
   const handleSort = field => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(true);
+      setSortAsc(false); // Default descending for amounts/metrics
     }
   };
 
   // Export handlers
-  const handleExportDetailedCSV = () => {
-    const formatted = formatInchargeWiseForExport(filteredRecords);
-    exportToCSV('Incharge_Wise_Labour_Detailed_Report', formatted);
-  };
-
-  const handleExportLabourSummaryCSV = () => {
-    if (selectedSectionLabour) {
-      const formatted = selectedLabourDetailedRecords.map((r, idx) => ({
+  const handleExportCurrentCSV = () => {
+    if (reportMode === 'incharge') {
+      const formatted = inchargeSummary.map((inc, idx) => ({
         'Sr No': idx + 1,
-        'Date': r.date,
-        'Labour Name': r.labourName,
-        'Incharge': r.incharge,
-        'Shift': r.shift,
-        'Firm': r.firmName,
-        'Work Type': r.work,
-        'Work Remark': r.workRemark || '—',
-        'Days': r.days,
-        'Amount (₹)': r.amount,
-        'Qty Made': r.qtyMade || 0,
-        'Status': r.status
+        'Incharge / Supervisor': inc.incharge,
+        'Unique Labourers': inc.uniqueLabourers,
+        'Total Days': inc.totalDays,
+        'Production Output': inc.qtyMade,
+        'Total Amount (₹)': inc.totalAmount,
+        'Avg Amount / Labour (₹)': inc.avgPerLabour,
+        'Avg Amount / Day (₹)': inc.avgPerDay,
+        'Work Orders': inc.workEntries
       }));
-      exportToCSV(`${selectedSectionLabour}_DateWise_Report`, formatted);
+      exportToCSV('Incharge_Wise_Summary_Report', formatted);
+    } else if (reportMode === 'labour') {
+      if (selectedSectionLabour) {
+        const formatted = selectedLabourDetailedRecords.map((r, idx) => ({
+          'Sr No': idx + 1,
+          'Date': r.date,
+          'Labour Name': r.labourName,
+          'Incharge': r.incharge,
+          'Shift': r.shift,
+          'Firm': r.firmName,
+          'Work Type': r.work,
+          'Work Remark': r.workRemark || '—',
+          'Days': r.days,
+          'Amount (₹)': r.amount,
+          'Qty / Output': r.qtyMade || 0,
+          'Status': r.status
+        }));
+        exportToCSV(`${selectedSectionLabour}_Attendance_Ledger`, formatted);
+      } else {
+        const formatted = labourSummary.map((l, idx) => ({
+          'Sr No': idx + 1,
+          'Labour Name': l.labourName,
+          'Supervisors': l.incharges.join(', '),
+          'Work Types': l.workTypes.join(', '),
+          'Total Days': l.totalDays,
+          'Total Output': l.totalQty,
+          'Total Amount (₹)': l.totalAmount,
+          'Avg Amount / Day (₹)': l.avgAmountPerDay,
+          'Work Entries': l.workEntries
+        }));
+        exportToCSV('Labour_Wise_Payout_Report', formatted);
+      }
+    } else if (reportMode === 'workType') {
+      const formatted = workTypeAnalysis.map((w, idx) => ({
+        'Sr No': idx + 1,
+        'Work Activity': w.workType,
+        'Rate Basis': w.isTon ? 'Per Ton' : 'Per Person',
+        'Labour Count': w.labourCount,
+        'Total Days': w.totalDays,
+        'Production Output': w.qtyMade,
+        'Total Amount (₹)': w.totalAmount,
+        'Avg Qty / Labour': w.avgQtyPerLabour,
+        'Avg Amount / Labour (₹)': w.avgAmountPerLabour
+      }));
+      exportToCSV('Work_Activity_Analysis_Report', formatted);
+    } else if (reportMode === 'dateShift') {
+      const formatted = dateWiseSummary.map((d, idx) => ({
+        'Sr No': idx + 1,
+        'Date': d.date,
+        'Shift': d.shift,
+        'Labourers': d.uniqueLabourers,
+        'Total Days': d.totalDays,
+        'Production Output': d.qtyMade,
+        'Total Amount (₹)': d.totalAmount,
+        'Work Entries': d.workEntries
+      }));
+      exportToCSV('Date_Shift_Labour_Report', formatted);
     } else {
-      const formatted = labourSummary.map((l, idx) => ({
-        'Sr No': idx + 1,
-        'Labour Name': l.labourName,
-        'Total Days': l.totalDays,
-        'Total Amount (₹)': l.totalAmount,
-        'Avg Amount / Day (₹)': l.avgAmountPerDay,
-        'Work Entries': l.workEntries,
-        'Work Types': l.workTypes.join('; ')
-      }));
-      exportToCSV('Labour_Summary_Report', formatted);
+      const formatted = formatInchargeWiseForExport(filteredRecords);
+      exportToCSV('Master_Detailed_Labour_Report', formatted);
     }
-  };
-
-  const handleExportInchargeSummaryCSV = () => {
-    const formatted = inchargeSummary.map((inc, idx) => ({
-      'Sr No': idx + 1,
-      'Incharge': inc.incharge,
-      'Unique Labourers': inc.uniqueLabourers,
-      'Total Days': inc.totalDays,
-      'Total Amount (₹)': inc.totalAmount,
-      'Avg Amount / Labour (₹)': inc.avgPerLabour,
-      'Avg Amount / Day (₹)': inc.avgPerDay,
-      'Work Entries': inc.workEntries
-    }));
-    exportToCSV('Incharge_Summary_Report', formatted);
-  };
-
-  const handleExportWorkTypeSummaryCSV = () => {
-    const formatted = workTypeAnalysis.map((w, idx) => ({
-      'Sr No': idx + 1,
-      'Work Type': w.workType,
-      'Labour Count': w.labourCount,
-      'Total Days': w.totalDays,
-      'Total Amount (₹)': w.totalAmount,
-      'Qty Made': w.qtyMade,
-      'Avg Qty / Labour': w.avgQtyPerLabour,
-      'Avg Amount / Labour (₹)': w.avgAmountPerLabour
-    }));
-    exportToCSV('Work_Type_Analysis_Report', formatted);
   };
 
   const handlePrint = () => {
@@ -619,12 +686,14 @@ export function InchargeWiseReportPage() {
         shift: shiftFilter,
         firm: firmFilter,
         labour: selectedSectionLabour,
-        workType: workTypeFilter
+        workType: workTypeFilter,
+        reportMode
       },
       summary: summaryKPI,
       inchargeSummary,
       labourSummary,
       workTypeSummary: workTypeAnalysis,
+      dateWiseSummary,
       detailedRows: filteredRecords
     });
   };
@@ -638,13 +707,17 @@ export function InchargeWiseReportPage() {
     setWorkTypeFilter('');
     setStatusFilter('');
     setSelectedSectionLabour('');
-    setSearchDetailed('');
+    setSearchTerm('');
     setCurrentPage(1);
   };
 
+  const hasActiveFilters = Boolean(
+    dateFrom || dateTo || inchargeFilter || shiftFilter || firmFilter || workTypeFilter || statusFilter || selectedSectionLabour
+  );
+
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: 40 }}>
-      {/* Top Header Row */}
+    <div style={{ maxWidth: 1440, margin: '0 auto', paddingBottom: 40 }}>
+      {/* 1. Executive Top Header */}
       <div style={{
         marginBottom: 20,
         display: 'flex',
@@ -660,22 +733,24 @@ export function InchargeWiseReportPage() {
             style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
           >
             <ArrowLeft size={16} />
-            <span>Back to Reports & Export</span>
+            <span>Reports Hub</span>
           </button>
           <div>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
-              <span>Incharge Wise Labour Report</span>
-              <span className="badge badge-emerald" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
-                MIS Analytics
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                Labour MIS & Executive Report Sheet
+              </h1>
+              <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '4px 10px', fontWeight: 700 }}>
+                Enterprise Ledger
               </span>
-            </h1>
-            <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '4px 0 0 0' }}>
-              Supervisor-wise labour deployments, working days, production output & payroll payments
+            </div>
+            <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '3px 0 0 0' }}>
+              Structured audit-ready reporting by Incharge, Labourer, Work Type, Output & Payment Ledgers
             </p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             onClick={refreshData}
             disabled={syncing}
@@ -684,17 +759,17 @@ export function InchargeWiseReportPage() {
             title="Refresh & Synchronize Live Google Sheet Data"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
+            <span>{syncing ? 'Syncing...' : 'Sync Live'}</span>
           </button>
 
           <button
-            onClick={handleExportDetailedCSV}
+            onClick={handleExportCurrentCSV}
             className="btn btn-outline-green btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Export Current Filtered Detailed Records to CSV"
+            title="Export Current View Data to Excel CSV"
           >
             <Download size={14} />
-            <span>Export CSV</span>
+            <span>Export Excel</span>
           </button>
 
           <button
@@ -704,417 +779,415 @@ export function InchargeWiseReportPage() {
             title="Print Ready A4 Report or Download PDF"
           >
             <Printer size={14} />
-            <span>Print Report</span>
+            <span>Print Report Sheet</span>
           </button>
         </div>
       </div>
 
-      {/* Top Filter Control Box */}
-      <div className="card" style={{ marginBottom: 20, padding: '18px 20px', background: '#FFFFFF', border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: '0.92rem', color: '#0F172A' }}>
-            <Filter size={16} color="#059669" />
-            <span>Filter Controls</span>
+      {/* 2. Professional Filter & Requirement Selector Panel */}
+      <div className="card" style={{
+        marginBottom: 20,
+        padding: '18px 20px',
+        background: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: 12,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        {/* Row 1: Report Requirement Mode Selector */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+          flexWrap: 'wrap',
+          gap: 12,
+          borderBottom: '1px solid #F1F5F9',
+          paddingBottom: 14
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Select Report Requirement:
+            </span>
           </div>
 
-          {/* Quick Date Range Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.78rem', color: '#64748B', fontWeight: 600 }}>Quick Range:</span>
-            {['today', 'yesterday', 'this_week', 'this_month', 'all'].map(r => (
-              <button
-                key={r}
-                onClick={() => handleQuickDate(r)}
-                className="btn btn-secondary btn-sm"
-                style={{
-                  fontSize: '0.75rem',
-                  padding: '4px 10px',
-                  borderRadius: 6,
-                  textTransform: 'capitalize'
+          {/* Segmented Mode Tabs */}
+          <div style={{
+            display: 'inline-flex',
+            background: '#F1F5F9',
+            padding: 4,
+            borderRadius: 8,
+            gap: 4,
+            flexWrap: 'wrap'
+          }}>
+            {[
+              { id: 'incharge', label: 'Incharge Summary', count: inchargeSummary.length },
+              { id: 'labour', label: selectedSectionLabour ? `Labour: ${selectedSectionLabour}` : `Labour Wise Payout`, count: labourSummary.length },
+              { id: 'workType', label: 'Work Activity & Output', count: workTypeAnalysis.length },
+              { id: 'dateShift', label: 'Date & Shift Matrix', count: dateWiseSummary.length },
+              { id: 'detailed', label: 'Master Detailed Ledger', count: filteredRecords.length }
+            ].map(tab => {
+              const active = reportMode === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setReportMode(tab.id);
+                    setCurrentPage(1);
+                    setSearchTerm('');
+                  }}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: active ? '#059669' : 'transparent',
+                    color: active ? '#FFFFFF' : '#475569',
+                    fontSize: '0.8rem',
+                    fontWeight: active ? 700 : 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span style={{
+                    fontSize: '0.72rem',
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                    background: active ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
+                    color: active ? '#FFFFFF' : '#64748B'
+                  }}>
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 2: Comprehensive Filters Grid */}
+        <div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+            flexWrap: 'wrap',
+            gap: 8
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
+              <Filter size={14} color="#059669" />
+              <span>Data Scope & Date Filters:</span>
+            </div>
+
+            {/* Quick Date Presets */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 600 }}>Quick:</span>
+              {[
+                { key: 'today', label: 'Today' },
+                { key: 'yesterday', label: 'Yesterday' },
+                { key: 'this_week', label: 'This Week' },
+                { key: 'this_month', label: 'This Month' },
+                { key: 'all', label: 'All Dates' }
+              ].map(r => (
+                <button
+                  key={r.key}
+                  onClick={() => handleQuickDate(r.key)}
+                  className="btn btn-secondary btn-sm"
+                  style={{
+                    fontSize: '0.74rem',
+                    padding: '3px 8px',
+                    borderRadius: 5
+                  }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+            gap: 10,
+            alignItems: 'flex-end'
+          }}>
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Date From</label>
+              <input
+                type="date"
+                className="form-input"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={dateFrom}
+                onChange={e => {
+                  setDateFrom(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Date To</label>
+              <input
+                type="date"
+                className="form-input"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={dateTo}
+                onChange={e => {
+                  setDateTo(e.target.value);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Supervisor / Incharge</label>
+              <select
+                className="form-select"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={inchargeFilter}
+                onChange={e => {
+                  setInchargeFilter(e.target.value);
+                  setCurrentPage(1);
                 }}
               >
-                {r.replace('_', ' ')}
+                <option value="">All Incharges ({dynamicIncharges.length})</option>
+                {dynamicIncharges.map(inc => (
+                  <option key={inc} value={inc}>{inc}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Shift</label>
+              <select
+                className="form-select"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={shiftFilter}
+                onChange={e => {
+                  setShiftFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">All Shifts</option>
+                {dynamicShifts.map(sh => (
+                  <option key={sh} value={sh}>{sh}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Firm Name</label>
+              <select
+                className="form-select"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={firmFilter}
+                onChange={e => {
+                  setFirmFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">All Firms</option>
+                {dynamicFirms.map(firm => (
+                  <option key={firm} value={firm}>{firm}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Type of Work</label>
+              <select
+                className="form-select"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={workTypeFilter}
+                onChange={e => {
+                  setWorkTypeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">All Work Types</option>
+                {dynamicWorkTypes.map(work => (
+                  <option key={work} value={work}>{work}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Status</label>
+              <select
+                className="form-select"
+                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                value={statusFilter}
+                onChange={e => {
+                  setStatusFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="">All Statuses</option>
+                <option value="Pending Verification">Pending Verification</option>
+                <option value="Verified (Pending Approval)">Verified (Pending Approval)</option>
+                <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
+                <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
+                <option value="Tally Complete">Tally Complete</option>
+              </select>
+            </div>
+
+            <div>
+              <button
+                onClick={clearAllFilters}
+                disabled={!hasActiveFilters}
+                className="btn btn-secondary"
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  fontSize: '0.82rem',
+                  opacity: hasActiveFilters ? 1 : 0.6
+                }}
+                title="Reset all active filters"
+              >
+                <RotateCcw size={13} />
+                <span>Reset Filters</span>
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filter Form Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-          gap: 12,
-          alignItems: 'flex-end'
-        }}>
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Date From</label>
-            <input
-              type="date"
-              className="form-input"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Date To</label>
-            <input
-              type="date"
-              className="form-input"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Supervisor / Incharge</label>
-            <select
-              className="form-select"
-              value={inchargeFilter}
-              onChange={e => setInchargeFilter(e.target.value)}
-            >
-              <option value="">All Incharges</option>
-              {dynamicIncharges.map(inc => (
-                <option key={inc} value={inc}>{inc}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Shift</label>
-            <select
-              className="form-select"
-              value={shiftFilter}
-              onChange={e => setShiftFilter(e.target.value)}
-            >
-              <option value="">All Shifts</option>
-              {dynamicShifts.map(sh => (
-                <option key={sh} value={sh}>{sh}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Firm Name</label>
-            <select
-              className="form-select"
-              value={firmFilter}
-              onChange={e => setFirmFilter(e.target.value)}
-            >
-              <option value="">All Firms</option>
-              {dynamicFirms.map(firm => (
-                <option key={firm} value={firm}>{firm}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Type of Work</label>
-            <select
-              className="form-select"
-              value={workTypeFilter}
-              onChange={e => setWorkTypeFilter(e.target.value)}
-            >
-              <option value="">All Work Types</option>
-              {dynamicWorkTypes.map(work => (
-                <option key={work} value={work}>{work}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="form-label" style={{ fontSize: '0.78rem' }}>Status / Stage</label>
-            <select
-              className="form-select"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-            >
-              <option value="">All Stages</option>
-              <option value="Pending Verification">Pending Verification</option>
-              <option value="Verified (Pending Approval)">Verified (Pending Approval)</option>
-              <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
-              <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
-              <option value="Tally Complete">Tally Complete</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={clearAllFilters}
-              className="btn btn-secondary"
-              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              title="Reset all active filters"
-            >
-              <RotateCcw size={14} />
-              <span>Reset</span>
-            </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Summary KPI Ribbon */}
+      {/* 3. Executive Financial Metrics Strip */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: 12,
-        marginBottom: 24
+        marginBottom: 20
       }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
+        {/* Metric 1: Total Payroll */}
+        <div style={{
+          background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%)',
+          border: '1.5px solid #86EFAC',
+          borderRadius: 10,
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Labourers</span>
-            <Users size={16} color="#059669" />
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Total Reconciled Payout
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IndianRupee size={15} color="#15803D" />
+            </div>
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.uniqueLabourers} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748B' }}>unique</span>
-          </div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Labour Days</span>
-            <CalendarDays size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.totalDays} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748B' }}>days</span>
-          </div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #BBF7D0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#065F46', textTransform: 'uppercase' }}>Total Amount</span>
-            <IndianRupee size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#059669', marginTop: 4 }}>
+          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#15803D', marginTop: 4 }}>
             ₹{summaryKPI.totalAmount.toLocaleString('en-IN')}
           </div>
+          <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: 2, fontWeight: 600 }}>
+            Scope Total Payroll Amount
+          </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
+        {/* Metric 2: Headcount & Days */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: 10,
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Avg / Labour</span>
-            <UserCheck size={16} color="#059669" />
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Headcount & Man-Days
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={15} color="#0F172A" />
+            </div>
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857', marginTop: 4 }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+            {summaryKPI.uniqueLabourers} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>workers</span>
+          </div>
+          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
+            {summaryKPI.totalDays} Total Cumulative Days
+          </div>
+        </div>
+
+        {/* Metric 3: Production Volume */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: 10,
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Production Output
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Boxes size={15} color="#0F172A" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
+            {summaryKPI.totalProductionQty.toLocaleString('en-IN')} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>tons / units</span>
+          </div>
+          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
+            Across {summaryKPI.totalWorkEntries} Work Orders
+          </div>
+        </div>
+
+        {/* Metric 4: Avg Rates */}
+        <div style={{
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: 10,
+          padding: '14px 16px',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Avg Cost / Worker
+            </span>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <TrendingUp size={15} color="#059669" />
+            </div>
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
             ₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}
           </div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Avg / Day</span>
-            <TrendingUp size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857', marginTop: 4 }}>
-            ₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}
-          </div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Work Orders</span>
-            <Briefcase size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.totalWorkEntries} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748B' }}>entries</span>
-          </div>
-        </div>
-
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 16px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Production Qty</span>
-            <Boxes size={16} color="#059669" />
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.totalProductionQty.toLocaleString('en-IN')} <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748B' }}>units</span>
+          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
+            Avg ₹{summaryKPI.avgPerDay.toLocaleString('en-IN')} / Working Day
           </div>
         </div>
       </div>
 
-      {/* Visual Analytics Charts Section */}
-      <div className="card" style={{ marginBottom: 24, padding: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>
-            <BarChart3 size={18} color="#059669" />
-            <span>Interactive Visual Analytics</span>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
-          {/* Chart 1: Labour Payment by Incharge */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Labour Payment by Incharge (₹)</span>
-              <span style={{ color: '#059669', fontSize: '0.75rem' }}>Top Supervisors</span>
-            </div>
-            {inchargeSummary.length === 0 ? (
-              <div style={{ color: '#94A3B8', fontSize: '0.82rem', padding: '20px 0', textAlign: 'center' }}>No incharge data available</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {inchargeSummary.slice(0, 5).map(inc => {
-                  const maxVal = inchargeSummary[0]?.totalAmount || 1;
-                  const pct = Math.min(100, Math.round((inc.totalAmount / maxVal) * 100));
-                  return (
-                    <div key={inc.incharge}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600, color: '#334155' }}>{inc.incharge}</span>
-                        <span style={{ fontWeight: 700, color: '#059669' }}>₹{inc.totalAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div style={{ background: '#E2E8F0', height: 8, borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981, #059669)', borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Chart 2: Labour Count by Work Type */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Labour Count by Work Activity</span>
-              <span style={{ color: '#047857', fontSize: '0.75rem' }}>Unique Workers</span>
-            </div>
-            {workTypeAnalysis.length === 0 ? (
-              <div style={{ color: '#94A3B8', fontSize: '0.82rem', padding: '20px 0', textAlign: 'center' }}>No work type data available</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {workTypeAnalysis.slice(0, 5).map(w => {
-                  const maxCount = Math.max(...workTypeAnalysis.map(x => x.labourCount), 1);
-                  const pct = Math.min(100, Math.round((w.labourCount / maxCount) * 100));
-                  return (
-                    <div key={w.workType}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600, color: '#334155' }}>{w.workType}</span>
-                        <span style={{ fontWeight: 700, color: '#047857' }}>{w.labourCount} persons ({w.totalDays} days)</span>
-                      </div>
-                      <div style={{ background: '#E2E8F0', height: 8, borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #34D399, #059669)', borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Chart 3: Production Qty by Work Type */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Production Quantity by Work Type</span>
-              <span style={{ color: '#059669', fontSize: '0.75rem' }}>Output Volume</span>
-            </div>
-            {workTypeAnalysis.filter(w => w.qtyMade > 0).length === 0 ? (
-              <div style={{ color: '#94A3B8', fontSize: '0.82rem', padding: '20px 0', textAlign: 'center' }}>No quantity records in selection</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {workTypeAnalysis.filter(w => w.qtyMade > 0).slice(0, 5).map(w => {
-                  const maxQty = Math.max(...workTypeAnalysis.map(x => x.qtyMade), 1);
-                  const pct = Math.min(100, Math.round((w.qtyMade / maxQty) * 100));
-                  return (
-                    <div key={w.workType}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600, color: '#334155' }}>{w.workType}</span>
-                        <span style={{ fontWeight: 700, color: '#047857' }}>{w.qtyMade} units</span>
-                      </div>
-                      <div style={{ background: '#E2E8F0', height: 8, borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #6EE7B7, #047857)', borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Chart 4: Daily Labour Payment Trend */}
-          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1E293B', marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-              <span>Daily Payment Breakdown</span>
-              <span style={{ color: '#059669', fontSize: '0.75rem' }}>Timeline</span>
-            </div>
-            {dateWiseSummary.length === 0 ? (
-              <div style={{ color: '#94A3B8', fontSize: '0.82rem', padding: '20px 0', textAlign: 'center' }}>No daily records available</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {dateWiseSummary.slice(0, 5).map(d => {
-                  const maxAmt = Math.max(...dateWiseSummary.map(x => x.totalAmount), 1);
-                  const pct = Math.min(100, Math.round((d.totalAmount / maxAmt) * 100));
-                  return (
-                    <div key={`${d.date}_${d.shift}`}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: 3 }}>
-                        <span style={{ fontWeight: 600, color: '#334155' }}>{formatDate(d.date)} ({d.shift})</span>
-                        <span style={{ fontWeight: 700, color: '#059669' }}>₹{d.totalAmount.toLocaleString('en-IN')}</span>
-                      </div>
-                      <div style={{ background: '#E2E8F0', height: 8, borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, #10B981, #065F46)', borderRadius: 4 }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation Tab Bar for Reporting Tables */}
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        borderBottom: '2px solid #E2E8F0',
-        paddingBottom: 4,
-        marginBottom: 20,
-        overflowX: 'auto'
-      }}>
-        {[
-          { id: 'all', label: 'All Modules' },
-          { id: 'incharge', label: `Incharge Summary (${inchargeSummary.length})` },
-          { id: 'labour', label: `Labour Wise Summary (${labourSummary.length})` },
-          { id: 'workType', label: `Type of Work Analysis (${workTypeAnalysis.length})` },
-          { id: 'dateShift', label: `Date & Shift Analysis (${dateWiseSummary.length})` },
-          { id: 'detailed', label: `Detailed Entries (${filteredRecords.length})` }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              background: activeTab === tab.id ? '#ECFDF5' : 'transparent',
-              color: activeTab === tab.id ? '#047857' : '#64748B',
-              fontWeight: 700,
-              fontSize: '0.86rem',
-              borderRadius: '8px 8px 0 0',
-              borderBottom: activeTab === tab.id ? '2px solid #059669' : '2px solid transparent',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              transition: 'all 0.15s'
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Loading Skeleton Indicator */}
+      {/* 4. Loading State */}
       {loading && (
-        <div style={{ padding: '40px', textAlign: 'center' }}>
+        <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0' }}>
           <div className="animate-spin" style={{ display: 'inline-block', marginBottom: 12 }}>
-            <RefreshCw size={28} color="#059669" />
+            <RefreshCw size={32} color="#059669" />
           </div>
-          <div style={{ color: '#64748B', fontWeight: 600 }}>Loading and reconciling labour payment records...</div>
+          <div style={{ color: '#0F172A', fontWeight: 700, fontSize: '1.05rem' }}>Reconciling Enterprise Labour Ledger...</div>
+          <div style={{ color: '#64748B', fontSize: '0.84rem', marginTop: 4 }}>Pulling live data and computing breakdowns</div>
         </div>
       )}
 
-      {/* Empty State */}
+      {/* 5. Empty State */}
       {!loading && filteredRecords.length === 0 && (
-        <div className="empty-state" style={{ background: '#FFFFFF', padding: '48px 24px', borderRadius: 12, border: '1px solid #E2E8F0', textAlign: 'center' }}>
-          <div className="empty-state-icon" style={{ display: 'inline-flex', padding: 16, borderRadius: '50%', background: '#F1F5F9', color: '#64748B', marginBottom: 12 }}>
+        <div style={{
+          background: '#FFFFFF',
+          padding: '48px 24px',
+          borderRadius: 12,
+          border: '1px solid #E2E8F0',
+          textAlign: 'center'
+        }}>
+          <div style={{ display: 'inline-flex', padding: 16, borderRadius: '50%', background: '#F1F5F9', color: '#64748B', marginBottom: 14 }}>
             <Users size={36} />
           </div>
-          <h3 className="empty-state-title" style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A' }}>No Labour Records Found</h3>
-          <p className="empty-state-desc" style={{ color: '#64748B', maxWidth: 460, margin: '8px auto 16px' }}>
-            No records matched your selected filter combination. Try adjusting the date range, Incharge, Shift or Work Type filter.
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0' }}>No Records In Selected Scope</h3>
+          <p style={{ color: '#64748B', maxWidth: 440, margin: '0 auto 18px', fontSize: '0.85rem' }}>
+            No work deployment records match your active filters. Try adjusting the date range, incharge or work activity filter.
           </p>
           <button onClick={clearAllFilters} className="btn btn-outline-green btn-sm">
             Reset All Filters
@@ -1122,629 +1195,303 @@ export function InchargeWiseReportPage() {
         </div>
       )}
 
+      {/* 6. Active Professional Report Sheet Section */}
       {!loading && filteredRecords.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          {/* Section 1: Incharge Summary Table */}
-          {(activeTab === 'all' || activeTab === 'incharge') && (
-            <div className="card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    1. Incharge Summary
-                  </h3>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                    Deployment metrics and total payment aggregated by Supervisor / Incharge
-                  </div>
-                </div>
-                <button onClick={handleExportInchargeSummaryCSV} className="btn btn-secondary btn-sm">
-                  <Download size={14} />
-                  <span>Export Incharge CSV</span>
-                </button>
+        <div className="card" style={{
+          padding: '20px',
+          background: '#FFFFFF',
+          border: '1px solid #E2E8F0',
+          borderRadius: 12,
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          {/* Table Header Strip: Title, Search, and Scope Actions */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 16,
+            flexWrap: 'wrap',
+            gap: 12,
+            borderBottom: '1px solid #F1F5F9',
+            paddingBottom: 14
+          }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  {reportMode === 'incharge' && '1. Incharge / Supervisor Deployment Summary'}
+                  {reportMode === 'labour' && (selectedSectionLabour ? `2. Attendance & Payout Ledger: ${selectedSectionLabour}` : '2. Labour Wise Attendance & Payout Summary')}
+                  {reportMode === 'workType' && '3. Work Activity & Production Output Ledger'}
+                  {reportMode === 'dateShift' && '4. Date & Shift Deployment Matrix'}
+                  {reportMode === 'detailed' && '5. Master Detailed Transaction Ledger'}
+                </h3>
               </div>
-
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Incharge / Supervisor</th>
-                      <th style={{ textAlign: 'right' }}>Total Labourers</th>
-                      <th style={{ textAlign: 'right' }}>Total Days</th>
-                      <th style={{ textAlign: 'right' }}>Total Amount</th>
-                      <th style={{ textAlign: 'right' }}>Avg Amount / Labour</th>
-                      <th style={{ textAlign: 'right' }}>Avg Amount / Day</th>
-                      <th style={{ textAlign: 'right' }}>Work Orders</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {inchargeSummary.map(inc => (
-                      <tr key={inc.incharge} style={{ cursor: 'pointer' }} onClick={() => setInchargeFilter(inc.incharge)}>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                          <span style={{ color: '#059669', marginRight: 6 }}>●</span>
-                          {inc.incharge}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.uniqueLabourers}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.totalDays}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                          ₹{inc.totalAmount.toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          ₹{inc.avgPerLabour.toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          ₹{inc.avgPerDay.toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ textAlign: 'right', color: '#64748B' }}>{inc.workEntries}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                      <td>Grand Total</td>
-                      <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
-                      <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
-                    </tr>
-                  </tfoot>
-                </table>
+              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 3 }}>
+                Showing {currentViewData.length} records matching current criteria
               </div>
             </div>
-          )}
 
-          {/* Section 2: Labour Wise Summary Section (UPDATED with Dedicated Labour Dropdown & Detailed History) */}
-          {(activeTab === 'all' || activeTab === 'labour') && (
-            <div className="card" style={{ padding: '20px', border: selectedSectionLabour ? '1.5px solid #10B981' : '1px solid #E2E8F0' }}>
-              {/* Section Header with Dedicated Labour Dropdown */}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 16,
-                flexWrap: 'wrap',
-                gap: 12
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                      2. Labour Wise Summary
-                    </h3>
-                    {selectedSectionLabour && (
-                      <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '3px 8px' }}>
-                        Single Worker Detailed View
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 2 }}>
-                    {selectedSectionLabour
-                      ? `Complete date-wise working history and payments for ${selectedSectionLabour}`
-                      : 'Earnings and working days per individual labourer (Select from dropdown or click any row)'}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  {/* Select Labour Dropdown (Local to Labour Wise Summary) */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1E293B', whiteSpace: 'nowrap' }}>
-                      Select Labour:
-                    </label>
-                    <select
-                      className="form-select"
-                      style={{
-                        minWidth: 180,
-                        maxWidth: 240,
-                        padding: '6px 12px',
-                        fontSize: '0.84rem',
-                        fontWeight: selectedSectionLabour ? 700 : 500,
-                        borderColor: selectedSectionLabour ? '#059669' : '#CBD5E1',
-                        background: selectedSectionLabour ? '#F0FDF4' : '#FFFFFF'
-                      }}
-                      value={selectedSectionLabour}
-                      onChange={e => setSelectedSectionLabour(e.target.value)}
-                    >
-                      <option value="">All Labourers ({availableLabourNames.length})</option>
-                      {availableLabourNames.map(name => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
-                  </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {/* If on labour mode, provide quick labour switcher */}
+              {reportMode === 'labour' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <select
+                    className="form-select"
+                    style={{
+                      padding: '5px 10px',
+                      fontSize: '0.8rem',
+                      maxWidth: 220,
+                      fontWeight: selectedSectionLabour ? 700 : 500,
+                      borderColor: selectedSectionLabour ? '#059669' : '#CBD5E1',
+                      background: selectedSectionLabour ? '#F0FDF4' : '#FFFFFF'
+                    }}
+                    value={selectedSectionLabour}
+                    onChange={e => {
+                      setSelectedSectionLabour(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="">All Workers ({availableLabourNames.length})</option>
+                    {availableLabourNames.map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
 
                   {selectedSectionLabour && (
                     <button
                       onClick={() => setSelectedSectionLabour('')}
                       className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.75rem' }}
-                      title="Return to full summary of all labourers"
+                      style={{ fontSize: '0.74rem', padding: '5px 8px' }}
                     >
-                      ← View All Labourers
+                      View All
                     </button>
                   )}
-
-                  <button onClick={handleExportLabourSummaryCSV} className="btn btn-secondary btn-sm">
-                    <Download size={14} />
-                    <span>{selectedSectionLabour ? 'Export Date-wise CSV' : 'Export Labour CSV'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* View A: Single Selected Labour Detailed View */}
-              {selectedSectionLabour && selectedLabourStats ? (
-                <div>
-                  {/* Compact Profile Header Card */}
-                  <div style={{
-                    marginBottom: 16,
-                    padding: '16px 20px',
-                    background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)',
-                    border: '1px solid #A7F3D0',
-                    borderRadius: 10,
-                    boxShadow: 'var(--shadow-sm)'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: '50%',
-                          background: '#059669',
-                          color: '#FFFFFF',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontWeight: 800,
-                          fontSize: '1.2rem'
-                        }}>
-                          {selectedLabourStats.labourName.charAt(0)}
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#064E3B' }}>
-                            Labour: {selectedLabourStats.labourName}
-                          </div>
-                          <div style={{ fontSize: '0.8rem', color: '#047857', fontWeight: 600 }}>
-                            Supervising Incharge(s): {selectedLabourStats.incharges.join(', ') || 'N/A'} • Works: {selectedLabourStats.workTypes.join(', ') || 'N/A'}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '6px 14px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Days</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalDays} Days</div>
-                        </div>
-
-                        <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '6px 14px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Amount</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</div>
-                        </div>
-
-                        <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '6px 14px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Avg Amount / Day</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#047857' }}>₹{selectedLabourStats.avgPerDay}</div>
-                        </div>
-
-                        <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '6px 14px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Work Entries</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalWorkEntries}</div>
-                        </div>
-
-                        <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '6px 14px', borderRadius: 8, border: '1px solid #BBF7D0' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Qty Made</div>
-                          <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalQtyMade}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Selected Labour Date-wise Detailed Table */}
-                  <div className="table-container">
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Incharge</th>
-                          <th>Shift</th>
-                          <th>Firm</th>
-                          <th>Work Type</th>
-                          <th>Work Remark</th>
-                          <th style={{ textAlign: 'right' }}>Days</th>
-                          <th style={{ textAlign: 'right' }}>Amount</th>
-                          <th style={{ textAlign: 'right' }}>Qty Made</th>
-                          <th>Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedLabourDetailedRecords.map((r, idx) => (
-                          <tr key={`${r.workId}_${idx}`}>
-                            <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                              {formatDate(r.date)}
-                            </td>
-                            <td style={{ fontWeight: 600, color: '#065F46' }}>
-                              <span style={{ color: '#059669', marginRight: 4 }}>●</span>
-                              {r.incharge}
-                            </td>
-                            <td>{r.shift || '-'}</td>
-                            <td>
-                              <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.75rem' }}>
-                                {r.firmName || '-'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.75rem', fontWeight: 600 }}>
-                                {r.work}
-                              </span>
-                            </td>
-                            <td>
-                              <div
-                                style={{
-                                  maxWidth: 180,
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  color: r.workRemark ? '#334155' : '#94A3B8',
-                                  fontStyle: r.workRemark ? 'normal' : 'italic'
-                                }}
-                                title={r.workRemark || 'No remark'}
-                              >
-                                {r.workRemark || '—'}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.days}</td>
-                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                              ₹{Number(r.amount).toLocaleString('en-IN')}
-                            </td>
-                            <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.qtyMade || 0}</td>
-                            <td>
-                              <StatusBadge status={r.status} />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                          <td colSpan={6}>Total for {selectedLabourStats.labourName}</td>
-                          <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalDays}</td>
-                          <td style={{ textAlign: 'right', color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</td>
-                          <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalQtyMade}</td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                /* View B: All Labourers Normal Summary Table */
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 50 }}>Sr. No.</th>
-                        <th>Labour Name</th>
-                        <th style={{ textAlign: 'right' }}>Total Days</th>
-                        <th style={{ textAlign: 'right' }}>Total Amount</th>
-                        <th style={{ textAlign: 'right' }}>Avg Amount / Day</th>
-                        <th style={{ textAlign: 'right' }}>Work Entries</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {labourSummary.map((l, idx) => (
-                        <tr
-                          key={l.labourName}
-                          onClick={() => setSelectedSectionLabour(l.labourName)}
-                          style={{ cursor: 'pointer' }}
-                          title={`Click to view date-wise history for ${l.labourName}`}
-                        >
-                          <td style={{ color: '#64748B', fontWeight: 600 }}>{idx + 1}</td>
-                          <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                            <span style={{ color: '#059669', textDecoration: 'underline' }}>
-                              {l.labourName}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{l.totalDays}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                            ₹{Number(l.totalAmount).toLocaleString('en-IN')}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                            ₹{Number(l.avgAmountPerDay).toLocaleString('en-IN')}
-                          </td>
-                          <td style={{ textAlign: 'right', color: '#64748B' }}>{l.workEntries}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                        <td colSpan={2}>Grand Total ({labourSummary.length} Labourers)</td>
-                        <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
-                        <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                        <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
-                        <td style={{ textAlign: 'right' }}>{filteredRecords.length}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Section 3: Type of Work Analysis */}
-          {(activeTab === 'all' || activeTab === 'workType') && (
-            <div className="card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+              {/* Table Search Input */}
+              <div className="search-input-wrap" style={{ minWidth: 220 }}>
+                <Search size={14} />
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ padding: '6px 10px 6px 32px', fontSize: '0.82rem' }}
+                  placeholder="Search table rows..."
+                  value={searchTerm}
+                  onChange={e => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={handleExportCurrentCSV}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
+                title="Export this specific table view to CSV"
+              >
+                <Download size={13} />
+                <span>Export Table CSV</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Drill-down Worker Header (If single labour is selected) */}
+          {reportMode === 'labour' && selectedSectionLabour && selectedLabourStats && (
+            <div style={{
+              marginBottom: 16,
+              padding: '14px 18px',
+              background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)',
+              border: '1px solid #A7F3D0',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: '50%',
+                  background: '#059669',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 800,
+                  fontSize: '1.1rem'
+                }}>
+                  {selectedLabourStats.labourName.charAt(0)}
+                </div>
                 <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    3. Type of Work Analysis
-                  </h3>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                    Labour count, production volume, days and payment per work activity
+                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#064E3B' }}>
+                    {selectedLabourStats.labourName}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 600 }}>
+                    Supervisors: {selectedLabourStats.incharges.join(', ') || 'N/A'} • Activities: {selectedLabourStats.workTypes.join(', ') || 'N/A'}
                   </div>
                 </div>
-                <button onClick={handleExportWorkTypeSummaryCSV} className="btn btn-secondary btn-sm">
-                  <Download size={14} />
-                  <span>Export Work Type CSV</span>
-                </button>
               </div>
 
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Work Type</th>
-                      <th style={{ textAlign: 'right' }}>Labour Count</th>
-                      <th style={{ textAlign: 'right' }}>Total Days</th>
-                      <th style={{ textAlign: 'right' }}>Total Amount</th>
-                      <th style={{ textAlign: 'right' }}>Qty Made</th>
-                      <th style={{ textAlign: 'right' }}>Avg Qty / Labour</th>
-                      <th style={{ textAlign: 'right' }}>Avg Amount / Labour</th>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Working Days</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalDays} Days</div>
+                </div>
+                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Payout</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</div>
+                </div>
+                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Daily Avg</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#047857' }}>₹{selectedLabourStats.avgPerDay}</div>
+                </div>
+                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Output</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalQtyMade}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Table Container */}
+          <div className="table-container" style={{ overflowX: 'auto' }}>
+            {/* VIEW 1: INCHARGE SUMMARY TABLE */}
+            {reportMode === 'incharge' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 45 }}>#</th>
+                    <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
+                      Incharge / Supervisor <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
+                      Labourers <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
+                      Man-Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
+                      Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
+                      Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerLabour')}>
+                      Avg / Worker (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerDay')}>
+                      Avg / Day (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }}>Work Orders</th>
+                    <th style={{ textAlign: 'center', width: 90 }}>Filter</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.map((inc, idx) => (
+                    <tr key={inc.incharge}>
+                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                        <span style={{ color: '#059669', marginRight: 6 }}>●</span>
+                        {inc.incharge}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.uniqueLabourers}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.totalDays}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(inc.totalAmount).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        ₹{Number(inc.avgPerLabour).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        ₹{Number(inc.avgPerDay).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#64748B' }}>{inc.workEntries}</td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            setInchargeFilter(inc.incharge);
+                            setReportMode('detailed');
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                          title={`View detailed entries for ${inc.incharge}`}
+                        >
+                          View Ledger
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {workTypeAnalysis.map(w => (
-                      <tr key={w.workType} style={{ cursor: 'pointer' }} onClick={() => setWorkTypeFilter(w.workType)}>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span className="badge" style={{ background: '#F0FDF4', color: '#047857', fontWeight: 700 }}>
-                              {w.workType}
-                            </span>
-                            <span style={{
-                              fontSize: '0.7rem',
-                              fontWeight: 700,
-                              color: isTonBasedWork(w.workType) ? '#059669' : '#2563EB'
-                            }}>
-                              ({isTonBasedWork(w.workType) ? 'Per Ton' : 'Per Person'})
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.labourCount}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.totalDays}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                          ₹{w.totalAmount.toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.qtyMade}</td>
-                        <td style={{ textAlign: 'right', color: '#64748B' }}>{w.avgQtyPerLabour}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          ₹{w.avgAmountPerLabour.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                    <td colSpan={2}>Grand Total ({inchargeSummary.length} Incharges)</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
 
-          {/* Section 4: Date Wise & Shift Wise Summary */}
-          {(activeTab === 'all' || activeTab === 'dateShift') && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
-              {/* Date Wise Table */}
-              <div className="card" style={{ padding: '20px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>
-                  4A. Date Wise Labour Summary
-                </h3>
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Shift</th>
-                        <th style={{ textAlign: 'right' }}>Labourers</th>
-                        <th style={{ textAlign: 'right' }}>Days</th>
-                        <th style={{ textAlign: 'right' }}>Total Amount</th>
-                        <th style={{ textAlign: 'right' }}>Qty Made</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dateWiseSummary.map(d => (
-                        <tr key={`${d.date}_${d.shift}`}>
-                          <td style={{ fontWeight: 700 }}>{formatDate(d.date)}</td>
-                          <td>{d.shift}</td>
-                          <td style={{ textAlign: 'right' }}>{d.uniqueLabourers}</td>
-                          <td style={{ textAlign: 'right' }}>{d.totalDays}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                            ₹{d.totalAmount.toLocaleString('en-IN')}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>{d.qtyMade}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Shift Wise Table */}
-              <div className="card" style={{ padding: '20px' }}>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>
-                  4B. Shift Wise Labour Summary
-                </h3>
-                <div className="table-container">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Shift</th>
-                        <th style={{ textAlign: 'right' }}>Labourers</th>
-                        <th style={{ textAlign: 'right' }}>Days</th>
-                        <th style={{ textAlign: 'right' }}>Total Amount</th>
-                        <th style={{ textAlign: 'right' }}>Qty Made</th>
-                        <th style={{ textAlign: 'right' }}>Avg / Labour</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {shiftWiseSummary.map(s => (
-                        <tr key={s.shift}>
-                          <td style={{ fontWeight: 700, color: '#0F172A' }}>{s.shift}</td>
-                          <td style={{ textAlign: 'right' }}>{s.uniqueLabourers}</td>
-                          <td style={{ textAlign: 'right' }}>{s.totalDays}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                            ₹{s.totalAmount.toLocaleString('en-IN')}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>{s.qtyMade}</td>
-                          <td style={{ textAlign: 'right' }}>₹{s.avgAmountPerLabour.toLocaleString('en-IN')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Section 5: Work Type + Date Detailed Breakdown */}
-          {(activeTab === 'all' || activeTab === 'workType') && (
-            <div className="card" style={{ padding: '20px' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0F172A', marginBottom: 12 }}>
-                5. Work Type + Date Daily Analysis
-              </h3>
-              <div className="table-container">
+            {/* VIEW 2: LABOUR WISE PAYOUT TABLE */}
+            {reportMode === 'labour' && (
+              selectedSectionLabour ? (
+                /* 2A: Single Worker Date-wise History Table */
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th style={{ width: 45 }}>#</th>
                       <th>Date</th>
+                      <th>Supervisor / Incharge</th>
                       <th>Shift</th>
-                      <th>Work Type</th>
-                      <th style={{ textAlign: 'right' }}>Labour Count</th>
-                      <th style={{ textAlign: 'right' }}>Total Days</th>
-                      <th style={{ textAlign: 'right' }}>Qty Made</th>
-                      <th style={{ textAlign: 'right' }}>Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {workTypeDateAnalysis.slice(0, 25).map((w, idx) => (
-                      <tr key={idx}>
-                        <td>{formatDate(w.date)}</td>
-                        <td>{w.shift}</td>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>{w.workType}</td>
-                        <td style={{ textAlign: 'right' }}>{w.labourCount}</td>
-                        <td style={{ textAlign: 'right' }}>{w.totalDays}</td>
-                        <td style={{ textAlign: 'right' }}>{w.qtyMade}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                          ₹{w.totalAmount.toLocaleString('en-IN')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Section 6: Main Detailed Incharge Wise Labour Records Table */}
-          {(activeTab === 'all' || activeTab === 'detailed') && (
-            <div className="card" style={{ padding: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    6. Detailed Incharge Wise Labour Entries
-                  </h3>
-                  <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
-                    Showing {searchedAndSortedDetailedRecords.length} individual labour deployment records
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div className="search-input-wrap" style={{ minWidth: 260 }}>
-                    <Search size={16} />
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ padding: '6px 10px 6px 34px', fontSize: '0.84rem' }}
-                      placeholder="Search worker, incharge, work, remark..."
-                      value={searchDetailed}
-                      onChange={e => {
-                        setSearchDetailed(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                    />
-                  </div>
-
-                  <button onClick={handleExportDetailedCSV} className="btn btn-outline-green btn-sm">
-                    <Download size={14} />
-                    <span>Export Records ({filteredRecords.length})</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 50 }}>Sr. No.</th>
-                      <th onClick={() => handleSort('labourName')} style={{ cursor: 'pointer' }}>
-                        Labour Name <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
-                        Incharge <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
                       <th>Firm</th>
-                      <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
-                        Date <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th>Shift</th>
-                      <th onClick={() => handleSort('work')} style={{ cursor: 'pointer' }}>
-                        Work Type <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
+                      <th>Work Activity</th>
                       <th>Work Remark</th>
                       <th style={{ textAlign: 'right' }}>Days</th>
-                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('amount')}>
-                        Amount <ArrowUpDown size={12} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th style={{ textAlign: 'right' }}>Qty Made</th>
-                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Amount (₹)</th>
+                      <th style={{ textAlign: 'right' }}>Output Qty</th>
+                      <th>Workflow Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedDetailedRecords.map((r, idx) => (
+                    {paginatedData.map((r, idx) => (
                       <tr key={`${r.workId}_${idx}`}>
                         <td style={{ color: '#64748B', fontWeight: 600 }}>
                           {(currentPage - 1) * pageSize + idx + 1}
                         </td>
                         <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                          {r.labourName}
+                          {formatDate(r.date)}
                         </td>
-                        <td>{r.incharge}</td>
+                        <td style={{ fontWeight: 600, color: '#065F46' }}>
+                          <span style={{ color: '#059669', marginRight: 4 }}>●</span>
+                          {r.incharge}
+                        </td>
+                        <td>{r.shift || '-'}</td>
                         <td>
-                          <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.75rem' }}>
-                            {r.firmName}
+                          <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.74rem' }}>
+                            {r.firmName || '-'}
                           </span>
                         </td>
-                        <td>{formatDate(r.date)}</td>
-                        <td>{r.shift}</td>
                         <td>
-                          <div>
-                            <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.75rem', fontWeight: 700 }}>
-                              {r.work}
-                            </span>
-                            <div style={{
-                              fontSize: '0.68rem',
-                              fontWeight: 700,
-                              color: isTonBasedWork(r.work) ? '#059669' : '#2563EB',
-                              marginTop: 2
-                            }}>
-                              {isTonBasedWork(r.work) ? '⚖️ Per Ton' : '👤 Per Person'}
-                            </div>
-                          </div>
+                          <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.74rem', fontWeight: 600 }}>
+                            {r.work}
+                          </span>
                         </td>
                         <td>
                           <div
                             style={{
-                              maxWidth: 160,
+                              maxWidth: 180,
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -1767,46 +1514,390 @@ export function InchargeWiseReportPage() {
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                      <td colSpan={7}>Total Payout for {selectedLabourStats.labourName}</td>
+                      <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalDays}</td>
+                      <td style={{ textAlign: 'right', color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalQtyMade}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
                 </table>
+              ) : (
+                /* 2B: All Workers Summary Table */
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 45 }}>#</th>
+                      <th onClick={() => handleSort('labourName')} style={{ cursor: 'pointer' }}>
+                        Labour Worker Name <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                      </th>
+                      <th>Supervising Incharge(s)</th>
+                      <th>Assigned Work Types</th>
+                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
+                        Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalQty')}>
+                        Total Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
+                        Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgAmountPerDay')}>
+                        Daily Avg (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                      </th>
+                      <th style={{ textAlign: 'right' }}>Work Orders</th>
+                      <th style={{ textAlign: 'center', width: 80 }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedData.map((l, idx) => (
+                      <tr
+                        key={l.labourName}
+                        onClick={() => setSelectedSectionLabour(l.labourName)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <td style={{ color: '#64748B', fontWeight: 600 }}>
+                          {(currentPage - 1) * pageSize + idx + 1}
+                        </td>
+                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                          <span style={{ color: '#059669', textDecoration: 'underline' }}>
+                            {l.labourName}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '0.8rem', color: '#475569' }}>
+                          {l.incharges.slice(0, 2).join(', ')}{l.incharges.length > 2 ? ` +${l.incharges.length - 2}` : ''}
+                        </td>
+                        <td style={{ fontSize: '0.8rem', color: '#475569' }}>
+                          {l.workTypes.slice(0, 2).join(', ')}{l.workTypes.length > 2 ? ` +${l.workTypes.length - 2}` : ''}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{l.totalDays}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{l.totalQty || '-'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                          ₹{Number(l.totalAmount).toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                          ₹{Number(l.avgAmountPerDay).toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ textAlign: 'right', color: '#64748B' }}>{l.workEntries}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="btn btn-secondary btn-sm" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>
+                            Details
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                      <td colSpan={4}>Grand Total ({labourSummary.length} Unique Workers)</td>
+                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
+                      <td style={{ textAlign: 'right' }}>{filteredRecords.length}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )
+            )}
+
+            {/* VIEW 3: WORK ACTIVITY & PRODUCTION OUTPUT TABLE */}
+            {reportMode === 'workType' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 45 }}>#</th>
+                    <th onClick={() => handleSort('workType')} style={{ cursor: 'pointer' }}>
+                      Work Activity <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th>Rate Basis</th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('labourCount')}>
+                      Labour Headcount <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
+                      Total Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
+                      Production Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
+                      Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }}>Avg Qty / Worker</th>
+                    <th style={{ textAlign: 'right' }}>Avg Amount / Worker (₹)</th>
+                    <th style={{ textAlign: 'center', width: 90 }}>Filter</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.map((w, idx) => (
+                    <tr key={w.workType}>
+                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                        {w.workType}
+                      </td>
+                      <td>
+                        <span className="badge" style={{
+                          background: w.isTon ? '#ECFDF5' : '#EFF6FF',
+                          color: w.isTon ? '#065F46' : '#1D4ED8',
+                          fontSize: '0.72rem',
+                          fontWeight: 700
+                        }}>
+                          {w.isTon ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.labourCount}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.totalDays}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0F172A' }}>
+                        {w.qtyMade ? w.qtyMade.toLocaleString('en-IN') : '-'}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(w.totalAmount).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#64748B' }}>{w.avgQtyPerLabour}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        ₹{Number(w.avgAmountPerLabour).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            setWorkTypeFilter(w.workType);
+                            setReportMode('detailed');
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                          title={`View detailed entries for ${w.workType}`}
+                        >
+                          View Ledger
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                    <td colSpan={3}>Grand Total ({workTypeAnalysis.length} Work Activities)</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>-</td>
+                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+
+            {/* VIEW 4: DATE & SHIFT DEPLOYMENT MATRIX */}
+            {reportMode === 'dateShift' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 45 }}>#</th>
+                    <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
+                      Date <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th onClick={() => handleSort('shift')} style={{ cursor: 'pointer' }}>
+                      Shift <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
+                      Labourers Deployed <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
+                      Man-Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
+                      Production Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
+                      Daily Payout (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th style={{ textAlign: 'right' }}>Avg / Worker (₹)</th>
+                    <th style={{ textAlign: 'right' }}>Work Orders</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.map((d, idx) => (
+                    <tr key={`${d.date}_${d.shift}`}>
+                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                        {formatDate(d.date)}
+                      </td>
+                      <td>
+                        <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.74rem' }}>
+                          {d.shift}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.uniqueLabourers}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.totalDays}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.qtyMade || '-'}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(d.totalAmount).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        ₹{Number(d.avgPerLabour).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#64748B' }}>{d.workEntries}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                    <td colSpan={3}>Grand Total ({dateWiseSummary.length} Shift Deployments)</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+
+            {/* VIEW 5: MASTER DETAILED TRANSACTION LEDGER */}
+            {reportMode === 'detailed' && (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: 45 }}>#</th>
+                    <th onClick={() => handleSort('workId')} style={{ cursor: 'pointer' }}>
+                      Work ID <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
+                      Date <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th>Shift</th>
+                    <th>Firm</th>
+                    <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
+                      Incharge <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th onClick={() => handleSort('work')} style={{ cursor: 'pointer' }}>
+                      Work Activity <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th onClick={() => handleSort('labourName')} style={{ cursor: 'pointer' }}>
+                      Labour Name <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th>Remark</th>
+                    <th style={{ textAlign: 'right' }}>Days</th>
+                    <th style={{ textAlign: 'right' }}>Output</th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('amount')}>
+                      Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.map((r, idx) => (
+                    <tr key={`${r.workId}_${idx}`}>
+                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                        {(currentPage - 1) * pageSize + idx + 1}
+                      </td>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', fontSize: '0.78rem' }}>
+                        {r.workId}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{formatDate(r.date)}</td>
+                      <td>{r.shift}</td>
+                      <td>
+                        <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.72rem' }}>
+                          {r.firmName}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: '#065F46' }}>{r.incharge}</td>
+                      <td>
+                        <div>
+                          <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.72rem', fontWeight: 700 }}>
+                            {r.work}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                        {r.labourName}
+                      </td>
+                      <td>
+                        <div
+                          style={{
+                            maxWidth: 140,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            color: r.workRemark ? '#334155' : '#94A3B8',
+                            fontStyle: r.workRemark ? 'normal' : 'italic',
+                            fontSize: '0.78rem'
+                          }}
+                          title={r.workRemark || 'No remark'}
+                        >
+                          {r.workRemark || '—'}
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.days}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.qtyMade || '-'}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(r.amount).toLocaleString('en-IN')}
+                      </td>
+                      <td>
+                        <StatusBadge status={r.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
+                    <td colSpan={9}>Grand Total ({filteredRecords.length} Detailed Records)</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginTop: 16,
+              paddingTop: 14,
+              borderTop: '1px solid #E2E8F0',
+              flexWrap: 'wrap',
+              gap: 10
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600 }}>
+                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, currentViewData.length)} of {currentViewData.length} records
               </div>
 
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: 16,
-                  paddingTop: 12,
-                  borderTop: '1px solid #E2E8F0',
-                  flexWrap: 'wrap',
-                  gap: 10
-                }}>
-                  <div style={{ fontSize: '0.82rem', color: '#64748B' }}>
-                    Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, searchedAndSortedDetailedRecords.length)} of {searchedAndSortedDetailedRecords.length} records
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Previous
-                    </button>
-                    <span style={{ display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: '0.85rem', fontWeight: 700 }}>
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="btn btn-secondary btn-sm"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: '0.82rem', fontWeight: 700, padding: '0 8px', color: '#0F172A' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="btn btn-secondary btn-sm"
+                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
