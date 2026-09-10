@@ -1,6 +1,4 @@
-/**
- * Data Export Utilities (CSV, Excel-ready tables, Work Slip generation)
- */
+import { isTonBasedWork } from './workTypes';
 
 /**
  * Export data to CSV and trigger browser download
@@ -53,6 +51,10 @@ export function formatEntriesForExport(entries) {
   });
 
   return entries.map(e => {
+    const count = Number(e.labourCount) || 1;
+    const total = Number(e.totalAmount) || 0;
+    const perPerson = count > 0 ? (total / count) : 0;
+
     const base = {
       Timestamp: e.timestamp,
       'Work ID': e.workId,
@@ -65,8 +67,8 @@ export function formatEntriesForExport(entries) {
       'Labour (Count)': e.labourCount,
       Hours: e.hours,
       Qty: e.qty,
-      'Amount per person': e.rate,
-      'Total Amount': e.totalAmount,
+      'Per Person Amount': Number(perPerson.toFixed(2)),
+      'Total Amount': total,
       Status: e.status
     };
 
@@ -125,11 +127,122 @@ export function formatWorkflowForExport(entries) {
 }
 
 /**
- * Trigger print dialog for a Work Slip
+ * Format ISO datetime string to MM/DD/YYYY HH:MM:SS
+ */
+export function formatDateTime(val) {
+  if (!val || val === '-' || val === 'Pending') return val || '-';
+  const str = String(val).trim();
+  const match = str.match(/^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{3})?Z?)(.*)$/);
+  
+  if (match) {
+    const d = new Date(match[1]);
+    if (!isNaN(d.getTime())) {
+      const MM = String(d.getMonth() + 1).padStart(2, '0');
+      const DD = String(d.getDate()).padStart(2, '0');
+      const YYYY = d.getFullYear();
+      const HH = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      const suffix = match[2] ? ` ${match[2].trim()}` : '';
+      return `${MM}/${DD}/${YYYY} ${HH}:${mm}:${ss}${suffix}`;
+    }
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime()) && str.includes('-') && str.length > 10) {
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    const DD = String(d.getDate()).padStart(2, '0');
+    const YYYY = d.getFullYear();
+    const HH = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${MM}/${DD}/${YYYY} ${HH}:${mm}:${ss}`;
+  }
+
+  return str;
+}
+
+/**
+ * Format Date to MM/DD/YYYY
+ */
+export function formatWorkDate(val) {
+  if (!val || val === '-') return '-';
+  const str = String(val).trim();
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const MM = String(d.getMonth() + 1).padStart(2, '0');
+    const DD = String(d.getDate()).padStart(2, '0');
+    const YYYY = d.getFullYear();
+    return `${MM}/${DD}/${YYYY}`;
+  }
+  return str;
+}
+
+/**
+ * Print HTML content safely via a hidden iframe to prevent opening empty browser tabs
+ * and prevent UI freezing in React.
+ */
+export function printHtmlDocument(html) {
+  try {
+    const existing = document.getElementById('app-print-frame');
+    if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'app-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error('Print execution error:', err);
+      }
+    }, 300);
+  } catch (err) {
+    console.error('Iframe print setup error:', err);
+  }
+}
+
+/**
+ * Trigger print dialog for a Work Slip (Single-Page Fit)
  */
 export function printWorkSlip(entry) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
+  const count = Number(entry.labourCount) || 1;
+  const total = Number(entry.totalAmount) || 0;
+  const perPerson = count > 0 ? (total / count) : 0;
+
+  const isVerified = Boolean(
+    entry.verificationActual &&
+    entry.verificationActual !== '-' &&
+    entry.verificationActual !== 'Pending'
+  ) || ['Verified', 'Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(entry.status);
+
+  const isApproved = Boolean(
+    entry.approvalActual &&
+    entry.approvalActual !== '-' &&
+    entry.approvalActual !== 'Pending'
+  ) || ['Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(entry.status);
+
+  const isPaid = Boolean(
+    entry.paymentActual &&
+    entry.paymentActual !== '-' &&
+    entry.paymentActual !== 'Pending'
+  ) || ['Paid', 'Tally Done', 'Completed'].includes(entry.status);
 
   const html = `
     <!DOCTYPE html>
@@ -137,32 +250,57 @@ export function printWorkSlip(entry) {
       <head>
         <title>Work Slip - ${entry.workId}</title>
         <style>
-          body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1e293b; }
-          .header { border-bottom: 2px solid #059669; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
-          .logo { font-size: 24px; font-weight: bold; color: #059669; }
-          .badge { background: #ecfdf5; color: #065f46; padding: 6px 12px; border-radius: 9999px; font-weight: 600; border: 1px solid #a7f3d0; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-          .card { background: #f8fafc; padding: 14px; border-radius: 8px; border: 1px solid #e2e8f0; }
-          .label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
-          .val { font-size: 16px; font-weight: 700; color: #0f172a; }
-          .labour-list { margin: 20px 0; }
-          .labour-chip { display: inline-block; background: #f0fdf4; border: 1px solid #bbf7d0; color: #064e3b; padding: 6px 12px; border-radius: 6px; margin: 4px; font-weight: 500; }
-          .timeline { margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
-          .timeline-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .timeline-table th, .timeline-table td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-size: 13px; }
-          .timeline-table th { background: #f1f5f9; }
-          .footer { margin-top: 50px; display: flex; justify-content: space-between; padding-top: 20px; border-top: 1px dashed #cbd5e1; }
-          .sign-box { text-align: center; width: 180px; }
-          .sign-line { border-bottom: 1px solid #334155; height: 40px; margin-bottom: 8px; }
+          @page {
+            size: auto;
+            margin: 8mm 10mm;
+          }
+          @media print {
+            body {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+          }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1e293b;
+            font-size: 11px;
+            line-height: 1.35;
+            padding: 6px 10px;
+            width: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+          }
+          .header { border-bottom: 2px solid #059669; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+          .logo-title { font-size: 18px; font-weight: 800; color: #059669; letter-spacing: -0.01em; }
+          .logo-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
+          .badge { background: #ecfdf5; color: #065f46; padding: 4px 10px; border-radius: 9999px; font-weight: 700; font-size: 11px; border: 1px solid #a7f3d0; }
+          .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+          .card { background: #f8fafc; padding: 8px 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .label { font-size: 9px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+          .val { font-size: 12px; font-weight: 700; color: #0f172a; }
+          .labour-box { margin: 10px 0; padding: 8px 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .labour-chip { display: inline-block; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 2px 7px; border-radius: 4px; margin: 2px 4px 2px 0; font-size: 10.5px; font-weight: 600; }
+          
+          .approval-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+          .approval-card { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .approval-title { font-size: 11px; font-weight: 700; color: #334155; }
+          .approval-status { font-size: 11.5px; font-weight: 800; padding: 2px 9px; border-radius: 4px; }
+          .approval-status.yes { color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; }
+          .approval-status.no { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; }
+
+          .footer { margin-top: 22px; display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px dashed #cbd5e1; }
+          .sign-box { text-align: center; width: 150px; font-size: 10px; font-weight: 600; color: #475569; }
+          .sign-line { border-bottom: 1px solid #334155; height: 28px; margin-bottom: 4px; }
         </style>
       </head>
       <body>
         <div class="header">
-          <div style="display: flex; align-items: center; gap: 14px;">
-            <img src="/logo.png" alt="Logo" style="width: 44px; height: 44px; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; padding: 2px;" />
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <img src="/logo.png" alt="Logo" style="width: 36px; height: 36px; object-fit: contain; border-radius: 6px; border: 1px solid #e2e8f0; padding: 2px;" />
             <div>
-              <div class="logo">Labour Payment System - Work Order Slip</div>
-              <div style="font-size: 13px; color: #64748b;">Labour Payment & Workflow Tracking System</div>
+              <div class="logo-title">Labour Payment System - Work Order Slip</div>
+              <div class="logo-sub">Labour Payment & Verification Summary</div>
             </div>
           </div>
           <div>
@@ -172,77 +310,62 @@ export function printWorkSlip(entry) {
 
         <div class="grid">
           <div class="card"><div class="label">Work ID</div><div class="val">${entry.workId}</div></div>
-          <div class="card"><div class="label">Work Date</div><div class="val">${entry.date}</div></div>
-          <div class="card"><div class="label">Shift Timing</div><div class="val">${entry.shift}</div></div>
-          <div class="card"><div class="label">Supervisor / Incharge</div><div class="val">${entry.incharge}</div></div>
-          <div class="card"><div class="label">Work Description</div><div class="val">${entry.work}</div></div>
-          <div class="card"><div class="label">Work Remark</div><div class="val">${entry.workRemark || '-'}</div></div>
-          <div class="card"><div class="label">Labour Count × Rate</div><div class="val">${entry.labourCount} persons × ₹${entry.rate}/person</div></div>
-          <div class="card" style="grid-column: span 2;"><div class="label">Total Amount Payable</div><div class="val" style="color: #059669; font-size: 20px;">₹${Number(entry.totalAmount).toLocaleString('en-IN')}</div></div>
-        </div>
+          <div class="card"><div class="label">Work Date</div><div class="val">${formatWorkDate(entry.date)}</div></div>
+          <div class="card"><div class="label">Shift Timing</div><div class="val">${entry.shift || '-'}</div></div>
+          <div class="card"><div class="label">Firm Name</div><div class="val">${entry.firmName || '-'}</div></div>
 
-        <div class="labour-list">
-          <div class="label" style="margin-bottom: 8px;">Deployed Labourers (${entry.labourNames ? entry.labourNames.length : 0})</div>
-          <div>
-            ${(entry.labourNames || []).map((name, i) => `<span class="labour-chip">${i + 1}. ${name}</span>`).join('')}
+          <div class="card"><div class="label">Supervisor / Incharge</div><div class="val">${entry.incharge}</div></div>
+          <div class="card"><div class="label">Work Description</div><div class="val">${entry.work} (${isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'})</div></div>
+          <div class="card"><div class="label">Hours & Quantity</div><div class="val">${entry.hours || 0} hrs • ${entry.qty || 0} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}</div></div>
+          <div class="card"><div class="label">Rate</div><div class="val">₹${entry.rate} ${isTonBasedWork(entry.work) ? '/ Ton' : '/ person'}</div></div>
+
+          <div class="card"><div class="label">Deployed Labourers</div><div class="val">${entry.labourCount} Persons</div></div>
+          <div class="card"><div class="label">Per Person Share</div><div class="val" style="color: #059669;">₹${perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div></div>
+          <div class="card" style="grid-column: span 2; background: #ecfdf5; border-color: #a7f3d0;">
+            <div class="label" style="color: #065f46;">Total Payable Amount</div>
+            <div class="val" style="color: #047857; font-size: 15px;">₹${total.toLocaleString('en-IN')}</div>
           </div>
         </div>
 
-        <div class="timeline">
-          <div class="label">4-Stage Workflow Audit Trail</div>
-          <table class="timeline-table">
-            <thead>
-              <tr>
-                <th>Stage</th>
-                <th>Planned Date</th>
-                <th>Actual Date</th>
-                <th>Delay</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>1. Verification</td>
-                <td>${entry.verificationPlanned || '-'}</td>
-                <td>${entry.verificationActual || 'Pending'}</td>
-                <td>${entry.verificationDelay || '-'}</td>
-              </tr>
-              <tr>
-                <td>2. Payment Approval</td>
-                <td>${entry.approvalPlanned || '-'}</td>
-                <td>${entry.approvalActual || 'Pending'}</td>
-                <td>${entry.approvalDelay || '-'}</td>
-              </tr>
-              <tr>
-                <td>3. Payment Disbursal</td>
-                <td>${entry.paymentPlanned || '-'}</td>
-                <td>${entry.paymentActual || 'Pending'} (${entry.paymentRef || 'N/A'})</td>
-                <td>${entry.paymentDelay || '-'}</td>
-              </tr>
-              <tr>
-                <td>4. Tally Accounting</td>
-                <td>${entry.tallyPlanned || '-'}</td>
-                <td>${entry.tallyActual || 'Pending'} (${entry.tallyVoucher || 'N/A'})</td>
-                <td>${entry.tallyDelay || '-'}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="card" style="margin-bottom: 10px;">
+          <div class="label">Work Remark / Notes</div>
+          <div class="val" style="font-weight: 500; font-size: 11px; color: ${entry.workRemark ? '#0f172a' : '#94a3b8'};">
+            ${entry.workRemark || 'No remark entered'}
+          </div>
+        </div>
+
+        <div class="labour-box">
+          <div class="label" style="margin-bottom: 5px;">Deployed Labourers (${entry.labourNames ? entry.labourNames.length : entry.labourCount})</div>
+          <div>
+            ${(entry.labourNames && entry.labourNames.length > 0 ? entry.labourNames : Array.from({ length: entry.labourCount }, (_, i) => `Labourer ${i + 1}`)).map((name, i) => `<span class="labour-chip">${i + 1}. ${name}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="approval-grid">
+          <div class="approval-card">
+            <span class="approval-title">Verification</span>
+            <span class="approval-status ${isVerified ? 'yes' : 'no'}">${isVerified ? 'Yes' : 'No'}</span>
+          </div>
+          <div class="approval-card">
+            <span class="approval-title">Payment Approval</span>
+            <span class="approval-status ${isApproved ? 'yes' : 'no'}">${isApproved ? 'Yes' : 'No'}</span>
+          </div>
+          <div class="approval-card">
+            <span class="approval-title">Payment Disbursal</span>
+            <span class="approval-status ${isPaid ? 'yes' : 'no'}">${isPaid ? 'Yes' : 'No'}</span>
+          </div>
         </div>
 
         <div class="footer">
-          <div class="sign-box"><div class="sign-line"></div><div>Incharge Signature</div></div>
-          <div class="sign-box"><div class="sign-line"></div><div>Verifier Signature</div></div>
+          <div class="sign-box"><div class="sign-line"></div><div>Incharge / Supervisor</div></div>
+          <div class="sign-box"><div class="sign-line"></div><div>Site Verifier</div></div>
           <div class="sign-box"><div class="sign-line"></div><div>Accounts Approver</div></div>
         </div>
       </body>
     </html>
   `;
 
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 500);
+  printHtmlDocument(html);
 }
 
 /**
@@ -271,9 +394,6 @@ export function formatInchargeWiseForExport(records) {
  * Trigger print dialog for the full Incharge Wise Labour Report (A4 layout)
  */
 export function printInchargeWiseReport({ filters = {}, summary = {}, inchargeSummary = [], labourSummary = [], workTypeSummary = [], detailedRows = [] }) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) return;
-
   const filterEntries = [
     { label: 'Date Range', val: `${filters.dateFrom || 'All'} to ${filters.dateTo || 'All'}` },
     { label: 'Incharge', val: filters.incharge || 'All Incharges' },
@@ -584,10 +704,5 @@ export function printInchargeWiseReport({ filters = {}, summary = {}, inchargeSu
     </html>
   `;
 
-  printWindow.document.write(html);
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-  }, 500);
+  printHtmlDocument(html);
 }

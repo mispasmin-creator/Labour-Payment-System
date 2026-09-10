@@ -54,13 +54,15 @@ export const INITIAL_MASTER_DATA = {
   shifts: ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'],
   workTypes: [
     { name: 'Production', defaultRate: 450, unit: 'Tons' },
-    { name: 'Loading', defaultRate: 480, unit: 'Boxes' },
+    { name: 'Loading', defaultRate: 480, unit: 'Tons' },
+    { name: 'Loading Jumbo', defaultRate: 480, unit: 'Tons' },
+    { name: 'Unloading', defaultRate: 450, unit: 'Tons' },
+    { name: 'Unloading Jumbo', defaultRate: 450, unit: 'Tons' },
     { name: 'Daily Wags', defaultRate: 400, unit: 'Day' },
     { name: 'Grinding', defaultRate: 500, unit: 'Units' },
     { name: 'Housekeeping', defaultRate: 380, unit: 'Area' },
     { name: 'Mechanical', defaultRate: 550, unit: 'Jobs' },
-    { name: 'Crusing', defaultRate: 460, unit: 'Tons' },
-    { name: 'Unloading', defaultRate: 450, unit: 'Tons' }
+    { name: 'Crusing', defaultRate: 460, unit: 'Tons' }
   ],
   firmNames: ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech']
 };

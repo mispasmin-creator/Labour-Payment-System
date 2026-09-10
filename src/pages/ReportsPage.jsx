@@ -20,6 +20,7 @@ import {
   formatEntriesForExport,
   formatFMSForExport
 } from '../utils/exportUtils';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function ReportsPage() {
   const navigate = useNavigate();
@@ -225,55 +226,95 @@ export function ReportsPage() {
               <th>Firm</th>
               <th>Incharge</th>
               <th>Work Type</th>
-              <th>Work Remark</th>
-              <th>Count</th>
+              <th>Work Hours</th>
+              <th>Qty / Output</th>
+              <th>Labourers</th>
+              <th>Per Person Amount</th>
               <th>Total Amount</th>
+              <th>Work Remark</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
+                <td colSpan={13} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
                   No records match your filter criteria.
                 </td>
               </tr>
             ) : (
-              filtered.map(item => (
-                <tr key={item.workId}>
-                  <td>
-                    <span className="work-id-badge">{item.workId}</span>
-                  </td>
-                  <td>{formatDate(item.date)}</td>
-                  <td>{item.shift || '-'}</td>
-                  <td>
-                    <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                      {item.firmName || '-'}
-                    </span>
-                  </td>
-                  <td>{item.incharge}</td>
-                  <td>{item.work}</td>
-                  <td>
-                    <div
-                      style={{
-                        maxWidth: 160,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        color: item.workRemark ? '#334155' : '#94A3B8',
-                        fontStyle: item.workRemark ? 'normal' : 'italic'
-                      }}
-                      title={item.workRemark || 'No remark'}
-                    >
-                      {item.workRemark || '-'}
-                    </div>
-                  </td>
-                  <td>{item.labourCount}</td>
-                  <td>₹{Number(item.totalAmount).toLocaleString('en-IN')}</td>
-                  <td><StatusBadge status={item.status} /></td>
-                </tr>
-              ))
-            )}
+              filtered.map(item => {
+                const count = Number(item.labourCount) || 1;
+                const total = Number(item.totalAmount) || 0;
+                const perPerson = count > 0 ? (total / count) : 0;
+                return (
+                  <tr key={item.workId}>
+                    <td>
+                      <span className="work-id-badge">{item.workId}</span>
+                    </td>
+                    <td>{formatDate(item.date)}</td>
+                    <td>{item.shift || '-'}</td>
+                    <td>
+                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
+                        {item.firmName || '-'}
+                      </span>
+                    </td>
+                    <td>{item.incharge}</td>
+                    <td>
+                      <div style={{ maxWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
+                          {item.work}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: isTonBasedWork(item.work) ? '#059669' : '#2563EB',
+                          marginTop: 2
+                        }}>
+                          {isTonBasedWork(item.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {item.hours ? `${item.hours} hrs` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {item.qty !== undefined && item.qty !== '' ? `${item.qty} ${isTonBasedWork(item.work) ? 'MT' : 'units'}` : '-'}
+                      </div>
+                    </td>
+                    <td>{item.labourCount}</td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#059669' }}>
+                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A' }}>
+                        ₹{total.toLocaleString('en-IN')}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          maxWidth: 160,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: item.workRemark ? '#334155' : '#94A3B8',
+                          fontStyle: item.workRemark ? 'normal' : 'italic'
+                        }}
+                        title={item.workRemark || 'No remark'}
+                      >
+                        {item.workRemark || '-'}
+                      </div>
+                    </td>
+                    <td><StatusBadge status={item.status} /></td>
+                  </tr>
+                );
+              }))}
           </tbody>
         </table>
       </div>

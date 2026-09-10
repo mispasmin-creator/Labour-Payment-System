@@ -23,6 +23,7 @@ import { useApp } from '../context/AppContext';
 import { MetricCard } from '../components/common/MetricCard';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { DelayBadge } from '../components/common/DelayBadge';
+import { isTonBasedWork } from '../utils/workTypes';
 import { formatDate } from '../utils/dateUtils';
 import { WorkDetailModal } from './WorkDetailModal';
 
@@ -376,59 +377,108 @@ export function DashboardPage() {
                 <th>Shift</th>
                 <th>Firm</th>
                 <th>Incharge</th>
-                <th>Work Type</th>
-                <th>Labour (Count)</th>
-                <th>Amount</th>
+                <th>Work Activity</th>
+                <th>Work Hours</th>
+                <th>Qty / Output</th>
+                <th>Labourers</th>
+                <th>Per Person Amount</th>
+                <th>Total Amount</th>
+                <th>Work Remark</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {recentEntries.map(entry => (
-                <tr key={entry.workId}>
-                  <td>
-                    <span className="work-id-badge">{entry.workId}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                      {entry.firmName || '-'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                  </td>
-                  <td>
-                    <div style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.work}
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: '#059669' }}>{entry.labourCount}</span> persons
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: '#0F172A' }}>
-                      ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-                    </span>
-                  </td>
-                  <td>
-                    <StatusBadge status={entry.status} />
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => setSelectedWorkId(entry.workId)}
-                      className="btn btn-outline-green btn-sm"
-                    >
-                      <span>Details</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {recentEntries.map(entry => {
+                const count = Number(entry.labourCount) || 1;
+                const total = Number(entry.totalAmount) || 0;
+                const perPerson = count > 0 ? (total / count) : 0;
+                return (
+                  <tr key={entry.workId}>
+                    <td>
+                      <span className="work-id-badge">{entry.workId}</span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: '#0F172A', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {entry.firmName || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
+                    </td>
+                    <td>
+                      <div style={{ maxWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
+                          {entry.work}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
+                          marginTop: 2
+                        }}>
+                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.hours ? `${entry.hours} hrs` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: '#059669' }}>{entry.labourCount}</span> pers
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#059669' }}>
+                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.92rem' }}>
+                        ₹{total.toLocaleString('en-IN')}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          maxWidth: 160,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: entry.workRemark ? '#334155' : '#94A3B8',
+                          fontStyle: entry.workRemark ? 'normal' : 'italic'
+                        }}
+                        title={entry.workRemark || 'No remark'}
+                      >
+                        {entry.workRemark || '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <StatusBadge status={entry.status} />
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => setSelectedWorkId(entry.workId)}
+                        className="btn btn-outline-green btn-sm"
+                      >
+                        <span>Details</span>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

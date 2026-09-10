@@ -19,6 +19,7 @@ import { formatDate, formatDateTime } from '../utils/dateUtils';
 import { DelayBadge } from '../components/common/DelayBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { WorkDetailModal } from './WorkDetailModal';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function PaymentApprovalPage() {
   const { entries, approveEntry, approveBatch, syncing, canPerformAction } = useApp();
@@ -257,119 +258,152 @@ export function PaymentApprovalPage() {
                 <th>Firm</th>
                 <th>Supervisor</th>
                 <th>Work Activity</th>
-                <th>Work Remark</th>
-                <th>Headcount</th>
+                <th>Work Hours</th>
+                <th>Qty / Output</th>
+                <th>Labourers</th>
+                <th>Per Person Amount</th>
                 <th>Total Amount</th>
+                <th>Work Remark</th>
                 {activeTab === 'history' && <th>Current Status</th>}
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map(entry => (
-                <tr key={entry.workId}>
-                  {activeTab === 'pending' && (
+              {filteredEntries.map(entry => {
+                const count = Number(entry.labourCount) || 1;
+                const total = Number(entry.totalAmount) || 0;
+                const perPerson = count > 0 ? (total / count) : 0;
+                return (
+                  <tr key={entry.workId}>
+                    {activeTab === 'pending' && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(entry.workId)}
+                          onChange={() => toggleSelectOne(entry.workId)}
+                        />
+                      </td>
+                    )}
                     <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(entry.workId)}
-                        onChange={() => toggleSelectOne(entry.workId)}
-                      />
+                      <span className="work-id-badge">{entry.workId}</span>
                     </td>
-                  )}
-                  <td>
-                    <span className="work-id-badge">{entry.workId}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                  </td>
-                  <td>
-                    <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                      {entry.firmName || '-'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                  </td>
-                  <td>
-                    <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.work}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        maxWidth: 160,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        color: entry.workRemark ? '#334155' : '#94A3B8',
-                        fontStyle: entry.workRemark ? 'normal' : 'italic'
-                      }}
-                      title={entry.workRemark || 'No remark'}
-                    >
-                      {entry.workRemark || '-'}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Users size={14} color="#059669" />
-                      <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 800, color: '#059669', fontSize: '1rem' }}>
-                      ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-                    </span>
-                  </td>
-                  {activeTab === 'history' && (
                     <td>
-                      <StatusBadge status={entry.status} />
+                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
                     </td>
-                  )}
-                  <td>
-                    {activeTab === 'pending' ? (
-                      canApprove ? (
-                        <button
-                          onClick={() => handleSingleApprove(entry.workId)}
-                          disabled={approvingId === entry.workId}
-                          className="btn btn-indigo btn-sm"
-                        >
-                          {approvingId === entry.workId ? (
-                            <>
-                              <RefreshCw size={14} className="animate-spin" />
-                              <span>Approving...</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 size={14} />
-                              <span>Approve</span>
-                            </>
-                          )}
-                        </button>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
+                    </td>
+                    <td>
+                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
+                        {entry.firmName || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
+                    </td>
+                    <td>
+                      <div style={{ maxWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
+                          {entry.work}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
+                          marginTop: 2
+                        }}>
+                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.hours ? `${entry.hours} hrs` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Users size={14} color="#059669" />
+                        <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
+                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>
+                        ₹{total.toLocaleString('en-IN')}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          maxWidth: 160,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: entry.workRemark ? '#334155' : '#94A3B8',
+                          fontStyle: entry.workRemark ? 'normal' : 'italic'
+                        }}
+                        title={entry.workRemark || 'No remark'}
+                      >
+                        {entry.workRemark || '-'}
+                      </div>
+                    </td>
+                    {activeTab === 'history' && (
+                      <td>
+                        <StatusBadge status={entry.status} />
+                      </td>
+                    )}
+                    <td>
+                      {activeTab === 'pending' ? (
+                        canApprove ? (
+                          <button
+                            onClick={() => handleSingleApprove(entry.workId)}
+                            disabled={approvingId === entry.workId}
+                            className="btn btn-indigo btn-sm"
+                          >
+                            {approvingId === entry.workId ? (
+                              <>
+                                <RefreshCw size={14} className="animate-spin" />
+                                <span>Approving...</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 size={14} />
+                                <span>Approve</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setTimelineWorkId(entry.workId)}
+                            className="btn btn-outline-green btn-sm"
+                          >
+                            <Eye size={14} />
+                            <span>View</span>
+                          </button>
+                        )
                       ) : (
                         <button
                           onClick={() => setTimelineWorkId(entry.workId)}
                           className="btn btn-outline-green btn-sm"
                         >
                           <Eye size={14} />
-                          <span>View</span>
+                          <span>Details</span>
                         </button>
-                      )
-                    ) : (
-                      <button
-                        onClick={() => setTimelineWorkId(entry.workId)}
-                        className="btn btn-outline-green btn-sm"
-                      >
-                        <Eye size={14} />
-                        <span>Details</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Printer,
   Calendar,
@@ -12,16 +12,20 @@ import {
   CheckCheck,
   CreditCard,
   FileCheck2,
-  ShieldCheck
+  ShieldCheck,
+  Eye
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Modal } from '../components/common/Modal';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
 import { printWorkSlip } from '../utils/exportUtils';
+import { isTonBasedWork } from '../utils/workTypes';
+import WorkSlipPreviewModal from './WorkSlipPreviewModal';
 
 export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
   const { entries, masterData } = useApp();
+  const [showPreview, setShowPreview] = useState(false);
   const entry = entries.find(e => e.workId === workId);
 
   if (!entry) return null;
@@ -82,25 +86,39 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
   const labourCount = labourersList.length > 0 ? labourersList.length : targetCount;
 
   return (
-    <Modal isOpen={Boolean(workId)} onClose={onClose} title={`Work Order Details: ${entry.workId}`} maxWidth="820px">
-      <div>
-        {/* Top Header Row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span className="work-id-badge" style={{ fontSize: '1.1rem', padding: '6px 14px' }}>
-              {entry.workId}
-            </span>
-            <StatusBadge status={entry.status} />
-          </div>
+    <>
+      <Modal isOpen={Boolean(workId)} onClose={onClose} title={`Work Order Details: ${entry.workId}`} maxWidth="820px">
+        <div>
+          {/* Top Header Row */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span className="work-id-badge" style={{ fontSize: '1.1rem', padding: '6px 14px' }}>
+                {entry.workId}
+              </span>
+              <StatusBadge status={entry.status} />
+            </div>
 
-          <button
-            onClick={() => printWorkSlip(entry)}
-            className="btn btn-outline-green btn-sm"
-          >
-            <Printer size={15} />
-            <span>Print Work Slip</span>
-          </button>
-        </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => setShowPreview(true)}
+                className="btn btn-teal btn-sm"
+                title="Preview printable slip"
+                style={{ fontWeight: 700 }}
+              >
+                <Eye size={15} />
+                <span>Preview Slip</span>
+              </button>
+              <button
+                onClick={() => printWorkSlip(entry)}
+                className="btn btn-outline-green btn-sm"
+                title="Print Work Slip (select Portrait / Landscape in print dialog)"
+                style={{ fontWeight: 700 }}
+              >
+                <Printer size={15} />
+                <span>Print Work Slip</span>
+              </button>
+            </div>
+          </div>
 
         {/* 4-Stage Status Overview Cards */}
         <div style={{ marginBottom: 22 }}>
@@ -206,11 +224,33 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
             <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
               Work Activity
             </div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
-              {entry.work}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
+                {entry.work}
+              </span>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
+                background: isTonBasedWork(entry.work) ? '#ECFDF5' : '#EFF6FF',
+                padding: '1px 6px',
+                borderRadius: 4,
+                border: `1px solid ${isTonBasedWork(entry.work) ? '#A7F3D0' : '#BFDBFE'}`
+              }}>
+                {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+              </span>
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
-              {entry.hours} hrs • {entry.qty} units
+            <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: 4 }}>
+              {entry.hours} hrs • {entry.qty} {isTonBasedWork(entry.work) ? 'Tons' : 'units'}
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: '14px', background: '#F0FDF4', borderColor: '#BBF7D0' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', textTransform: 'uppercase', marginBottom: 4 }}>
+              Per Person Share
+            </div>
+            <div style={{ fontWeight: 800, fontSize: '1.35rem', color: '#059669' }}>
+              ₹{((Number(entry.totalAmount) || 0) / (labourCount || 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
             </div>
           </div>
 
@@ -220,9 +260,6 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
             </div>
             <div style={{ fontWeight: 800, fontSize: '1.35rem', color: '#047857' }}>
               ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: '#059669' }}>
-              {labourCount} persons × ₹{entry.rate}/person
             </div>
           </div>
         </div>
@@ -286,13 +323,23 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
           </div>
         )}
 
-        {/* Modal Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-          <button onClick={onClose} className="btn btn-secondary">
-            Close
-          </button>
+          {/* Modal Footer */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <button onClick={onClose} className="btn btn-secondary">
+              Close
+            </button>
+          </div>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+
+      {/* Live Print Preview Modal */}
+      {showPreview && (
+        <WorkSlipPreviewModal
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          entry={entry}
+        />
+      )}
+    </>
   );
 }

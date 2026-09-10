@@ -9,8 +9,8 @@ import {
   Save,
   Building2,
   Layers
-} from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function MasterDataPage() {
   const { masterData, updateMaster, syncing } = useApp();
@@ -439,7 +439,7 @@ export function MasterDataPage() {
                     {item.name}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 600 }}>
-                    Default Rate: ₹{item.defaultRate} / person
+                    Default Rate: ₹{item.defaultRate} / {isTonBasedWork(item.name) ? 'ton' : 'person'}
                   </div>
                 </div>
                 <button

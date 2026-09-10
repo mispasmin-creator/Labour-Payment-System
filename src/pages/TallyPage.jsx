@@ -19,6 +19,7 @@ import { DelayBadge } from '../components/common/DelayBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function TallyPage() {
   const { entries, tallyEntry, syncing, canPerformAction } = useApp();
@@ -203,97 +204,130 @@ export function TallyPage() {
                 <th>Firm</th>
                 <th>Supervisor</th>
                 <th>Work Activity</th>
+                <th>Work Hours</th>
+                <th>Qty / Output</th>
+                <th>Labourers</th>
+                <th>Per Person Amount</th>
+                <th>Total Amount</th>
                 <th>Work Remark</th>
-                <th>Headcount</th>
-                <th>Amount</th>
-                {activeTab === 'history' && <th>Status</th>}
+                {activeTab === 'history' && <th>Current Status</th>}
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map(entry => (
-                <tr key={entry.workId}>
-                  <td>
-                    <span className="work-id-badge">{entry.workId}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                  </td>
-                  <td>
-                    <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                      {entry.firmName || '-'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                  </td>
-                  <td>
-                    <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.work}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        maxWidth: 160,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        color: entry.workRemark ? '#334155' : '#94A3B8',
-                        fontStyle: entry.workRemark ? 'normal' : 'italic'
-                      }}
-                      title={entry.workRemark || 'No remark'}
-                    >
-                      {entry.workRemark || '-'}
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: '#059669' }}>{entry.labourCount}</span> persons
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 800, color: '#059669', fontSize: '1rem' }}>
-                      ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-                    </span>
-                  </td>
-                  {activeTab === 'history' && (
+              {filteredEntries.map(entry => {
+                const count = Number(entry.labourCount) || 1;
+                const total = Number(entry.totalAmount) || 0;
+                const perPerson = count > 0 ? (total / count) : 0;
+                return (
+                  <tr key={entry.workId}>
                     <td>
-                      <StatusBadge status={entry.status} />
+                      <span className="work-id-badge">{entry.workId}</span>
                     </td>
-                  )}
-                  <td>
-                    {activeTab === 'pending' ? (
-                      canTally ? (
-                        <button
-                          onClick={() => handleOpenTallyModal(entry)}
-                          className="btn btn-success btn-sm"
-                        >
-                          <BookOpen size={14} />
-                          <span>Submit Tally</span>
-                        </button>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
+                    </td>
+                    <td>
+                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
+                        {entry.firmName || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
+                    </td>
+                    <td>
+                      <div style={{ maxWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
+                          {entry.work}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
+                          marginTop: 2
+                        }}>
+                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.hours ? `${entry.hours} hrs` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 700, color: '#059669' }}>{entry.labourCount}</span> pers
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
+                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>
+                        ₹{total.toLocaleString('en-IN')}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          maxWidth: 160,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: entry.workRemark ? '#334155' : '#94A3B8',
+                          fontStyle: entry.workRemark ? 'normal' : 'italic'
+                        }}
+                        title={entry.workRemark || 'No remark'}
+                      >
+                        {entry.workRemark || '-'}
+                      </div>
+                    </td>
+                    {activeTab === 'history' && (
+                      <td>
+                        <StatusBadge status={entry.status} />
+                      </td>
+                    )}
+                    <td>
+                      {activeTab === 'pending' ? (
+                        canTally ? (
+                          <button
+                            onClick={() => handleOpenTallyModal(entry)}
+                            className="btn btn-success btn-sm"
+                          >
+                            <BookOpen size={14} />
+                            <span>Submit Tally</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setTimelineWorkId(entry.workId)}
+                            className="btn btn-outline-green btn-sm"
+                          >
+                            <Eye size={14} />
+                            <span>View</span>
+                          </button>
+                        )
                       ) : (
                         <button
                           onClick={() => setTimelineWorkId(entry.workId)}
                           className="btn btn-outline-green btn-sm"
                         >
                           <Eye size={14} />
-                          <span>View</span>
+                          <span>Details</span>
                         </button>
-                      )
-                    ) : (
-                      <button
-                        onClick={() => setTimelineWorkId(entry.workId)}
-                        className="btn btn-outline-green btn-sm"
-                      >
-                        <Eye size={14} />
-                        <span>Details</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -337,7 +371,13 @@ export function TallyPage() {
               <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Activity & Headcount:</span>
-                  <div style={{ fontWeight: 600, color: '#1E293B' }}>{selectedEntry.work} ({selectedEntry.labourCount} persons)</div>
+                  <div style={{ fontWeight: 600, color: '#1E293B' }}>
+                    {selectedEntry.work}{' '}
+                    <span style={{ fontSize: '0.78rem', color: isTonBasedWork(selectedEntry.work) ? '#059669' : '#2563EB', fontWeight: 700 }}>
+                      ({isTonBasedWork(selectedEntry.work) ? '⚖️ Per Ton' : '👤 Per Person'})
+                    </span>{' '}
+                    • {selectedEntry.labourCount} persons
+                  </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: '0.75rem', color: '#065F46', textTransform: 'uppercase', fontWeight: 700 }}>Total Amount:</span>

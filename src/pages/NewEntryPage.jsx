@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,23 +6,15 @@ import {
   Users,
   Briefcase,
   IndianRupee,
-  CheckCircle2
+  CheckCircle2,
+  Scale
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { INITIAL_MASTER_DATA } from '../utils/mockData';
 import { SearchableSelect } from '../components/common/SearchableSelect';
+import { isTonBasedWork, DEFAULT_WORK_TYPES_LIST } from '../utils/workTypes';
 
 const DEFAULT_SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
-const DEFAULT_WORK_TYPES = [
-  'Production',
-  'Loading',
-  'Daily Wags',
-  'Grinding',
-  'Housekeeping',
-  'Mechanical',
-  'Crusing',
-  'Unloading'
-];
 const DEFAULT_FIRMS = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
 
 export function NewEntryPage() {
@@ -51,11 +42,11 @@ export function NewEntryPage() {
 
   const rawWorks = Array.isArray(masterData?.workTypes) && masterData.workTypes.length > 0
     ? masterData.workTypes
-    : DEFAULT_WORK_TYPES;
+    : DEFAULT_WORK_TYPES_LIST;
   const worksList = rawWorks
     .map(w => (typeof w === 'string' ? w : w?.name || ''))
     .filter(w => Boolean(w) && !w.toLowerCase().startsWith('shift'));
-  const activeWorks = worksList.length > 0 ? worksList : DEFAULT_WORK_TYPES;
+  const activeWorks = worksList.length > 0 ? worksList : DEFAULT_WORK_TYPES_LIST;
 
   const availableLabourers = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
     ? masterData.labourers.map(String).filter(Boolean)
@@ -146,9 +137,17 @@ export function NewEntryPage() {
   };
 
   // Calculations
+  const isTon = isTonBasedWork(formData.work);
   const filledLabourNames = formData.labourNames.map(n => (n ? n.trim() : '')).filter(Boolean);
   const labourCount = formData.labourNames.length;
-  const totalAmount = labourCount * (Number(formData.rate) || 0);
+  const qtyNum = Number(formData.qty) || 0;
+  const rateNum = Number(formData.rate) || 0;
+
+  // Amount computation:
+  // For Loading, Loading Jumbo, Unloading, Unloading Jumbo, Production: Total = Qty (Tons) * Rate per Ton
+  // For others (Daily Wags, etc.): Total = Labour Count * Rate per Person
+  const totalAmount = isTon ? (qtyNum * rateNum) : (labourCount * rateNum);
+  const perLabourShare = labourCount > 0 ? (totalAmount / labourCount) : 0;
 
   // Validate
   const validateForm = () => {
@@ -158,6 +157,10 @@ export function NewEntryPage() {
     if (!formData.work) newErrors.work = 'Work type is required';
     if (!formData.rate || Number(formData.rate) <= 0) newErrors.rate = 'Valid rate is required';
     if (!formData.hours || Number(formData.hours) <= 0) newErrors.hours = 'Valid hours required';
+    
+    if (isTon && (!formData.qty || Number(formData.qty) <= 0)) {
+      newErrors.qty = 'Quantity in Tons is required for ' + formData.work;
+    }
 
     const unselectedIndices = [];
     formData.labourNames.forEach((name, idx) => {
@@ -186,7 +189,9 @@ export function NewEntryPage() {
       const validNames = formData.labourNames.map(n => (n ? n.trim() : '')).filter(Boolean);
       const count = validNames.length > 0 ? validNames.length : 1;
       const rate = Number(formData.rate) || 0;
-      const computedTotal = count * rate;
+      const qty = Number(formData.qty) || 0;
+      const isTonRate = isTonBasedWork(formData.work);
+      const computedTotal = isTonRate ? (qty * rate) : (count * rate);
 
       const payload = {
         date: formData.date,
@@ -195,7 +200,7 @@ export function NewEntryPage() {
         incharge: formData.incharge,
         work: formData.work,
         hours: Number(formData.hours),
-        qty: Number(formData.qty) || 0,
+        qty: qty,
         rate: rate,
         labourCount: count,
         totalAmount: computedTotal,
@@ -321,32 +326,49 @@ export function NewEntryPage() {
                     min="1"
                     className="form-input"
                     value={formData.hours}
-                    onChange={e => setFormData({ ...formData, hours: Number(e.target.value) })}
+                    onChange={e => setFormData({ ...formData, hours: e.target.value === '' ? '' : Number(e.target.value) })}
                   />
                   {errors.hours && <div className="form-error">{errors.hours}</div>}
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Quantity / Output</label>
-                  <input
-                    type="number"
-                    min="0"
-                    className="form-input"
-                    value={formData.qty}
-                    onChange={e => setFormData({ ...formData, qty: Number(e.target.value) })}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">
-                    Rate per Person (₹) <span className="required">*</span>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>
+                      Quantity / Output {isTon && <span className="required">*</span>}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isTon ? '#059669' : '#64748B' }}>
+                      {isTon ? '(Total MT / Tons)' : '(Optional)'}
+                    </span>
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    min={isTon ? "0.01" : "0"}
+                    step="any"
+                    placeholder={isTon ? "Enter quantity in tons..." : "Enter quantity..."}
+                    className="form-input"
+                    value={formData.qty}
+                    onChange={e => setFormData({ ...formData, qty: e.target.value === '' ? '' : Number(e.target.value) })}
+                  />
+                  {errors.qty && <div className="form-error">{errors.qty}</div>}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>
+                      {isTon ? 'Rate per Ton (₹)' : 'Rate per Person (₹)'} <span className="required">*</span>
+                    </span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isTon ? '#059669' : '#3B82F6' }}>
+                      {isTon ? '₹ / Ton' : '₹ / Person'}
+                    </span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="any"
+                    placeholder={isTon ? "Rate per ton (₹)..." : "Rate per person (₹)..."}
                     className="form-input"
                     value={formData.rate}
-                    onChange={e => setFormData({ ...formData, rate: Number(e.target.value) })}
+                    onChange={e => setFormData({ ...formData, rate: e.target.value === '' ? '' : Number(e.target.value) })}
                   />
                   {errors.rate && <div className="form-error">{errors.rate}</div>}
                 </div>
@@ -437,47 +459,107 @@ export function NewEntryPage() {
           {/* Calculation Summary & Action Sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Live Calculation Card */}
-            <div className="card" style={{ background: '#FFFFFF', borderColor: '#BBF7D0' }}>
-              <div className="card-header">
+            <div className="card" style={{ background: '#FFFFFF', borderColor: isTon ? '#86EFAC' : '#BBF7D0', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' }}>
+              <div className="card-header" style={{ paddingBottom: 10 }}>
                 <div className="card-title">
                   <IndianRupee size={18} color="#059669" />
                   <span>Payment Computation</span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Mode Badge */}
+              <div style={{
+                background: isTon ? '#ECFDF5' : '#EFF6FF',
+                border: `1px solid ${isTon ? '#A7F3D0' : '#BFDBFE'}`,
+                borderRadius: 8,
+                padding: '7px 10px',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: isTon ? '#065F46' : '#1E40AF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 12
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  {isTon ? <Scale size={14} color="#059669" /> : <Users size={14} color="#2563EB" />}
+                  Calculation:
+                </span>
+                <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                  {isTon ? '⚖️ Per Ton Basis' : '👤 Per Person Basis'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
                   <span style={{ color: '#64748B' }}>Labour Count:</span>
                   <span style={{ fontWeight: 700, color: '#0F172A' }}>{labourCount} persons</span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                  <span style={{ color: '#64748B' }}>Rate per Person:</span>
-                  <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{formData.rate || 0}</span>
-                </div>
+                {isTon ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                      <span style={{ color: '#64748B' }}>Quantity (Tons):</span>
+                      <span style={{ fontWeight: 700, color: '#0F172A' }}>{qtyNum} MT</span>
+                    </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
-                  <span style={{ color: '#64748B' }}>Hours Logged:</span>
-                  <span style={{ fontWeight: 700, color: '#0F172A' }}>{formData.hours} hrs</span>
-                </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                      <span style={{ color: '#64748B' }}>Rate per Ton:</span>
+                      <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{rateNum} / Ton</span>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '0.85rem',
+                      background: '#F0FDF4',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px solid #DCFCE7'
+                    }}>
+                      <span style={{ color: '#166534', fontWeight: 600 }}>Per Labour Share:</span>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>
+                        ₹{perLabourShare.toLocaleString('en-IN', { maximumFractionDigits: 2 })} / person
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                      <span style={{ color: '#64748B' }}>Rate per Person:</span>
+                      <span style={{ fontWeight: 700, color: '#0F172A' }}>₹{rateNum}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem' }}>
+                      <span style={{ color: '#64748B' }}>Hours Logged:</span>
+                      <span style={{ fontWeight: 700, color: '#0F172A' }}>{formData.hours || 0} hrs</span>
+                    </div>
+                  </>
+                )}
 
                 <div style={{
                   borderTop: '2px dashed #E2E8F0',
-                  paddingTop: 14,
+                  paddingTop: 12,
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'baseline'
                 }}>
-                  <span style={{ fontWeight: 700, color: '#065F46', fontSize: '0.95rem' }}>
-                    Total Payable:
-                  </span>
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#065F46', fontSize: '0.95rem', display: 'block' }}>
+                      Total Payable:
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                      {isTon ? `${qtyNum} MT × ₹${rateNum}` : `${labourCount} pers × ₹${rateNum}`}
+                    </span>
+                  </div>
                   <span style={{
                     fontSize: '1.8rem',
                     fontWeight: 800,
                     color: '#059669',
                     fontFamily: 'var(--font-display)'
                   }}>
-                    ₹{totalAmount.toLocaleString('en-IN')}
+                    ₹{totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>

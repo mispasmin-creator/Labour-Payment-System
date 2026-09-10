@@ -5,6 +5,7 @@
 
 import { INITIAL_ENTRIES, INITIAL_MASTER_DATA, DEFAULT_LOGIN_USERS } from '../utils/mockData';
 import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
+import { isTonBasedWork } from '../utils/workTypes';
 
 const STORAGE_KEYS = {
   SCRIPT_URL: 'labour_sys_script_url',
@@ -62,9 +63,33 @@ export function filterValidEntries(list) {
     if (!firmName || firmName === '-' || firmName.toLowerCase().startsWith('firm ')) {
       firmName = defaultFirms[idx % defaultFirms.length];
     }
+    let work = String(e.work || e.activity || '').trim();
+    if (!work || work === e.workId || work.startsWith('WRK-')) {
+      work = 'Production';
+    }
+    const isTon = isTonBasedWork(work);
+    const qty = Number(e.qty) || 0;
+    const rate = Number(e.rate) || 0;
+    const labourCount = Number(e.labourCount) || (e.labourNames ? e.labourNames.length : 1);
+
+    // Compute true total amount
+    let totalAmount = 0;
+    if (isTon && qty > 0 && rate > 0) {
+      totalAmount = qty * rate;
+    } else if (!isTon && labourCount > 0 && rate > 0) {
+      totalAmount = labourCount * rate;
+    } else {
+      totalAmount = Number(e.totalAmount) || (isTon ? qty * rate : labourCount * rate);
+    }
+
     return {
       ...e,
+      work,
       firmName,
+      qty,
+      rate,
+      labourCount,
+      totalAmount,
       verificationActual: cleanTimestamp(e.verificationActual),
       approvalActual: cleanTimestamp(e.approvalActual),
       paymentActual: cleanTimestamp(e.paymentActual),
@@ -385,7 +410,11 @@ export async function submitWorkEntry(entryData) {
   const workId = entryData.workId || getNextLocalWorkId(entries);
   const labourCount = Number(entryData.labourCount) || (entryData.labourNames ? entryData.labourNames.length : 1);
   const rate = Number(entryData.rate) || 0;
-  const totalAmount = labourCount * rate;
+  const qty = Number(entryData.qty) || 0;
+  const isTon = isTonBasedWork(entryData.work);
+  const totalAmount = entryData.totalAmount !== undefined && !isNaN(Number(entryData.totalAmount))
+    ? Number(entryData.totalAmount)
+    : (isTon ? (qty * rate) : (labourCount * rate));
 
   const newEntry = {
     ...entryData,

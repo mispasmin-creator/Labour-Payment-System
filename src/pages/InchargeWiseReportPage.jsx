@@ -36,6 +36,7 @@ import {
   formatInchargeWiseForExport,
   printInchargeWiseReport
 } from '../utils/exportUtils';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function InchargeWiseReportPage() {
   const navigate = useNavigate();
@@ -123,6 +124,10 @@ export function InchargeWiseReportPage() {
       const days = entry.days !== undefined && !isNaN(Number(entry.days)) ? Number(entry.days) : 1;
       const qtyMade = entry.qty !== undefined && !isNaN(Number(entry.qty)) ? Number(entry.qty) : (entry.qtyMade ? Number(entry.qtyMade) : 0);
 
+      const perLabourAmount = entry.totalAmount !== undefined && !isNaN(Number(entry.totalAmount))
+        ? (Number(entry.totalAmount) / count)
+        : rate;
+
       if (names.length === 0) {
         records.push({
           workId: entry.workId,
@@ -152,7 +157,7 @@ export function InchargeWiseReportPage() {
             workRemark: entry.workRemark || '',
             labourName: name,
             rate: rate,
-            amount: rate, // Per labour amount
+            amount: perLabourAmount, // Per labour amount share
             days: days,
             qtyMade: qtyMade,
             status: entry.status || 'Pending Verification',
@@ -1495,9 +1500,18 @@ export function InchargeWiseReportPage() {
                     {workTypeAnalysis.map(w => (
                       <tr key={w.workType} style={{ cursor: 'pointer' }} onClick={() => setWorkTypeFilter(w.workType)}>
                         <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                          <span className="badge" style={{ background: '#F0FDF4', color: '#047857', fontWeight: 700 }}>
-                            {w.workType}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span className="badge" style={{ background: '#F0FDF4', color: '#047857', fontWeight: 700 }}>
+                              {w.workType}
+                            </span>
+                            <span style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              color: isTonBasedWork(w.workType) ? '#059669' : '#2563EB'
+                            }}>
+                              ({isTonBasedWork(w.workType) ? 'Per Ton' : 'Per Person'})
+                            </span>
+                          </div>
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.labourCount}</td>
                         <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.totalDays}</td>
@@ -1713,9 +1727,19 @@ export function InchargeWiseReportPage() {
                         <td>{formatDate(r.date)}</td>
                         <td>{r.shift}</td>
                         <td>
-                          <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.75rem', fontWeight: 600 }}>
-                            {r.work}
-                          </span>
+                          <div>
+                            <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.75rem', fontWeight: 700 }}>
+                              {r.work}
+                            </span>
+                            <div style={{
+                              fontSize: '0.68rem',
+                              fontWeight: 700,
+                              color: isTonBasedWork(r.work) ? '#059669' : '#2563EB',
+                              marginTop: 2
+                            }}>
+                              {isTonBasedWork(r.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <div

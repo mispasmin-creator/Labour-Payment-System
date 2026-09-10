@@ -449,7 +449,7 @@ function ensureLabourColumns(entrySheet, requiredLabourCount) {
 }
 
 /**
- * Dynamic Column Finder with fallbacks
+ * Dynamic Column Finder with exact priority and conflict safeguards
  */
 function findColIndex(sheet, possibleNames, defaultIndex) {
   if (!sheet || sheet.getLastColumn() < 1) return defaultIndex;
@@ -458,11 +458,33 @@ function findColIndex(sheet, possibleNames, defaultIndex) {
 
   if (sheet.getLastRow() >= headerRow) {
     const rowHeaders = sheet.getRange(headerRow, 1, 1, lastCol).getValues()[0];
+    
+    // 1st Pass: EXACT MATCH (Highest Priority)
     for (let c = 0; c < rowHeaders.length; c++) {
       const val = String(rowHeaders[c] || '').toLowerCase().trim();
+      if (!val) continue;
       for (let n = 0; n < possibleNames.length; n++) {
         const target = possibleNames[n].toLowerCase().trim();
-        if (val === target || (target.length > 3 && val.includes(target))) {
+        if (val === target) {
+          return c + 1; // 1-indexed
+        }
+      }
+    }
+
+    // 2nd Pass: SAFE PARTIAL MATCH
+    for (let c = 0; c < rowHeaders.length; c++) {
+      const val = String(rowHeaders[c] || '').toLowerCase().trim();
+      if (!val) continue;
+      for (let n = 0; n < possibleNames.length; n++) {
+        const target = possibleNames[n].toLowerCase().trim();
+        // Guard against 'work' matching 'work id' or 'work remark' or 'work date'
+        if (target === 'work' || target === 'activity' || target === 'work type') {
+          if (val.includes('id') || val.includes('remark') || val.includes('date') || val.includes('count')) continue;
+        }
+        if (target === 'work id' || target === 'workid') {
+          if (val.includes('remark')) continue;
+        }
+        if (val.includes(target)) {
           return c + 1; // 1-indexed
         }
       }
@@ -562,7 +584,14 @@ function handleCreateEntry(ss, data) {
 
   const labourCount = labourNames.length > 0 ? labourNames.length : (Number(data.labourCount) || 1);
   const rate = Number(data.rate) || 0;
-  const totalAmount = Number(data.totalAmount) || (labourCount * rate);
+  const qty = Number(data.qty) || 0;
+  const isTon = ['loading', 'loading jumbo', 'unloading', 'unloading jumbo', 'production'].some(function(t) {
+    var w = String(data.work || '').toLowerCase().trim();
+    return w === t || (t.indexOf(' ') !== -1 && w.indexOf(t) !== -1) || w.indexOf(t) === 0;
+  });
+  const totalAmount = data.totalAmount !== undefined && !isNaN(Number(data.totalAmount)) && Number(data.totalAmount) > 0
+    ? Number(data.totalAmount)
+    : (isTon ? (qty * rate) : (labourCount * rate));
   const status = 'Pending Verification';
   const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
   const firmName = data.firmName ? String(data.firmName).trim() : (data.firm ? String(data.firm).trim() : 'PMMPL');
@@ -1026,12 +1055,14 @@ function getMasterData(ss) {
   const defaultWorkTypes = [
     { name: 'Production', defaultRate: 450 },
     { name: 'Loading', defaultRate: 480 },
+    { name: 'Loading Jumbo', defaultRate: 480 },
+    { name: 'Unloading', defaultRate: 450 },
+    { name: 'Unloading Jumbo', defaultRate: 450 },
     { name: 'Daily Wags', defaultRate: 400 },
     { name: 'Grinding', defaultRate: 500 },
     { name: 'Housekeeping', defaultRate: 380 },
     { name: 'Mechanical', defaultRate: 550 },
-    { name: 'Crusing', defaultRate: 460 },
-    { name: 'Unloading', defaultRate: 450 }
+    { name: 'Crusing', defaultRate: 460 }
   ];
   const defaultFirms = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
 
@@ -1134,9 +1165,24 @@ function getEntriesData(ss) {
         }
       }
 
+      const work = String(row[workCol] || '').trim();
       const labourCount = Number(row[countCol]) || (labourNames.length > 0 ? labourNames.length : 1);
+      const hours = Number(row[hoursCol]) || 0;
+      const qty = Number(row[qtyCol]) || 0;
       const rate = Number(row[rateCol]) || 0;
-      const totalAmount = Number(row[totalCol]) || (labourCount * rate);
+      const isTon = ['loading', 'loading jumbo', 'unloading', 'unloading jumbo', 'production'].some(function(t) {
+        var w = work.toLowerCase().trim();
+        return w === t || (t.indexOf(' ') !== -1 && w.indexOf(t) !== -1) || w.indexOf(t) === 0;
+      });
+      
+      let totalAmount = 0;
+      if (isTon && qty > 0 && rate > 0) {
+        totalAmount = qty * rate;
+      } else if (!isTon && labourCount > 0 && rate > 0) {
+        totalAmount = labourCount * rate;
+      } else {
+        totalAmount = Number(row[totalCol]) || (isTon ? qty * rate : labourCount * rate);
+      }
 
       const entryObj = {
         timestamp: row[0],
@@ -1145,10 +1191,10 @@ function getEntriesData(ss) {
         firmName: String(row[firmCol] || 'PMMPL').trim(),
         shift: String(row[shiftCol] || 'Shift 1').trim(),
         incharge: String(row[inchargeCol] || '').trim(),
-        work: String(row[workCol] || '').trim(),
+        work: work,
         labourCount: labourCount,
-        hours: Number(row[hoursCol]) || 0,
-        qty: Number(row[qtyCol]) || 0,
+        hours: hours,
+        qty: qty,
         rate: rate,
         totalAmount: totalAmount,
         status: String(row[statusCol] || 'Pending Verification').trim(),

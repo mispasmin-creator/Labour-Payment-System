@@ -17,6 +17,7 @@ import { DelayBadge } from '../components/common/DelayBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
+import { isTonBasedWork } from '../utils/workTypes';
 
 export function VerificationPage() {
   const { entries, masterData, verifyEntry, syncing, canPerformAction } = useApp();
@@ -230,90 +231,123 @@ export function VerificationPage() {
                 <th>Firm</th>
                 <th>Incharge</th>
                 <th>Work Activity</th>
-                <th>Work Remark</th>
+                <th>Work Hours</th>
+                <th>Qty / Output</th>
                 <th>Labourers</th>
-                <th>Amount</th>
+                <th>Per Person Amount</th>
+                <th>Total Amount</th>
+                <th>Work Remark</th>
                 {activeTab === 'history' && <th>Current Status</th>}
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map(entry => (
-                <tr key={entry.workId}>
-                  <td>
-                    <span className="work-id-badge">{entry.workId}</span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                  </td>
-                  <td>
-                    <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                  </td>
-                  <td>
-                    <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                      {entry.firmName || '-'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                  </td>
-                  <td>
-                    <div style={{ maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.work}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        maxWidth: 160,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        color: entry.workRemark ? '#334155' : '#94A3B8',
-                        fontStyle: entry.workRemark ? 'normal' : 'italic'
-                      }}
-                      title={entry.workRemark || 'No remark'}
-                    >
-                      {entry.workRemark || '-'}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Users size={14} color="#059669" />
-                      <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 700, color: '#0F172A' }}>
-                      ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-                    </span>
-                  </td>
-                  {activeTab === 'history' && (
+              {filteredEntries.map(entry => {
+                const count = Number(entry.labourCount) || 1;
+                const total = Number(entry.totalAmount) || 0;
+                const perPerson = count > 0 ? (total / count) : 0;
+                return (
+                  <tr key={entry.workId}>
                     <td>
-                      <StatusBadge status={entry.status} />
+                      <span className="work-id-badge">{entry.workId}</span>
                     </td>
-                  )}
-                  <td>
-                    {activeTab === 'pending' ? (
-                      <button
-                        onClick={() => handleOpenVerifyModal(entry)}
-                        className="btn btn-primary btn-sm"
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
+                    </td>
+                    <td>
+                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
+                    </td>
+                    <td>
+                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
+                        {entry.firmName || '-'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
+                    </td>
+                    <td>
+                      <div style={{ maxWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
+                          {entry.work}
+                        </div>
+                        <div style={{
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
+                          marginTop: 2
+                        }}>
+                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.hours ? `${entry.hours} hrs` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Users size={14} color="#059669" />
+                        <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
+                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
+                        ₹{total.toLocaleString('en-IN')}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          maxWidth: 160,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          color: entry.workRemark ? '#334155' : '#94A3B8',
+                          fontStyle: entry.workRemark ? 'normal' : 'italic'
+                        }}
+                        title={entry.workRemark || 'No remark'}
                       >
-                        <ShieldCheck size={14} />
-                        <span>Verify Work</span>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setTimelineWorkId(entry.workId)}
-                        className="btn btn-outline-green btn-sm"
-                      >
-                        <Eye size={14} />
-                        <span>Details</span>
-                      </button>
+                        {entry.workRemark || '-'}
+                      </div>
+                    </td>
+                    {activeTab === 'history' && (
+                      <td>
+                        <StatusBadge status={entry.status} />
+                      </td>
                     )}
-                  </td>
-                </tr>
-              ))}
+                    <td>
+                      {activeTab === 'pending' ? (
+                        <button
+                          onClick={() => handleOpenVerifyModal(entry)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          <ShieldCheck size={14} />
+                          <span>Verify Work</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setTimelineWorkId(entry.workId)}
+                          className="btn btn-outline-green btn-sm"
+                        >
+                          <Eye size={14} />
+                          <span>Details</span>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -343,16 +377,23 @@ export function VerificationPage() {
                   <strong>{formatDate(selectedEntry.date)} ({selectedEntry.shift})</strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Work Type:</span>{' '}
-                  <strong>{selectedEntry.work}</strong>
+                  <span style={{ color: '#64748B' }}>Work Activity:</span>{' '}
+                  <strong>
+                    {selectedEntry.work}{' '}
+                    <span style={{ fontSize: '0.78rem', color: isTonBasedWork(selectedEntry.work) ? '#059669' : '#2563EB', fontWeight: 700 }}>
+                      ({isTonBasedWork(selectedEntry.work) ? '⚖️ Per Ton' : '👤 Per Person'})
+                    </span>
+                  </strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Labour Count:</span>{' '}
-                  <strong>{selectedEntry.labourCount} persons (₹{selectedEntry.rate}/person)</strong>
+                  <span style={{ color: '#64748B' }}>Labour & Rate:</span>{' '}
+                  <strong>
+                    {selectedEntry.labourCount} persons • {isTonBasedWork(selectedEntry.work) ? `₹${selectedEntry.rate}/Ton` : `₹${selectedEntry.rate}/person`}
+                  </strong>
                 </div>
                 <div>
                   <span style={{ color: '#64748B' }}>Hours & Qty:</span>{' '}
-                  <strong>{selectedEntry.hours} hrs / {selectedEntry.qty} units</strong>
+                  <strong>{selectedEntry.hours} hrs / {selectedEntry.qty} {isTonBasedWork(selectedEntry.work) ? 'Tons' : 'units'}</strong>
                 </div>
                 <div>
                   <span style={{ color: '#64748B' }}>Total Payable:</span>{' '}
