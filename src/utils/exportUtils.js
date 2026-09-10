@@ -377,7 +377,7 @@ export function formatInchargeWiseForExport(records) {
     'Labour Name': r.labourName,
     'Incharge': r.incharge,
     'Firm': r.firmName || '-',
-    'Date': r.date,
+    'Date': formatWorkDate(r.date),
     'Shift': r.shift || '-',
     'Work Type': r.work,
     'Work Remark': r.workRemark || '',
@@ -668,7 +668,7 @@ export function printInchargeWiseReport({
               ${detailedRows.filter(r => r.labourName === filters.labour).map((r, idx) => `
                 <tr>
                   <td>${idx + 1}</td>
-                  <td class="bold">${r.date}</td>
+                  <td class="bold" style="white-space: nowrap;">${formatDateTime(r.date)}</td>
                   <td>${r.incharge}</td>
                   <td>${r.shift}</td>
                   <td>${r.firmName}</td>
@@ -790,7 +790,7 @@ export function printInchargeWiseReport({
               ${dateWiseSummary.map((d, idx) => `
                 <tr>
                   <td>${idx + 1}</td>
-                  <td class="bold">${d.date}</td>
+                  <td class="bold" style="white-space: nowrap;">${formatWorkDate(d.date)}</td>
                   <td>${d.shift}</td>
                   <td class="num">${d.uniqueLabourers}</td>
                   <td class="num">${d.totalDays}</td>
@@ -839,7 +839,7 @@ export function printInchargeWiseReport({
                 <tr>
                   <td>${idx + 1}</td>
                   <td style="font-family: monospace; font-size: 8.5px;">${r.workId}</td>
-                  <td>${r.date}</td>
+                  <td style="white-space: nowrap;">${formatDateTime(r.date)}</td>
                   <td>${r.shift}</td>
                   <td>${r.firmName}</td>
                   <td>${r.incharge}</td>

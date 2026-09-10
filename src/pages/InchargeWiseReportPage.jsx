@@ -602,7 +602,7 @@ export function InchargeWiseReportPage() {
       if (selectedSectionLabour) {
         const formatted = selectedLabourDetailedRecords.map((r, idx) => ({
           'Sr No': idx + 1,
-          'Date': r.date,
+          'Date': formatDateTime(r.date),
           'Labour Name': r.labourName,
           'Incharge': r.incharge,
           'Shift': r.shift,
@@ -644,7 +644,7 @@ export function InchargeWiseReportPage() {
     } else if (reportMode === 'dateShift') {
       const formatted = dateWiseSummary.map((d, idx) => ({
         'Sr No': idx + 1,
-        'Date': d.date,
+        'Date': formatDate(d.date),
         'Shift': d.shift,
         'Labourers': d.uniqueLabourers,
         'Production Output': d.qtyMade,
