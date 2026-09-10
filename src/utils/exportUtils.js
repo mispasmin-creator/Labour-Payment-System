@@ -596,8 +596,8 @@ export function printInchargeWiseReport({
             <div class="kpi-val">${summary.uniqueLabourers || 0} Workers</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-label">Cumulative Man-Days</div>
-            <div class="kpi-val">${summary.totalDays || 0} Days</div>
+            <div class="kpi-label">Work Orders</div>
+            <div class="kpi-val">${summary.totalWorkEntries || 0} Orders</div>
           </div>
           <div class="kpi-card">
             <div class="kpi-label">Total Output Qty</div>
@@ -613,13 +613,11 @@ export function printInchargeWiseReport({
               <tr>
                 <th style="width: 30px;">#</th>
                 <th>Incharge / Supervisor</th>
-                <th class="num">Labourers</th>
-                <th class="num">Man-Days</th>
-                <th class="num">Output Qty</th>
-                <th class="num">Total Amount (₹)</th>
-                <th class="num">Avg / Worker (₹)</th>
-                <th class="num">Avg / Day (₹)</th>
                 <th class="num">Work Orders</th>
+                <th class="num">Labourers (Count)</th>
+                <th class="num">Output Qty</th>
+                <th class="num">Per Person Amount (₹)</th>
+                <th class="num">Total Amount (₹)</th>
               </tr>
             </thead>
             <tbody>
@@ -627,26 +625,22 @@ export function printInchargeWiseReport({
                 <tr>
                   <td>${idx + 1}</td>
                   <td class="bold">${inc.incharge}</td>
-                  <td class="num">${inc.uniqueLabourers}</td>
-                  <td class="num">${inc.totalDays}</td>
-                  <td class="num">${inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
-                  <td class="num emerald">₹${Number(inc.totalAmount).toLocaleString('en-IN')}</td>
-                  <td class="num">₹${Number(inc.avgPerLabour).toLocaleString('en-IN')}</td>
-                  <td class="num">₹${Number(inc.avgPerDay).toLocaleString('en-IN')}</td>
                   <td class="num">${inc.workEntries}</td>
+                  <td class="num">${inc.uniqueLabourers}</td>
+                  <td class="num">${inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
+                  <td class="num bold">₹${Number(inc.avgPerLabour).toLocaleString('en-IN')}</td>
+                  <td class="num emerald">₹${Number(inc.totalAmount).toLocaleString('en-IN')}</td>
                 </tr>
               `).join('')}
             </tbody>
             <tfoot>
               <tr>
                 <td colspan="2">Grand Total</td>
-                <td class="num">${summary.uniqueLabourers || 0}</td>
-                <td class="num">${summary.totalDays || 0}</td>
-                <td class="num">${(summary.totalProductionQty || 0).toLocaleString('en-IN')}</td>
-                <td class="num emerald">₹${(summary.totalAmount || 0).toLocaleString('en-IN')}</td>
-                <td class="num">₹${(summary.avgPerLabour || 0).toLocaleString('en-IN')}</td>
-                <td class="num">₹${(summary.avgPerDay || 0).toLocaleString('en-IN')}</td>
                 <td class="num">${summary.totalWorkEntries || 0}</td>
+                <td class="num">${summary.uniqueLabourers || 0}</td>
+                <td class="num">${(summary.totalProductionQty || 0).toLocaleString('en-IN')}</td>
+                <td class="num bold">₹${(summary.avgPerLabour || 0).toLocaleString('en-IN')}</td>
+                <td class="num emerald">₹${(summary.totalAmount || 0).toLocaleString('en-IN')}</td>
               </tr>
             </tfoot>
           </table>

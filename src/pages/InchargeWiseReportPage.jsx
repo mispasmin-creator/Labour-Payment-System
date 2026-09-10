@@ -226,10 +226,8 @@ export function InchargeWiseReportPage() {
   const summaryKPI = useMemo(() => {
     const uniqueLabourNames = new Set(filteredRecords.map(r => r.labourName).filter(Boolean));
     const uniqueLabourers = uniqueLabourNames.size;
-    const totalDays = filteredRecords.reduce((sum, r) => sum + (Number(r.days) || 1), 0);
     const totalAmount = filteredRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     const avgPerLabour = uniqueLabourers > 0 ? Math.round(totalAmount / uniqueLabourers) : 0;
-    const avgPerDay = totalDays > 0 ? Math.round(totalAmount / totalDays) : 0;
     
     // Distinct work entries
     const distinctWorkIds = new Set(filteredRecords.map(r => r.workId));
@@ -246,10 +244,8 @@ export function InchargeWiseReportPage() {
 
     return {
       uniqueLabourers,
-      totalDays,
       totalAmount,
       avgPerLabour,
-      avgPerDay,
       totalWorkEntries,
       totalProductionQty
     };
@@ -264,14 +260,12 @@ export function InchargeWiseReportPage() {
         map[inc] = {
           incharge: inc,
           labourersSet: new Set(),
-          totalDays: 0,
           totalAmount: 0,
           workEntriesSet: new Set(),
           workIdQty: {}
         };
       }
       map[inc].labourersSet.add(r.labourName);
-      map[inc].totalDays += (Number(r.days) || 1);
       map[inc].totalAmount += (Number(r.amount) || 0);
       map[inc].workEntriesSet.add(r.workId);
       if (map[inc].workIdQty[r.workId] === undefined) {
@@ -285,11 +279,9 @@ export function InchargeWiseReportPage() {
       return {
         incharge: item.incharge,
         uniqueLabourers,
-        totalDays: item.totalDays,
-        totalAmount: item.totalAmount,
         qtyMade,
+        totalAmount: item.totalAmount,
         avgPerLabour: uniqueLabourers > 0 ? Math.round(item.totalAmount / uniqueLabourers) : 0,
-        avgPerDay: item.totalDays > 0 ? Math.round(item.totalAmount / item.totalDays) : 0,
         workEntries: item.workEntriesSet.size
       };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
@@ -371,14 +363,12 @@ export function InchargeWiseReportPage() {
         map[work] = {
           workType: work,
           labourersSet: new Set(),
-          totalDays: 0,
           totalAmount: 0,
           workEntriesSet: new Set(),
           workIdQty: {}
         };
       }
       map[work].labourersSet.add(r.labourName);
-      map[work].totalDays += (Number(r.days) || 1);
       map[work].totalAmount += (Number(r.amount) || 0);
       map[work].workEntriesSet.add(r.workId);
       if (map[work].workIdQty[r.workId] === undefined) {
@@ -394,11 +384,9 @@ export function InchargeWiseReportPage() {
         workType: item.workType,
         isTon,
         labourCount,
-        totalDays: item.totalDays,
         totalAmount: item.totalAmount,
         qtyMade,
         workEntries: item.workEntriesSet.size,
-        avgQtyPerLabour: labourCount > 0 ? (qtyMade / labourCount).toFixed(1) : '0',
         avgAmountPerLabour: labourCount > 0 ? Math.round(item.totalAmount / labourCount) : 0
       };
     }).sort((a, b) => b.totalAmount - a.totalAmount);
@@ -414,14 +402,12 @@ export function InchargeWiseReportPage() {
           date: r.date,
           shift: r.shift,
           labourersSet: new Set(),
-          totalDays: 0,
           totalAmount: 0,
           workIds: new Set(),
           workIdQty: {}
         };
       }
       map[key].labourersSet.add(r.labourName);
-      map[key].totalDays += (Number(r.days) || 1);
       map[key].totalAmount += (Number(r.amount) || 0);
       map[key].workIds.add(r.workId);
       if (map[key].workIdQty[r.workId] === undefined) {
@@ -436,7 +422,6 @@ export function InchargeWiseReportPage() {
         date: item.date,
         shift: item.shift,
         uniqueLabourers,
-        totalDays: item.totalDays,
         totalAmount: item.totalAmount,
         qtyMade,
         workEntries: item.workIds.size,
@@ -606,13 +591,11 @@ export function InchargeWiseReportPage() {
       const formatted = inchargeSummary.map((inc, idx) => ({
         'Sr No': idx + 1,
         'Incharge / Supervisor': inc.incharge,
-        'Unique Labourers': inc.uniqueLabourers,
-        'Total Days': inc.totalDays,
-        'Production Output': inc.qtyMade,
-        'Total Amount (₹)': inc.totalAmount,
-        'Avg Amount / Labour (₹)': inc.avgPerLabour,
-        'Avg Amount / Day (₹)': inc.avgPerDay,
-        'Work Orders': inc.workEntries
+        'Work Orders': inc.workEntries,
+        'Labourers (Count)': inc.uniqueLabourers,
+        'Production Output (Tons/Units)': inc.qtyMade,
+        'Per Person Amount (₹)': inc.avgPerLabour,
+        'Total Amount (₹)': inc.totalAmount
       }));
       exportToCSV('Incharge_Wise_Summary_Report', formatted);
     } else if (reportMode === 'labour') {
@@ -641,7 +624,7 @@ export function InchargeWiseReportPage() {
           'Total Days': l.totalDays,
           'Total Output': l.totalQty,
           'Total Amount (₹)': l.totalAmount,
-          'Avg Amount / Day (₹)': l.avgAmountPerDay,
+          'Daily Avg (₹)': l.avgAmountPerDay,
           'Work Entries': l.workEntries
         }));
         exportToCSV('Labour_Wise_Payout_Report', formatted);
@@ -652,11 +635,10 @@ export function InchargeWiseReportPage() {
         'Work Activity': w.workType,
         'Rate Basis': w.isTon ? 'Per Ton' : 'Per Person',
         'Labour Count': w.labourCount,
-        'Total Days': w.totalDays,
         'Production Output': w.qtyMade,
+        'Per Person Avg (₹)': w.avgAmountPerLabour,
         'Total Amount (₹)': w.totalAmount,
-        'Avg Qty / Labour': w.avgQtyPerLabour,
-        'Avg Amount / Labour (₹)': w.avgAmountPerLabour
+        'Work Orders': w.workEntries
       }));
       exportToCSV('Work_Activity_Analysis_Report', formatted);
     } else if (reportMode === 'dateShift') {
@@ -665,8 +647,8 @@ export function InchargeWiseReportPage() {
         'Date': d.date,
         'Shift': d.shift,
         'Labourers': d.uniqueLabourers,
-        'Total Days': d.totalDays,
         'Production Output': d.qtyMade,
+        'Per Person Avg (₹)': d.avgPerLabour,
         'Total Amount (₹)': d.totalAmount,
         'Work Entries': d.workEntries
       }));
@@ -745,7 +727,7 @@ export function InchargeWiseReportPage() {
               </span>
             </div>
             <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '3px 0 0 0' }}>
-              Structured audit-ready reporting by Incharge, Labourer, Work Type, Output & Payment Ledgers
+              Structured audit-ready reporting by Incharge, Labourer, Work Activity, Output & Payment Ledgers
             </p>
           </div>
         </div>
@@ -1089,7 +1071,7 @@ export function InchargeWiseReportPage() {
           </div>
         </div>
 
-        {/* Metric 2: Headcount & Days */}
+        {/* Metric 2: Headcount */}
         <div style={{
           background: '#FFFFFF',
           border: '1px solid #E2E8F0',
@@ -1099,7 +1081,7 @@ export function InchargeWiseReportPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Headcount & Man-Days
+              Labour Headcount
             </span>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Users size={15} color="#0F172A" />
@@ -1109,7 +1091,7 @@ export function InchargeWiseReportPage() {
             {summaryKPI.uniqueLabourers} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>workers</span>
           </div>
           <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            {summaryKPI.totalDays} Total Cumulative Days
+            Across {summaryKPI.totalWorkEntries} Work Orders
           </div>
         </div>
 
@@ -1133,11 +1115,11 @@ export function InchargeWiseReportPage() {
             {summaryKPI.totalProductionQty.toLocaleString('en-IN')} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>tons / units</span>
           </div>
           <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            Across {summaryKPI.totalWorkEntries} Work Orders
+            Total Production Handled
           </div>
         </div>
 
-        {/* Metric 4: Avg Rates */}
+        {/* Metric 4: Per Person Avg */}
         <div style={{
           background: '#FFFFFF',
           border: '1px solid #E2E8F0',
@@ -1147,7 +1129,7 @@ export function InchargeWiseReportPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Avg Cost / Worker
+              Per Person Average
             </span>
             <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <TrendingUp size={15} color="#059669" />
@@ -1157,7 +1139,7 @@ export function InchargeWiseReportPage() {
             ₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            Avg ₹{summaryKPI.avgPerDay.toLocaleString('en-IN')} / Working Day
+            Average Payout / Worker
           </div>
         </div>
       </div>
@@ -1367,26 +1349,22 @@ export function InchargeWiseReportPage() {
                     <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
                       Incharge / Supervisor <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
-                      Labourers <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
+                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
-                      Man-Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
+                      Labourers (Count) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
                       Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerLabour')}>
+                      Per Person Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
                       Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerLabour')}>
-                      Avg / Worker (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerDay')}>
-                      Avg / Day (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }}>Work Orders</th>
-                    <th style={{ textAlign: 'center', width: 90 }}>Filter</th>
+                    <th style={{ textAlign: 'center', width: 90 }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1399,19 +1377,15 @@ export function InchargeWiseReportPage() {
                         <span style={{ color: '#059669', marginRight: 6 }}>●</span>
                         {inc.incharge}
                       </td>
+                      <td style={{ textAlign: 'right', color: '#64748B', fontWeight: 600 }}>{inc.workEntries}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.uniqueLabourers}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.totalDays}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857' }}>
+                        ₹{Number(inc.avgPerLabour).toLocaleString('en-IN')}
+                      </td>
                       <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
                         ₹{Number(inc.totalAmount).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        ₹{Number(inc.avgPerLabour).toLocaleString('en-IN')}
-                      </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        ₹{Number(inc.avgPerDay).toLocaleString('en-IN')}
-                      </td>
-                      <td style={{ textAlign: 'right', color: '#64748B' }}>{inc.workEntries}</td>
                       <td style={{ textAlign: 'center' }}>
                         <button
                           onClick={() => {
@@ -1431,13 +1405,11 @@ export function InchargeWiseReportPage() {
                 <tfoot>
                   <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                     <td colSpan={2}>Grand Total ({inchargeSummary.length} Incharges)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
                     <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#047857' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1536,16 +1508,13 @@ export function InchargeWiseReportPage() {
                       <th>Supervising Incharge(s)</th>
                       <th>Assigned Work Types</th>
                       <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
-                        Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                        Working Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                       </th>
                       <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalQty')}>
                         Total Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                       </th>
                       <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
                         Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgAmountPerDay')}>
-                        Daily Avg (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                       </th>
                       <th style={{ textAlign: 'right' }}>Work Orders</th>
                       <th style={{ textAlign: 'center', width: 80 }}>Action</th>
@@ -1577,9 +1546,6 @@ export function InchargeWiseReportPage() {
                         <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
                           ₹{Number(l.totalAmount).toLocaleString('en-IN')}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                          ₹{Number(l.avgAmountPerDay).toLocaleString('en-IN')}
-                        </td>
                         <td style={{ textAlign: 'right', color: '#64748B' }}>{l.workEntries}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className="btn btn-secondary btn-sm" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>
@@ -1592,10 +1558,9 @@ export function InchargeWiseReportPage() {
                   <tfoot>
                     <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                       <td colSpan={4}>Grand Total ({labourSummary.length} Unique Workers)</td>
-                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                      <td style={{ textAlign: 'right' }}>-</td>
                       <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
                       <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerDay.toLocaleString('en-IN')}</td>
                       <td style={{ textAlign: 'right' }}>{filteredRecords.length}</td>
                       <td></td>
                     </tr>
@@ -1614,21 +1579,22 @@ export function InchargeWiseReportPage() {
                       Work Activity <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
                     <th>Rate Basis</th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
+                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('labourCount')}>
                       Labour Headcount <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
-                      Total Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
                       Production Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgAmountPerLabour')}>
+                      Per Person Avg (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
                       Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
-                    <th style={{ textAlign: 'right' }}>Avg Qty / Worker</th>
-                    <th style={{ textAlign: 'right' }}>Avg Amount / Worker (₹)</th>
-                    <th style={{ textAlign: 'center', width: 90 }}>Filter</th>
+                    <th style={{ textAlign: 'center', width: 90 }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1650,17 +1616,16 @@ export function InchargeWiseReportPage() {
                           {w.isTon ? '⚖️ Per Ton' : '👤 Per Person'}
                         </span>
                       </td>
+                      <td style={{ textAlign: 'right', color: '#64748B', fontWeight: 600 }}>{w.workEntries}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.labourCount}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.totalDays}</td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: '#0F172A' }}>
                         {w.qtyMade ? w.qtyMade.toLocaleString('en-IN') : '-'}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                        ₹{Number(w.totalAmount).toLocaleString('en-IN')}
-                      </td>
-                      <td style={{ textAlign: 'right', color: '#64748B' }}>{w.avgQtyPerLabour}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         ₹{Number(w.avgAmountPerLabour).toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(w.totalAmount).toLocaleString('en-IN')}
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <button
@@ -1681,12 +1646,11 @@ export function InchargeWiseReportPage() {
                 <tfoot>
                   <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                     <td colSpan={3}>Grand Total ({workTypeAnalysis.length} Work Activities)</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
                     <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
                     <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>-</td>
                     <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1705,20 +1669,19 @@ export function InchargeWiseReportPage() {
                     <th onClick={() => handleSort('shift')} style={{ cursor: 'pointer' }}>
                       Shift <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
+                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
+                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
+                    </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
                       Labourers Deployed <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
-                      Man-Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
                       Production Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
+                    <th style={{ textAlign: 'right' }}>Per Person Avg (₹)</th>
                     <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
                       Daily Payout (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
                     </th>
-                    <th style={{ textAlign: 'right' }}>Avg / Worker (₹)</th>
-                    <th style={{ textAlign: 'right' }}>Work Orders</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1735,28 +1698,26 @@ export function InchargeWiseReportPage() {
                           {d.shift}
                         </span>
                       </td>
+                      <td style={{ textAlign: 'right', color: '#64748B' }}>{d.workEntries}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.uniqueLabourers}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.totalDays}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.qtyMade || '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
-                        ₹{Number(d.totalAmount).toLocaleString('en-IN')}
-                      </td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         ₹{Number(d.avgPerLabour).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#64748B' }}>{d.workEntries}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        ₹{Number(d.totalAmount).toLocaleString('en-IN')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                     <td colSpan={3}>Grand Total ({dateWiseSummary.length} Shift Deployments)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
                     <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
+                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -1851,7 +1812,7 @@ export function InchargeWiseReportPage() {
                 <tfoot>
                   <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
                     <td colSpan={9}>Grand Total ({filteredRecords.length} Detailed Records)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalDays}</td>
+                    <td style={{ textAlign: 'right' }}>-</td>
                     <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
                     <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
