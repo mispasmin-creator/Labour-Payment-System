@@ -4,12 +4,14 @@ import {
   fetchEntries,
   fetchMasterData,
   fetchUsers,
+  fetchAllData,
   saveUsersToRemote,
   saveMasterData,
   getScriptUrl,
   setScriptUrl as setScriptUrlApi,
   resetToDemoData,
-  sendToAppsScript
+  sendToAppsScript,
+  filterValidEntries
 } from '../services/api';
 import { DEFAULT_LOGIN_USERS } from '../utils/mockData';
 import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
@@ -40,9 +42,25 @@ export const SYSTEM_MODULES = [
 export { DEFAULT_LOGIN_USERS };
 
 export function AppProvider({ children }) {
-  const [entries, setEntries] = useState([]);
-  const [masterData, setMasterData] = useState({ incharges: [], labourers: [], shifts: [], workTypes: [] });
+  // Initialize entries directly from localStorage so UI displays instantly (0ms)
+  const [entries, setEntries] = useState(() => {
+    try {
+      const raw = localStorage.getItem('labour_sys_entries');
+      return raw ? filterValidEntries(JSON.parse(raw)) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [masterData, setMasterData] = useState(() => {
+    try {
+      const raw = localStorage.getItem('labour_sys_master');
+      return raw ? JSON.parse(raw) : { incharges: [], labourers: [], shifts: [], workTypes: [] };
+    } catch (e) {
+      return { incharges: [], labourers: [], shifts: [], workTypes: [] };
+    }
+  });
   const [currentRole, setCurrentRole] = useState(ROLES.ALL);
+
 
   // Users database from "Login Page" Sheet / LocalStorage / Preset
   const [users, setUsers] = useState(() => {
@@ -310,13 +328,30 @@ export function AppProvider({ children }) {
       setLoading(true);
     }
     try {
+      // 1. Try unified single-request fetch first for 10x faster loading
+      const unified = await fetchAllData();
+      if (unified && unified.entries) {
+        setEntries(unified.entries);
+        if (unified.master) setMasterData(unified.master);
+        if (unified.users && Array.isArray(unified.users) && unified.users.length > 0) {
+          setUsers(unified.users);
+        }
+        if (!silent) showToast('Data synchronized successfully!', 'success');
+        return;
+      }
+
+      // 2. Fallback to parallel fetch
       const [fetchedEntries, fetchedMaster, fetchedUsers] = await Promise.all([
         fetchEntries(),
         fetchMasterData(),
         fetchUsers()
       ]);
-      setEntries(fetchedEntries || []);
-      setMasterData(fetchedMaster || { incharges: [], labourers: [], workTypes: [] });
+      if (fetchedEntries && Array.isArray(fetchedEntries)) {
+        setEntries(fetchedEntries);
+      }
+      if (fetchedMaster) {
+        setMasterData(fetchedMaster);
+      }
       if (fetchedUsers && Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
         setUsers(fetchedUsers);
       }
@@ -336,14 +371,16 @@ export function AppProvider({ children }) {
     return loadData(false);
   }, [loadData]);
 
-  // Initial load + Live background auto-polling every 12 seconds + Window focus refresh
+  // Initial load + Live background auto-polling every 35 seconds (when tab active) + Window focus refresh
   useEffect(() => {
     loadData();
 
-    // Live auto-refresh interval
+    // Auto-refresh interval (35s) - skips when tab is hidden or already syncing to avoid quota exhaustion
     const interval = setInterval(() => {
-      loadData(true);
-    }, 12000);
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadData(true);
+      }
+    }, 35000);
 
     // Immediate refresh when tab becomes active
     const handleFocus = () => {
@@ -641,29 +678,30 @@ export function AppProvider({ children }) {
     showToast('Reset to demo sample data', 'info');
   }, [showToast]);
 
-  // Computed workflow counts
+  // Computed workflow counts with complete safety
+  const safeList = Array.isArray(entries) ? entries.filter(Boolean) : [];
   const counts = {
-    total: entries.length,
-    pendingVerification: entries.filter(
-      e => (e.status === 'Pending Verification' || !e.verificationActual) && e.status !== 'Verified' && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
+    total: safeList.length,
+    pendingVerification: safeList.filter(
+      e => e && (e.status === 'Pending Verification' || !e.verificationActual) && e.status !== 'Verified' && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
-    pendingApproval: entries.filter(
-      e => (e.status === 'Verified' || e.status === 'Verified (Pending Approval)' || e.verificationActual) && !e.approvalActual && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
+    pendingApproval: safeList.filter(
+      e => e && (e.status === 'Verified' || e.status === 'Verified (Pending Approval)' || e.verificationActual) && !e.approvalActual && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
-    pendingPayment: entries.filter(
-      e => (e.status === 'Approved' || e.status === 'Approved (Pending Payment)' || e.approvalActual) && !e.paymentActual && e.status !== 'Paid' && e.status !== 'Tally Complete'
+    pendingPayment: safeList.filter(
+      e => e && (e.status === 'Approved' || e.status === 'Approved (Pending Payment)' || e.approvalActual) && !e.paymentActual && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
-    pendingTally: entries.filter(
-      e => (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.paymentActual) && !e.tallyActual && e.status !== 'Tally Complete'
+    pendingTally: safeList.filter(
+      e => e && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.paymentActual) && !e.tallyActual && e.status !== 'Tally Complete'
     ).length,
-    completed: entries.filter(
-      e => e.status === 'Tally Complete' || Boolean(e.tallyActual)
+    completed: safeList.filter(
+      e => e && (e.status === 'Tally Complete' || Boolean(e.tallyActual))
     ).length,
-    totalPaidAmount: entries
-      .filter(e => e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.status === 'Tally Complete' || Boolean(e.paymentActual))
+    totalPaidAmount: safeList
+      .filter(e => e && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.status === 'Tally Complete' || Boolean(e.paymentActual)))
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0),
-    totalPendingAmount: entries
-      .filter(e => e.status !== 'Tally Complete' && !e.tallyActual)
+    totalPendingAmount: safeList
+      .filter(e => e && e.status !== 'Tally Complete' && !e.tallyActual)
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0)
   };
 

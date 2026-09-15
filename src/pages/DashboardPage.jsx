@@ -32,37 +32,50 @@ export function DashboardPage() {
   const { entries, counts, refreshData, syncing } = useApp();
   const [selectedWorkId, setSelectedWorkId] = useState(null);
 
-  // Compute average delays
-  const completedEntries = entries.filter(e => e.status === 'Tally Complete');
-  const delayedItems = entries.filter(e => {
-    return (
-      (e.verificationDelay && e.verificationDelay.includes('days')) ||
-      (e.approvalDelay && e.approvalDelay.includes('days')) ||
-      (e.paymentDelay && e.paymentDelay.includes('days')) ||
-      (e.tallyDelay && e.tallyDelay.includes('days'))
-    );
+  const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const safeCounts = counts || {
+    total: safeEntries.length,
+    pendingVerification: 0,
+    pendingApproval: 0,
+    pendingPayment: 0,
+    pendingTally: 0,
+    completed: 0,
+    totalPaidAmount: 0,
+    totalPendingAmount: 0
+  };
+
+  // Compute average delays safely without assuming delay is always a string
+  const completedEntries = safeEntries.filter(e => e.status === 'Tally Complete');
+  const delayedItems = safeEntries.filter(e => {
+    if (!e) return false;
+    const v = String(e.verificationDelay || '');
+    const a = String(e.approvalDelay || '');
+    const p = String(e.paymentDelay || '');
+    const t = String(e.tallyDelay || '');
+    return v.includes('days') || a.includes('days') || p.includes('days') || t.includes('days');
   });
 
-  const recentEntries = entries.slice(0, 7);
+  const recentEntries = safeEntries.slice(0, 7);
 
   const stageStats = {
     verification: {
-      pending: entries.filter(e => e.status === 'Pending Verification' || (!e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual)).length,
-      completed: entries.filter(e => ['Verified (Pending Approval)', 'Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.verificationActual)).length
+      pending: safeEntries.filter(e => e.status === 'Pending Verification' || (!e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual)).length,
+      completed: safeEntries.filter(e => ['Verified (Pending Approval)', 'Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.verificationActual)).length
     },
     approval: {
-      pending: entries.filter(e => e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual)).length,
-      completed: entries.filter(e => ['Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.approvalActual)).length
+      pending: safeEntries.filter(e => e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual)).length,
+      completed: safeEntries.filter(e => ['Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.approvalActual)).length
     },
     payment: {
-      pending: entries.filter(e => e.status === 'Approved (Pending Payment)' || e.status === 'Approved' || (e.approvalActual && !e.paymentActual)).length,
-      completed: entries.filter(e => ['Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.paymentActual)).length
+      pending: safeEntries.filter(e => e.status === 'Approved (Pending Payment)' || e.status === 'Approved' || (e.approvalActual && !e.paymentActual)).length,
+      completed: safeEntries.filter(e => ['Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.paymentActual)).length
     },
     tally: {
-      pending: entries.filter(e => e.status === 'Paid (Pending Tally)' || e.status === 'Paid' || (e.paymentActual && !e.tallyActual)).length,
-      completed: entries.filter(e => e.status === 'Tally Complete' || Boolean(e.tallyActual)).length
+      pending: safeEntries.filter(e => e.status === 'Paid (Pending Tally)' || e.status === 'Paid' || (e.paymentActual && !e.tallyActual)).length,
+      completed: safeEntries.filter(e => e.status === 'Tally Complete' || Boolean(e.tallyActual)).length
     }
   };
+
 
   return (
     <div>
@@ -282,10 +295,10 @@ export function DashboardPage() {
                 Total Paid (Disbursed)
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#047857', marginTop: 4 }}>
-                ₹{Number(counts.totalPaidAmount).toLocaleString('en-IN')}
+                ₹{Number(safeCounts.totalPaidAmount || 0).toLocaleString('en-IN')}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#059669', marginTop: 4 }}>
-                {counts.completed} tallies finalized
+                {safeCounts.completed || 0} tallies finalized
               </div>
             </div>
 
@@ -294,10 +307,10 @@ export function DashboardPage() {
                 Pending in Pipeline
               </div>
               <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#D97706', marginTop: 4 }}>
-                ₹{Number(counts.totalPendingAmount).toLocaleString('en-IN')}
+                ₹{Number(safeCounts.totalPendingAmount || 0).toLocaleString('en-IN')}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#B45309', marginTop: 4 }}>
-                {counts.total - counts.completed} active entries
+                {(safeCounts.total || 0) - (safeCounts.completed || 0)} active entries
               </div>
             </div>
           </div>
@@ -313,41 +326,42 @@ export function DashboardPage() {
               <span>Workflow Pipeline Distribution</span>
             </div>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#059669' }}>
-              {counts.total} Total Orders
+              {safeCounts.total || 0} Total Orders
             </span>
           </div>
 
           <div style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden', background: '#F1F5F9', marginBottom: 14 }}>
-              <div style={{ width: `${(counts.pendingVerification / (counts.total || 1)) * 100}%`, background: '#F59E0B' }} title="Pending Verification" />
-              <div style={{ width: `${(counts.pendingApproval / (counts.total || 1)) * 100}%`, background: '#3B82F6' }} title="Pending Approval" />
-              <div style={{ width: `${(counts.pendingPayment / (counts.total || 1)) * 100}%`, background: '#6366F1' }} title="Pending Payment" />
-              <div style={{ width: `${(counts.pendingTally / (counts.total || 1)) * 100}%`, background: '#0D9488' }} title="Pending Tally" />
-              <div style={{ width: `${(counts.completed / (counts.total || 1)) * 100}%`, background: '#10B981' }} title="Tally Complete" />
+              <div style={{ width: `${(safeCounts.pendingVerification / (safeCounts.total || 1)) * 100}%`, background: '#F59E0B' }} title="Pending Verification" />
+              <div style={{ width: `${(safeCounts.pendingApproval / (safeCounts.total || 1)) * 100}%`, background: '#3B82F6' }} title="Pending Approval" />
+              <div style={{ width: `${(safeCounts.pendingPayment / (safeCounts.total || 1)) * 100}%`, background: '#6366F1' }} title="Pending Payment" />
+              <div style={{ width: `${(safeCounts.pendingTally / (safeCounts.total || 1)) * 100}%`, background: '#0D9488' }} title="Pending Tally" />
+              <div style={{ width: `${(safeCounts.completed / (safeCounts.total || 1)) * 100}%`, background: '#10B981' }} title="Tally Complete" />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, fontSize: '0.78rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#F59E0B' }} />
-                <span>Verification ({counts.pendingVerification})</span>
+                <span>Verification ({safeCounts.pendingVerification || 0})</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#3B82F6' }} />
-                <span>Approval ({counts.pendingApproval})</span>
+                <span>Approval ({safeCounts.pendingApproval || 0})</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#6366F1' }} />
-                <span>Payment ({counts.pendingPayment})</span>
+                <span>Payment ({safeCounts.pendingPayment || 0})</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#0D9488' }} />
-                <span>Tally ({counts.pendingTally})</span>
+                <span>Tally ({safeCounts.pendingTally || 0})</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10B981' }} />
-                <span>Done ({counts.completed})</span>
+                <span>Done ({safeCounts.completed || 0})</span>
               </div>
             </div>
+
           </div>
         </div>
       </div>

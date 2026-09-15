@@ -55,6 +55,16 @@ export function normalizeStatus(status, entry = {}) {
   return 'Pending Verification';
 }
 
+export function cleanDelay(val) {
+  if (val === null || val === undefined || val === '') return '-';
+  if (typeof val === 'number') {
+    if (val === 0) return '0 hrs';
+    if (Math.abs(val) >= 1) return `${val > 0 ? '+' : ''}${val.toFixed(1)} days`;
+    return `${val > 0 ? '+' : ''}${(val * 24).toFixed(1)} hrs`;
+  }
+  return String(val).trim();
+}
+
 export function filterValidEntries(list) {
   if (!Array.isArray(list)) return [];
   const defaultFirms = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
@@ -94,6 +104,10 @@ export function filterValidEntries(list) {
       approvalActual: cleanTimestamp(e.approvalActual),
       paymentActual: cleanTimestamp(e.paymentActual),
       tallyActual: cleanTimestamp(e.tallyActual),
+      verificationDelay: cleanDelay(e.verificationDelay),
+      approvalDelay: cleanDelay(e.approvalDelay),
+      paymentDelay: cleanDelay(e.paymentDelay),
+      tallyDelay: cleanDelay(e.tallyDelay),
       status: normalizeStatus(e.status, e)
     };
   });
@@ -170,6 +184,54 @@ export async function testConnection(url) {
 export const testGoogleSheetsConnection = testConnection;
 
 /**
+ * Robust fetch with timeout to prevent Google Apps Script from hanging indefinitely
+ */
+export async function fetchWithTimeout(url, options = {}, timeoutMs = 9000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
+  }
+}
+
+/**
+ * Fetch All Data (Entries + Master + Users) in a single unified roundtrip
+ */
+export async function fetchAllData() {
+  const url = getScriptUrl();
+  if (!url) return null;
+
+  try {
+    const sep = url.includes('?') ? '&' : '?';
+    const response = await fetchWithTimeout(`${url}${sep}action=getAllData`, { redirect: 'follow' }, 10000);
+    if (response.ok) {
+      const json = await response.json();
+      if (json && (json.entries || json.master || json.users)) {
+        const cleanedEntries = filterValidEntries(json.entries || []);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(cleanedEntries));
+          if (json.master) localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(json.master));
+          if (json.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(json.users));
+        }
+        return {
+          entries: cleanedEntries,
+          master: json.master,
+          users: json.users
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Unified getAllData fetch failed or timed out:', e.message);
+  }
+  return null;
+}
+
+/**
  * Fetch Full Master Data from Google Sheets
  */
 export async function fetchMasterData() {
@@ -178,7 +240,7 @@ export async function fetchMasterData() {
   if (url) {
     try {
       const sep = url.includes('?') ? '&' : '?';
-      const response = await fetch(`${url}${sep}action=getMasterData`, { redirect: 'follow' });
+      const response = await fetchWithTimeout(`${url}${sep}action=getMasterData`, { redirect: 'follow' }, 9000);
       if (response.ok) {
         const json = await response.json();
         if (json && (json.incharges || json.labourers)) {
@@ -203,6 +265,7 @@ export async function fetchMasterData() {
       console.warn('Google Sheets API unavailable, using local cache:', e);
     }
   }
+
 
   // Fallback to local storage
   initLocalStorage();
@@ -269,7 +332,7 @@ export async function fetchUsers() {
   if (url) {
     try {
       const sep = url.includes('?') ? '&' : '?';
-      const response = await fetch(`${url}${sep}action=getUsers`, { redirect: 'follow' });
+      const response = await fetchWithTimeout(`${url}${sep}action=getUsers`, { redirect: 'follow' }, 9000);
       if (response.ok) {
         const json = await response.json();
         if (json && Array.isArray(json.users) && json.users.length > 0) {
@@ -278,7 +341,7 @@ export async function fetchUsers() {
         }
       }
     } catch (e) {
-      console.warn('Google Sheets fetchUsers failed, using cached/default users:', e);
+      console.warn('Google Sheets fetchUsers failed or timed out, using cached/default users:', e.message);
     }
   }
 
@@ -308,17 +371,23 @@ export async function saveUsersToRemote(users) {
 export async function fetchEntries() {
   const url = getScriptUrl();
 
-  const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ENTRIES) : null;
-  const localEntries = rawLocal ? filterValidEntries(JSON.parse(rawLocal)) : [];
+  let localEntries = [];
+  try {
+    const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ENTRIES) : null;
+    localEntries = rawLocal ? filterValidEntries(JSON.parse(rawLocal)) : [];
+  } catch (e) {
+    localEntries = [];
+  }
 
   if (url) {
     try {
       const sep = url.includes('?') ? '&' : '?';
-      const response = await fetch(`${url}${sep}action=getEntries`, { redirect: 'follow' });
+      const response = await fetchWithTimeout(`${url}${sep}action=getEntries`, { redirect: 'follow' }, 10000);
       if (response.ok) {
         const json = await response.json();
         if (json && Array.isArray(json.entries)) {
           const remoteCleaned = filterValidEntries(json.entries);
+
 
           // If Google Sheet is empty (user deleted rows in Sheet), reflect empty list!
           if (remoteCleaned.length === 0) {
