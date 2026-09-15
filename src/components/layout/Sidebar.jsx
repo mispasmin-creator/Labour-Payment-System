@@ -12,8 +12,6 @@ import {
   FileSpreadsheet,
   Sparkles,
   Layers,
-  ChevronLeft,
-  ChevronRight,
   Shield,
   User,
   LogOut,
@@ -36,28 +34,24 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
 
       <aside className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
-            <div className="navbar-logo-badge" style={{ width: 34, height: 34, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
+            <div className="navbar-logo-badge" style={{ width: 38, height: 38, flexShrink: 0 }}>
               <img src="/logo.png" alt="Logo" />
             </div>
             {!isCollapsed && (
-              <div className="brand-info" style={{ minWidth: 0, overflow: 'hidden' }}>
-                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A', whiteSpace: 'nowrap' }}>
+              <div className="brand-info" style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
+                <div style={{
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  letterSpacing: '-0.3px',
+                  color: '#0F172A',
+                  whiteSpace: 'nowrap'
+                }}>
                   Labour Payment <span style={{ color: '#059669' }}>System</span>
                 </div>
               </div>
             )}
           </div>
-
-          <button
-            type="button"
-            className="btn-collapse-toggle hide-mobile"
-            onClick={onToggleCollapse}
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            {isCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-          </button>
         </div>
 
         <nav className="sidebar-nav">

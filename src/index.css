@@ -86,7 +86,7 @@
   --radius-full: 9999px;
 
   --header-height: 68px;
-  --sidebar-width: 260px;
+  --sidebar-width: 280px;
   --sidebar-collapsed-width: 72px;
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -378,7 +378,7 @@ button, input, select, textarea {
 
 .sidebar-header {
   height: var(--header-height);
-  padding: 0 16px 0 20px;
+  padding: 0 12px 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
