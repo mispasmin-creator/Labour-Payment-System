@@ -1,76 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Layers,
-  Shield,
   User,
   Lock,
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
-  CheckCircle2,
   AlertCircle,
-  Users,
-  ChevronDown
+  ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login, currentUser, users = [] } = useApp();
+  const { login, currentUser } = useApp();
 
   useEffect(() => {
     if (currentUser && currentUser.isAuthenticated) {
-      navigate('/');
+      navigate('/', { replace: true });
     }
   }, [currentUser, navigate]);
 
-  const [activeRole, setActiveRole] = useState('admin'); // 'admin' | 'user'
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Update form when a user is picked from list/dropdown
-  const handleSelectUser = user => {
-    if (!user) return;
-    setUsername(user.username);
-    setPassword(user.password || '');
-    setActiveRole(user.role === 'admin' ? 'admin' : 'user');
-    setError('');
-  };
-
-  const handleRoleChange = role => {
-    setActiveRole(role);
-    setError('');
-    if (role === 'admin') {
-      const firstAdmin = users.find(u => u.role === 'admin') || { username: 'admin', password: 'admin123' };
-      setUsername(firstAdmin.username);
-      setPassword(firstAdmin.password || 'admin123');
-    } else {
-      const firstUser = users.find(u => u.role !== 'admin') || { username: 'DME', password: 'user123' };
-      setUsername(firstUser.username);
-      setPassword(firstUser.password || 'user123');
-    }
-  };
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
+    const trimmedUsername = username.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedUsername || !trimmedPassword) {
+      setError('Please enter both Username and Password.');
+      return;
+    }
+
+    setLoading(true);
     try {
-      const success = await login(username, password, activeRole);
+      const success = await login(trimmedUsername, trimmedPassword);
       if (success) {
-        navigate('/');
+        navigate('/', { replace: true });
       } else {
-        setError('Invalid username or password. Please verify credentials.');
+        setError('Invalid Username or Password. Please check your credentials.');
       }
     } catch (err) {
-      setError(err.message || 'Authentication failed');
+      setError(err.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -87,7 +65,7 @@ export function LoginPage() {
       position: 'relative',
       overflow: 'hidden'
     }}>
-      {/* Background glow effects */}
+      {/* Subtle background ambient glows */}
       <div style={{
         position: 'absolute',
         width: 500,
@@ -111,184 +89,146 @@ export function LoginPage() {
 
       <div style={{
         width: '100%',
-        maxWidth: 480,
+        maxWidth: 440,
         background: '#FFFFFF',
         borderRadius: 20,
-        padding: '32px 28px',
+        padding: '36px 30px',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         position: 'relative',
         zIndex: 1
       }}>
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+        <div style={{ textAlign: 'center', marginBottom: 26 }}>
           <div style={{
-            width: 56,
-            height: 56,
-            borderRadius: 14,
+            width: 60,
+            height: 60,
+            borderRadius: 16,
             background: '#FFFFFF',
             border: '1px solid #E2E8F0',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            marginBottom: 10,
-            padding: 6,
-            boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.1)',
+            marginBottom: 12,
+            padding: 8,
+            boxShadow: '0 8px 24px -4px rgba(0, 0, 0, 0.08)',
             overflow: 'hidden'
           }}>
             <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
 
-          <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
             Labour Payment <span style={{ color: '#059669' }}>System</span>
           </h2>
-          <p style={{ fontSize: '0.82rem', color: '#64748B', marginTop: 4, marginBottom: 0 }}>
-            Google Sheets "Login Page" Connected Authentication
+          <p style={{ fontSize: '0.84rem', color: '#64748B', marginTop: 6, marginBottom: 0 }}>
+            Sign in with your Username and Password
           </p>
         </div>
 
-        {/* Quick Select User Dropdown */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <Users size={14} color="#059669" />
-            <span>Select Sheet User / Quick Pick</span>
-          </label>
-          <select
-            className="form-input"
-            style={{ fontSize: '0.84rem', background: '#F8FAFC', cursor: 'pointer' }}
-            value={users.some(u => u.username === username) ? username : ''}
-            onChange={e => {
-              const u = users.find(x => x.username === e.target.value);
-              if (u) handleSelectUser(u);
-            }}
-          >
-            <option value="">-- Choose User from "Login Page" Sheet --</option>
-            {users.map((u, i) => (
-              <option key={u.id || i} value={u.username}>
-                {u.name || u.username} ({u.username}) — {u.role === 'admin' ? '🛡️ Admin' : '👤 User'}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Role Toggle Tabs */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          background: '#F1F5F9',
-          padding: 4,
-          borderRadius: 12,
-          marginBottom: 18
-        }}>
-          <button
-            type="button"
-            onClick={() => handleRoleChange('admin')}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: 'none',
-              background: activeRole === 'admin' ? '#FFFFFF' : 'transparent',
-              color: activeRole === 'admin' ? '#065F46' : '#64748B',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              boxShadow: activeRole === 'admin' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <Shield size={15} color={activeRole === 'admin' ? '#059669' : '#64748B'} />
-            <span>Admin</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleRoleChange('user')}
-            style={{
-              padding: '8px 12px',
-              borderRadius: 10,
-              border: 'none',
-              background: activeRole === 'user' ? '#FFFFFF' : 'transparent',
-              color: activeRole === 'user' ? '#065F46' : '#64748B',
-              fontWeight: 700,
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              cursor: 'pointer',
-              boxShadow: activeRole === 'user' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <User size={15} color={activeRole === 'user' ? '#059669' : '#64748B'} />
-            <span>User</span>
-          </button>
-        </div>
-
-        {/* Error Alert */}
+        {/* Error Alert Banner */}
         {error && (
           <div style={{
             background: '#FEF2F2',
             border: '1px solid #FECACA',
             borderRadius: 10,
-            padding: '10px 14px',
-            marginBottom: 16,
+            padding: '11px 14px',
+            marginBottom: 20,
             display: 'flex',
             alignItems: 'center',
             gap: 10,
             color: '#DC2626',
-            fontSize: '0.82rem',
+            fontSize: '0.84rem',
             fontWeight: 600
           }}>
-            <AlertCircle size={16} />
+            <AlertCircle size={17} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Login Form */}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group" style={{ marginBottom: 14 }}>
-            <label className="form-label" style={{ fontSize: '0.80rem' }}>
-              Username / Sheet User ID
+        {/* Clean Login Form */}
+        <form onSubmit={handleSubmit} autoComplete="on">
+          {/* Username Field */}
+          <div className="form-group" style={{ marginBottom: 18 }}>
+            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+              Username
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
                 className="form-input"
-                style={{ paddingLeft: 38 }}
+                style={{
+                  paddingLeft: 40,
+                  fontSize: '0.90rem',
+                  height: 44,
+                  borderRadius: 10,
+                  borderColor: '#E2E8F0'
+                }}
                 value={username}
-                onChange={e => setUsername(e.target.value)}
-                placeholder="e.g. admin, DME"
+                onChange={e => {
+                  setUsername(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder="Enter Username"
+                autoFocus
                 required
               />
-              <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }}>
-                {activeRole === 'admin' ? <Shield size={16} /> : <User size={16} />}
+              <div style={{
+                position: 'absolute',
+                left: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94A3B8',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <User size={18} />
               </div>
             </div>
           </div>
 
-          <div className="form-group" style={{ marginBottom: 18 }}>
-            <label className="form-label" style={{ fontSize: '0.80rem' }}>
+          {/* Password Field */}
+          <div className="form-group" style={{ marginBottom: 24 }}>
+            <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
               Password
             </label>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="password"
+                autoComplete="current-password"
                 className="form-input"
-                style={{ paddingLeft: 38, paddingRight: 40 }}
+                style={{
+                  paddingLeft: 40,
+                  paddingRight: 42,
+                  fontSize: '0.90rem',
+                  height: 44,
+                  borderRadius: 10,
+                  borderColor: '#E2E8F0'
+                }}
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter password"
+                onChange={e => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder="Enter Password"
+                required
               />
-              <div style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }}>
-                <Lock size={16} />
+              <div style={{
+                position: 'absolute',
+                left: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: '#94A3B8',
+                display: 'flex',
+                alignItems: 'center'
+              }}>
+                <Lock size={18} />
               </div>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
                 style={{
                   position: 'absolute',
                   right: 12,
@@ -298,59 +238,56 @@ export function LoginPage() {
                   border: 'none',
                   color: '#94A3B8',
                   cursor: 'pointer',
-                  padding: 4
+                  padding: 4,
+                  display: 'flex',
+                  alignItems: 'center'
                 }}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
+          {/* Sign In Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !username.trim() || !password.trim()}
             className="btn btn-primary"
             style={{
               width: '100%',
+              height: 46,
               padding: '12px 18px',
-              fontSize: '0.92rem',
+              fontSize: '0.95rem',
               fontWeight: 700,
+              borderRadius: 10,
               justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.3)'
+              boxShadow: '0 4px 14px rgba(5, 150, 105, 0.35)',
+              opacity: (loading || !username.trim() || !password.trim()) ? 0.65 : 1,
+              cursor: (loading || !username.trim() || !password.trim()) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease'
             }}
           >
-            <span>{loading ? 'Signing In...' : `Sign In (${username || 'User'})`}</span>
-            <ArrowRight size={16} />
+            <span>{loading ? 'Signing In...' : 'Sign In'}</span>
+            <ArrowRight size={17} style={{ marginLeft: 6 }} />
           </button>
         </form>
 
-        {/* Quick Click Badges for Easy Login */}
-        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-          <div style={{ fontSize: '0.74rem', fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8, textAlign: 'center' }}>
-            Quick Accounts from "Login Page" Sheet
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
-            {users.slice(0, 15).map((u, i) => (
-              <button
-                key={u.id || i}
-                type="button"
-                onClick={() => handleSelectUser(u)}
-                style={{
-                  fontSize: '0.72rem',
-                  padding: '4px 8px',
-                  borderRadius: 6,
-                  border: username === u.username ? '1px solid #059669' : '1px solid #E2E8F0',
-                  background: username === u.username ? '#ECFDF5' : '#F8FAFC',
-                  color: username === u.username ? '#065F46' : '#334155',
-                  cursor: 'pointer',
-                  fontWeight: username === u.username ? 700 : 500,
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {u.role === 'admin' ? '🛡️ ' : ''}{u.username}
-              </button>
-            ))}
-          </div>
+        {/* Clean Security Footer */}
+        <div style={{
+          marginTop: 26,
+          paddingTop: 18,
+          borderTop: '1px solid #F1F5F9',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          color: '#94A3B8',
+          fontSize: '0.76rem',
+          fontWeight: 500
+        }}>
+          <ShieldCheck size={14} color="#059669" />
+          <span>Secure System · Authorized Personnel Only</span>
         </div>
       </div>
     </div>

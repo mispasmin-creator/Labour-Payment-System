@@ -81,16 +81,8 @@ export function AppProvider({ children }) {
         }
       }
     } catch (e) {}
-    // Default to Administrator
-    return {
-      id: 'usr_admin',
-      username: 'admin',
-      role: 'admin',
-      displayName: 'Administrator',
-      assignedFirms: ['*'],
-      permissions: SYSTEM_MODULES.map(m => m.id),
-      isAuthenticated: true
-    };
+    // Default to null - user must enter credentials on Login Page
+    return null;
   });
 
   const [scriptUrl, setScriptUrlState] = useState(getScriptUrl());
@@ -229,73 +221,66 @@ export function AppProvider({ children }) {
     return currentUser.assignedFirms.some(f => f.toLowerCase().trim() === firmName.toLowerCase().trim());
   }, [currentUser]);
 
-  const login = useCallback((username, password, role = 'admin') => {
-    const inputUname = String(username || '').trim().toLowerCase();
-    // Match by username or by display Name
-    const matchedUser = users.find(
-      u => String(u.username || '').toLowerCase().trim() === inputUname ||
-           String(u.name || '').toLowerCase().trim() === inputUname
-    );
+  const login = useCallback((username, password) => {
+    const inputUname = String(username || '').trim();
+    const inputPwd = String(password || '').trim();
 
-    if (matchedUser) {
-      if (matchedUser.status === 'inactive') {
-        showToast('This user account is inactive. Please contact Admin.', 'error');
-        return false;
-      }
-      // If password is required and provided
-      if (matchedUser.password && password && String(password).trim() !== String(matchedUser.password).trim()) {
-        showToast('Incorrect password entered.', 'error');
-        return false;
-      }
-
-      const isAdmin = matchedUser.role === 'admin' || (Array.isArray(matchedUser.permissions) && matchedUser.permissions.includes('admin'));
-
-      const userObj = {
-        id: matchedUser.id,
-        username: matchedUser.username,
-        role: isAdmin ? 'admin' : 'user',
-        displayName: matchedUser.name || matchedUser.username,
-        assignedFirms: matchedUser.assignedFirms || ['*'],
-        permissions: isAdmin
-          ? SYSTEM_MODULES.map(m => m.id)
-          : (matchedUser.permissions && matchedUser.permissions.length > 0 ? matchedUser.permissions : ['dashboard', 'new_entry', 'tracker']),
-        isAuthenticated: true
-      };
-      setCurrentUser(userObj);
-      setCurrentRole(isAdmin ? ROLES.ALL : ROLES.INCHARGE);
-      localStorage.setItem('labour_sys_auth_user', JSON.stringify(userObj));
-      showToast(`Welcome back, ${userObj.displayName}!`, 'success');
-      return true;
+    if (!inputUname || !inputPwd) {
+      showToast('Please enter both username and password.', 'error');
+      return false;
     }
 
-    // Fallback for custom quick logins
-    const normalizedRole = role.toLowerCase() === 'admin' ? 'admin' : 'user';
+    // Match in users list (case-insensitive for username/name)
+    const userPool = Array.isArray(users) && users.length > 0 ? users : DEFAULT_LOGIN_USERS;
+    const matchedUser = userPool.find(
+      u => String(u.username || '').toLowerCase().trim() === inputUname.toLowerCase() ||
+           String(u.name || '').toLowerCase().trim() === inputUname.toLowerCase()
+    );
+
+    if (!matchedUser) {
+      showToast('Invalid username or password.', 'error');
+      return false;
+    }
+
+    if (matchedUser.status === 'inactive') {
+      showToast('This user account is inactive. Please contact Admin.', 'error');
+      return false;
+    }
+
+    // Strict password match
+    const expectedPassword = String(matchedUser.password || '').trim();
+    if (expectedPassword && inputPwd !== expectedPassword) {
+      showToast('Invalid username or password.', 'error');
+      return false;
+    }
+
+    const isAdmin = matchedUser.role === 'admin' ||
+      (Array.isArray(matchedUser.permissions) && matchedUser.permissions.includes('admin')) ||
+      matchedUser.username.toLowerCase() === 'admin';
+
     const userObj = {
-      id: `usr_${Date.now()}`,
-      username: username.trim(),
-      role: normalizedRole,
-      displayName: normalizedRole === 'admin' ? (username || 'Administrator') : (username || 'Site Supervisor'),
-      assignedFirms: ['*'],
-      permissions: normalizedRole === 'admin' ? SYSTEM_MODULES.map(m => m.id) : ['dashboard', 'new_entry', 'tracker', 'verification'],
+      id: matchedUser.id || `usr_${matchedUser.username}`,
+      username: matchedUser.username,
+      role: isAdmin ? 'admin' : 'user',
+      displayName: matchedUser.name || matchedUser.username,
+      assignedFirms: Array.isArray(matchedUser.assignedFirms) && matchedUser.assignedFirms.length > 0
+        ? matchedUser.assignedFirms
+        : ['*'],
+      permissions: isAdmin
+        ? SYSTEM_MODULES.map(m => m.id)
+        : (matchedUser.permissions && matchedUser.permissions.length > 0 ? matchedUser.permissions : ['dashboard', 'new_entry', 'tracker']),
       isAuthenticated: true
     };
+
     setCurrentUser(userObj);
-    setCurrentRole(normalizedRole === 'admin' ? ROLES.ALL : ROLES.INCHARGE);
+    setCurrentRole(isAdmin ? ROLES.ALL : ROLES.INCHARGE);
     localStorage.setItem('labour_sys_auth_user', JSON.stringify(userObj));
-    showToast(`Welcome, ${userObj.displayName}!`, 'success');
+    showToast(`Welcome back, ${userObj.displayName}!`, 'success');
     return true;
   }, [users, showToast]);
 
   const logout = useCallback(() => {
-    const userObj = {
-      id: '',
-      username: '',
-      role: '',
-      displayName: '',
-      permissions: [],
-      isAuthenticated: false
-    };
-    setCurrentUser(userObj);
+    setCurrentUser(null);
     localStorage.removeItem('labour_sys_auth_user');
     showToast('Logged out successfully', 'info');
   }, [showToast]);
