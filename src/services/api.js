@@ -425,7 +425,7 @@ export async function submitWorkEntry(entryData) {
     totalAmount,
     workRemark: entryData.workRemark || '',
     status: 'Pending Verification',
-    verificationPlanned: timestamp,
+    verificationPlanned: null,
     verificationActual: null,
     verificationDelay: '-',
     approvalPlanned: null,

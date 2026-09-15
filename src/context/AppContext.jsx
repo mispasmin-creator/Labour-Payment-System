@@ -401,7 +401,7 @@ export function AppProvider({ children }) {
         firmName: entryData.firmName || entryData.firm || 'PMMPL',
         workRemark: entryData.workRemark || '',
         status: 'Pending Verification',
-        verificationPlanned: timestamp,
+        verificationPlanned: null,
         verificationActual: null,
         verificationDelay: '-',
         approvalPlanned: null,

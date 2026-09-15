@@ -683,8 +683,19 @@ function handleCreateEntry(ss, data) {
     const lastCol = Math.max(fmsSheet.getLastColumn(), 25);
     const fmsHeaders = fmsSheet.getRange(fmsHeaderRow, 1, 1, lastCol).getValues()[0];
 
-    const fmsRow = new Array(fmsHeaders.length).fill('');
+    // Col N (Planned Timestamp) and beyond are formula / workflow action columns.
+    // We only write entry data columns (Columns A to M) so user formulas in Col N or subsequent columns are never touched or overwritten.
+    let maxEntryCol = 13; // Default Columns A to M (13 columns)
     for (let c = 0; c < fmsHeaders.length; c++) {
+      const h = String(fmsHeaders[c] || '').toLowerCase().trim();
+      if (h.includes('planned timestamp') || h === 'planned 1') {
+        maxEntryCol = c; // Stop right before Planned Timestamp (Col N)
+        break;
+      }
+    }
+
+    const fmsRow = new Array(maxEntryCol).fill('');
+    for (let c = 0; c < maxEntryCol; c++) {
       const h = String(fmsHeaders[c] || '').toLowerCase().trim();
       if (!h) continue;
 
@@ -701,7 +712,6 @@ function handleCreateEntry(ss, data) {
       else if (h === 'amount' || h === 'total amount' || h === 'total') fmsRow[c] = totalAmount;
       else if (h === 'status' || h === 'current status') fmsRow[c] = status;
       else if (h.includes('work remark') || h.includes('remark') || h.includes('remarks')) fmsRow[c] = workRemark;
-      else if (h.includes('planned timestamp') || h === 'planned 1') fmsRow[c] = timestamp;
     }
 
     const targetFmsRow = getFirstEmptyDataRow(fmsSheet, fmsStartDataRow);
@@ -1219,7 +1229,7 @@ function getEntriesData(ss) {
         status: String(row[statusCol] || 'Pending Verification').trim(),
         workRemark: String(row[remarkCol] || '').trim(),
         labourNames: labourNames,
-        verificationPlanned: row[0],
+        verificationPlanned: null,
         verificationActual: null,
         verificationDelay: '-',
         approvalPlanned: null,
@@ -1267,7 +1277,7 @@ function getEntriesData(ss) {
       const workId = String(row[1] || row[0] || '').trim();
       const existing = workMap[workId];
       if (existing) {
-        existing.verificationPlanned = row[p1Col] || existing.timestamp;
+        existing.verificationPlanned = row[p1Col] || null;
         existing.verificationActual = row[a1Col] || null;
         existing.verificationDelay = row[d1Col] || '-';
         existing.approvalPlanned = row[p2Col] || null;
