@@ -19,8 +19,18 @@ import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
 import { isTonBasedWork } from '../utils/workTypes';
 
+export const isEntryVerified = entry => {
+  if (!entry) return false;
+  return Boolean(
+    entry.verificationActual &&
+    entry.verificationActual !== '-' &&
+    entry.verificationActual !== 'null' &&
+    String(entry.verificationActual).trim() !== ''
+  );
+};
+
 export function VerificationPage() {
-  const { entries, masterData, verifyEntry, syncing, canPerformAction } = useApp();
+  const { entries, masterData, verifyEntry, syncing, canPerformAction, refreshData } = useApp();
   const canVerify = canPerformAction('verification');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
@@ -73,13 +83,9 @@ export function VerificationPage() {
     return list;
   };
 
-  // Pending vs History
-  const pendingEntries = entries.filter(
-    e => e.status === 'Pending Verification' || (!e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual)
-  );
-  const historyEntries = entries.filter(
-    e => ['Verified (Pending Approval)', 'Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.verificationActual)
-  );
+  // Pending vs History: Strictly mutually exclusive
+  const pendingEntries = entries.filter(e => !isEntryVerified(e));
+  const historyEntries = entries.filter(e => isEntryVerified(e));
 
   const currentList = activeTab === 'pending' ? pendingEntries : historyEntries;
 
@@ -117,91 +123,105 @@ export function VerificationPage() {
 
   return (
     <div>
-      {/* Page Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            Work Verification Center
-          </h1>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-              Pending
-            </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#D97706' }}>
-              {pendingEntries.length}
-            </div>
+      {/* Sticky Freeze Header (Title, Tabs & Filter Bar) */}
+      <div className="sticky-page-header">
+        {/* Page Title */}
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+              Work Verification Center
+            </h1>
           </div>
 
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-              Verified History
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              onClick={() => refreshData()}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 44, borderRadius: 10 }}
+              title="Sync latest data from Google Sheet"
+              disabled={syncing}
+            >
+              <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
+              <span>{syncing ? 'Syncing...' : 'Sync Sheet'}</span>
+            </button>
+
+            <div style={{ background: '#FFFFFF', padding: '6px 14px', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Pending
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#D97706', lineHeight: 1.1 }}>
+                {pendingEntries.length}
+              </div>
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#059669' }}>
-              {historyEntries.length}
+
+            <div style={{ background: '#FFFFFF', padding: '6px 14px', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Verified History
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
+                {historyEntries.length}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
-        <button
-          onClick={() => setActiveTab('pending')}
-          className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <ListFilter size={15} />
-          <span>Pending Verification Queue ({pendingEntries.length})</span>
-        </button>
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
+          <button
+            onClick={() => setActiveTab('pending')}
+            className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          >
+            <ListFilter size={15} />
+            <span>Pending Verification Queue ({pendingEntries.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('history')}
-          className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <History size={15} />
-          <span>Verification History ({historyEntries.length})</span>
-        </button>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="search-input-wrap">
-          <Search size={18} />
-          <input
-            type="text"
-            className="form-input"
-            placeholder={activeTab === 'pending' ? "Search pending entries by Work ID, Supervisor, Firm..." : "Search verification history..."}
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          >
+            <History size={15} />
+            <span>Verification History ({historyEntries.length})</span>
+          </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 140 }}
-            value={firmFilter}
-            onChange={e => setFirmFilter(e.target.value)}
-          >
-            <option value="">All Firms</option>
-            {uniqueFirms.map(firm => (
-              <option key={firm} value={firm}>{firm}</option>
-            ))}
-          </select>
+        {/* Filter Bar */}
+        <div className="filter-bar" style={{ marginBottom: 0 }}>
+          <div className="search-input-wrap">
+            <Search size={18} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder={activeTab === 'pending' ? "Search pending entries by Work ID, Supervisor, Firm..." : "Search verification history..."}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 160 }}
-            value={inchargeFilter}
-            onChange={e => setInchargeFilter(e.target.value)}
-          >
-            <option value="">All Supervisors</option>
-            {uniqueIncharges.map(inc => (
-              <option key={inc} value={inc}>{inc}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 140 }}
+              value={firmFilter}
+              onChange={e => setFirmFilter(e.target.value)}
+            >
+              <option value="">All Firms</option>
+              {uniqueFirms.map(firm => (
+                <option key={firm} value={firm}>{firm}</option>
+              ))}
+            </select>
+
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 160 }}
+              value={inchargeFilter}
+              onChange={e => setInchargeFilter(e.target.value)}
+            >
+              <option value="">All Supervisors</option>
+              {uniqueIncharges.map(inc => (
+                <option key={inc} value={inc}>{inc}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -222,7 +242,7 @@ export function VerificationPage() {
         </div>
       ) : (
         <div className="table-container">
-          <table className="data-table">
+          <table className="data-table" key={activeTab}>
             <thead>
               <tr>
                 <th>Work ID</th>
@@ -237,17 +257,18 @@ export function VerificationPage() {
                 <th>Per Person Amount</th>
                 <th>Total Amount</th>
                 <th>Work Remark</th>
-                {activeTab === 'history' && <th>Current Status</th>}
+                <th>Current Status</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {filteredEntries.map(entry => {
+              {filteredEntries.map((entry, idx) => {
                 const count = Number(entry.labourCount) || 1;
                 const total = Number(entry.totalAmount) || 0;
                 const perPerson = count > 0 ? (total / count) : 0;
+                const verified = isEntryVerified(entry);
                 return (
-                  <tr key={entry.workId}>
+                  <tr key={`${entry.workId || 'wrk'}_${idx}_${activeTab}`}>
                     <td>
                       <span className="work-id-badge">{entry.workId}</span>
                     </td>
@@ -321,27 +342,26 @@ export function VerificationPage() {
                         {entry.workRemark || '-'}
                       </div>
                     </td>
-                    {activeTab === 'history' && (
-                      <td>
-                        <StatusBadge status={entry.status} />
-                      </td>
-                    )}
                     <td>
-                      {activeTab === 'pending' ? (
-                        <button
-                          onClick={() => handleOpenVerifyModal(entry)}
-                          className="btn btn-primary btn-sm"
-                        >
-                          <ShieldCheck size={14} />
-                          <span>Verify Work</span>
-                        </button>
-                      ) : (
+                      <StatusBadge status={verified ? entry.status : 'Pending Verification'} />
+                    </td>
+                    <td>
+                      {verified ? (
                         <button
                           onClick={() => setTimelineWorkId(entry.workId)}
                           className="btn btn-outline-green btn-sm"
                         >
                           <Eye size={14} />
                           <span>Details</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenVerifyModal(entry)}
+                          className="btn btn-primary btn-sm"
+                          disabled={!canVerify}
+                        >
+                          <ShieldCheck size={14} />
+                          <span>Verify Work</span>
                         </button>
                       )}
                     </td>

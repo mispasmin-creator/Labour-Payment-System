@@ -248,59 +248,61 @@ export function AdministrationPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Users size={26} color="#059669" />
-            <span>User Management & Access Control</span>
-          </h1>
-          <p style={{ fontSize: '0.85rem', color: '#64748B', marginTop: 4 }}>
-            Manage user roles, assigned firms, and granular <strong>View</strong> vs <strong>Full Access</strong> permissions.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ background: '#FFFFFF', padding: '8px 16px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-              Active / Total Users
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: '#059669' }}>
-              {activeUsers} <span style={{ fontSize: '0.85rem', color: '#64748B', fontWeight: 600 }}>/ {totalUsers}</span>
-            </div>
+      {/* Sticky Freeze Header */}
+      <div className="sticky-page-header">
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 10, margin: 0 }}>
+              <Users size={24} color="#059669" />
+              <span>User Management & Access Control</span>
+            </h1>
+            <p style={{ fontSize: '0.82rem', color: '#64748B', marginTop: 3 }}>
+              Manage user roles, assigned firms, and granular <strong>View</strong> vs <strong>Full Access</strong> permissions.
+            </p>
           </div>
 
-          <button onClick={handleOpenAddModal} className="btn btn-primary">
-            <UserPlus size={16} />
-            <span>Add New User</span>
-          </button>
-        </div>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ background: '#FFFFFF', padding: '6px 14px', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                Active / Total Users
+              </div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
+                {activeUsers} <span style={{ fontSize: '0.82rem', color: '#64748B', fontWeight: 600 }}>/ {totalUsers}</span>
+              </div>
+            </div>
 
-      {/* Filter & Search Bar */}
-      <div className="filter-bar">
-        <div className="search-input-wrap">
-          <Search size={18} />
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Search users by name or username..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
+            <button onClick={handleOpenAddModal} className="btn btn-primary btn-sm">
+              <UserPlus size={15} />
+              <span>Add New User</span>
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 150 }}
-            value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value)}
-          >
-            <option value="">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="user">User</option>
-          </select>
+        {/* Filter & Search Bar */}
+        <div className="filter-bar" style={{ marginBottom: 0 }}>
+          <div className="search-input-wrap">
+            <Search size={18} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search users by name or username..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 12 }}>
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 150 }}
+              value={roleFilter}
+              onChange={e => setRoleFilter(e.target.value)}
+            >
+              <option value="">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="user">User</option>
+            </select>
+          </div>
         </div>
       </div>
 

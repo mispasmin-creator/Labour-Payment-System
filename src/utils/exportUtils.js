@@ -232,18 +232,6 @@ export function printWorkSlip(entry) {
     entry.verificationActual !== 'Pending'
   ) || ['Verified', 'Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(entry.status);
 
-  const isApproved = Boolean(
-    entry.approvalActual &&
-    entry.approvalActual !== '-' &&
-    entry.approvalActual !== 'Pending'
-  ) || ['Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(entry.status);
-
-  const isPaid = Boolean(
-    entry.paymentActual &&
-    entry.paymentActual !== '-' &&
-    entry.paymentActual !== 'Pending'
-  ) || ['Paid', 'Tally Done', 'Completed'].includes(entry.status);
-
   const html = `
     <!DOCTYPE html>
     <html>
@@ -304,7 +292,7 @@ export function printWorkSlip(entry) {
             </div>
           </div>
           <div>
-            <span class="badge">${entry.status}</span>
+            <span class="badge">${isVerified ? 'Verified' : 'Pending Verification'}</span>
           </div>
         </div>
 
@@ -341,19 +329,9 @@ export function printWorkSlip(entry) {
           </div>
         </div>
 
-        <div class="approval-grid">
-          <div class="approval-card">
-            <span class="approval-title">Verification</span>
-            <span class="approval-status ${isVerified ? 'yes' : 'no'}">${isVerified ? 'Yes' : 'No'}</span>
-          </div>
-          <div class="approval-card">
-            <span class="approval-title">Payment Approval</span>
-            <span class="approval-status ${isApproved ? 'yes' : 'no'}">${isApproved ? 'Yes' : 'No'}</span>
-          </div>
-          <div class="approval-card">
-            <span class="approval-title">Payment Disbursal</span>
-            <span class="approval-status ${isPaid ? 'yes' : 'no'}">${isPaid ? 'Yes' : 'No'}</span>
-          </div>
+        <div class="approval-card" style="margin: 12px 0;">
+          <span class="approval-title">Verification</span>
+          <span class="approval-status ${isVerified ? 'yes' : 'no'}">${isVerified ? 'Yes' : 'No'}</span>
         </div>
 
         <div class="footer">

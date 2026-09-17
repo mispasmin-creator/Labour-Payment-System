@@ -23,24 +23,6 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
       entry.status
     );
 
-  const isApproved =
-    Boolean(
-      entry.approvalActual &&
-        entry.approvalActual !== '-' &&
-        entry.approvalActual !== 'Pending'
-    ) ||
-    ['Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(
-      entry.status
-    );
-
-  const isPaid =
-    Boolean(
-      entry.paymentActual &&
-        entry.paymentActual !== '-' &&
-        entry.paymentActual !== 'Pending'
-    ) ||
-    ['Paid', 'Tally Done', 'Completed'].includes(entry.status);
-
   const isLandscape = orientation === 'landscape';
 
   const handlePrint = () => {
@@ -172,16 +154,16 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
             <div>
               <span
                 style={{
-                  background: '#ECFDF5',
-                  color: '#065F46',
+                  background: isVerified ? '#ECFDF5' : '#FFFBEB',
+                  color: isVerified ? '#065F46' : '#92400E',
                   padding: '4px 12px',
                   borderRadius: 9999,
                   fontWeight: 700,
                   fontSize: '0.78rem',
-                  border: '1px solid #A7F3D0'
+                  border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}`
                 }}
               >
-                {entry.status}
+                {isVerified ? 'Verified' : 'Pending Verification'}
               </span>
             </div>
           </div>
@@ -299,17 +281,17 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
             </div>
           </div>
 
-          {/* Workflow Status Strip */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, margin: '12px 0' }}>
+          {/* Verification Status Strip */}
+          <div style={{ margin: '12px 0' }}>
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '8px 12px',
-                background: '#F8FAFC',
+                padding: '8px 14px',
+                background: isVerified ? '#ECFDF5' : '#FFFBEB',
                 borderRadius: 6,
-                border: '1px solid #E2E8F0'
+                border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}`
               }}
             >
               <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Verification</span>
@@ -317,7 +299,7 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
                 style={{
                   fontSize: '0.8rem',
                   fontWeight: 800,
-                  padding: '2px 9px',
+                  padding: '2px 10px',
                   borderRadius: 4,
                   color: isVerified ? '#047857' : '#B91C1C',
                   background: isVerified ? '#ECFDF5' : '#FEF2F2',
@@ -325,60 +307,6 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
                 }}
               >
                 {isVerified ? 'Yes' : 'No'}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                background: '#F8FAFC',
-                borderRadius: 6,
-                border: '1px solid #E2E8F0'
-              }}
-            >
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Payment Approval</span>
-              <span
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 800,
-                  padding: '2px 9px',
-                  borderRadius: 4,
-                  color: isApproved ? '#047857' : '#B91C1C',
-                  background: isApproved ? '#ECFDF5' : '#FEF2F2',
-                  border: `1px solid ${isApproved ? '#A7F3D0' : '#FECACA'}`
-                }}
-              >
-                {isApproved ? 'Yes' : 'No'}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '8px 12px',
-                background: '#F8FAFC',
-                borderRadius: 6,
-                border: '1px solid #E2E8F0'
-              }}
-            >
-              <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>Payment Disbursal</span>
-              <span
-                style={{
-                  fontSize: '0.8rem',
-                  fontWeight: 800,
-                  padding: '2px 9px',
-                  borderRadius: 4,
-                  color: isPaid ? '#047857' : '#B91C1C',
-                  background: isPaid ? '#ECFDF5' : '#FEF2F2',
-                  border: `1px solid ${isPaid ? '#A7F3D0' : '#FECACA'}`
-                }}
-              >
-                {isPaid ? 'Yes' : 'No'}
               </span>
             </div>
           </div>

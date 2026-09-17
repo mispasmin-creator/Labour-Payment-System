@@ -32,9 +32,7 @@ export const SYSTEM_MODULES = [
   { id: 'new_entry', label: 'New Work Entry (Form)', path: '/new-entry' },
   { id: 'tracker', label: 'All Work Orders Master Grid', path: '/tracker' },
   { id: 'verification', label: 'Work Verification', path: '/verification' },
-  { id: 'approval', label: 'Payment Approval', path: '/approval' },
-  { id: 'payment', label: 'Payment Disbursal', path: '/payment' },
-  { id: 'tally', label: 'Tally Entry', path: '/tally' },
+  { id: 'payment_report', label: 'Payment Report', path: '/payment-report' },
   { id: 'reports', label: 'Reports & Export', path: '/reports' },
   { id: 'admin', label: 'Administration & User Access', path: '/admin' }
 ];
@@ -185,14 +183,25 @@ export function AppProvider({ children }) {
 
     const perms = currentUser.permissions;
 
+    // Production module default allow for authenticated users
+    if (moduleId === 'production') {
+      if (Array.isArray(perms) && perms.includes('production:none')) return false;
+      if (typeof perms === 'object' && perms.production === 'none') return false;
+      return true;
+    }
+
+    // Expand payment_report to also accept legacy permissions
+    const candidateIds = moduleId === 'payment_report'
+      ? ['payment_report', 'approval', 'payment', 'tally']
+      : [moduleId];
+
     // If permissions is an array
     if (Array.isArray(perms)) {
-      const isFull = perms.includes(`${moduleId}:full`) || perms.includes(moduleId);
-      const isView = perms.includes(`${moduleId}:view`) || isFull;
+      const isFull = candidateIds.some(id => perms.includes(`${id}:full`) || perms.includes(id));
+      const isView = candidateIds.some(id => perms.includes(`${id}:view`)) || isFull;
       if (requiredLevel === 'view') return isView;
       if (requiredLevel === 'full' || requiredLevel === 'action') {
-        // If user specifically has ':view' without ':full' or standard moduleId
-        if (perms.includes(`${moduleId}:view`) && !perms.includes(`${moduleId}:full`) && !perms.includes(moduleId)) {
+        if (candidateIds.some(id => perms.includes(`${id}:view`)) && !isFull) {
           return false;
         }
         return isFull;
@@ -201,10 +210,13 @@ export function AppProvider({ children }) {
 
     // If permissions is an object/map
     if (typeof perms === 'object') {
-      const lvl = perms[moduleId];
-      if (!lvl || lvl === 'none') return false;
-      if (requiredLevel === 'view') return lvl === 'view' || lvl === 'full';
-      if (requiredLevel === 'full' || requiredLevel === 'action') return lvl === 'full';
+      for (const id of candidateIds) {
+        const lvl = perms[id];
+        if (lvl && lvl !== 'none') {
+          if (requiredLevel === 'view') return lvl === 'view' || lvl === 'full';
+          if (requiredLevel === 'full' || requiredLevel === 'action') return lvl === 'full';
+        }
+      }
     }
 
     return false;
@@ -371,7 +383,7 @@ export function AppProvider({ children }) {
     return loadData(false);
   }, [loadData]);
 
-  // Initial load + Live background auto-polling every 35 seconds (when tab active) + Window focus refresh
+  // Initial load + Live background auto-polling every 35 seconds (when tab active) + Tab visibility change
   useEffect(() => {
     loadData();
 
@@ -382,15 +394,20 @@ export function AppProvider({ children }) {
       }
     }, 35000);
 
-    // Immediate refresh when tab becomes active
-    const handleFocus = () => {
-      loadData(true);
+    // Refresh only when user actually switches back to the browser tab after being away for > 15s
+    let lastHiddenTime = 0;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        lastHiddenTime = Date.now();
+      } else if (lastHiddenTime && Date.now() - lastHiddenTime > 15000) {
+        loadData(true);
+      }
     };
-    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(interval);
-      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [loadData]);
 
@@ -464,6 +481,31 @@ export function AppProvider({ children }) {
     const now = getNowTimestamp();
     let updatedItem = null;
 
+    // 1. Immediately write to localStorage synchronously so no async race condition can wipe it out
+    try {
+      const raw = localStorage.getItem('labour_sys_entries');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const updated = parsed.map(e => {
+          if (e.workId === workId) {
+            const delayInfo = calculateWorkflowDelay(e.verificationPlanned, now);
+            updatedItem = {
+              ...e,
+              status: 'Verified (Pending Approval)',
+              verificationActual: now,
+              verificationDelay: delayInfo.formatted,
+              verificationRemarks: remarks,
+              approvalPlanned: now
+            };
+            return updatedItem;
+          }
+          return e;
+        });
+        localStorage.setItem('labour_sys_entries', JSON.stringify(updated));
+      }
+    } catch (e) {}
+
+    // 2. Instant UI update
     setEntries(prev => {
       const next = prev.map(e => {
         if (e.workId === workId) {
@@ -480,9 +522,6 @@ export function AppProvider({ children }) {
         }
         return e;
       });
-      try {
-        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
-      } catch (e) {}
       return next;
     });
 
@@ -696,6 +735,9 @@ export function AppProvider({ children }) {
     ).length,
     completed: safeList.filter(
       e => e && (e.status === 'Tally Complete' || Boolean(e.tallyActual))
+    ).length,
+    verifiedCount: safeList.filter(
+      e => e && (Boolean(e.verificationActual) || (e.status && !e.status.toLowerCase().includes('pending verification')))
     ).length,
     totalPaidAmount: safeList
       .filter(e => e && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.status === 'Tally Complete' || Boolean(e.paymentActual)))

@@ -49,83 +49,85 @@ export function WorkTrackerPage() {
 
   return (
     <div>
-      {/* Title Header */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            All Work Orders Master Grid
-          </h1>
+      {/* Sticky Freeze Header (Title & Filters) */}
+      <div className="sticky-page-header">
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+              All Work Orders Master Grid
+            </h1>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={refreshData}
+              disabled={syncing}
+              className="btn btn-outline-green btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+              <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
+            </button>
+
+            <button onClick={handleExportCSV} className="btn btn-secondary btn-sm">
+              <Download size={15} />
+              <span>Export Filtered ({filteredEntries.length})</span>
+            </button>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={refreshData}
-            disabled={syncing}
-            className="btn btn-outline-green btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
-          </button>
+        {/* Filter Bar */}
+        <div className="filter-bar" style={{ marginBottom: 0 }}>
+          <div className="search-input-wrap">
+            <Search size={18} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search by Work ID, Supervisor, Firm, Work, Voucher..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-          <button onClick={handleExportCSV} className="btn btn-secondary btn-sm">
-            <Download size={15} />
-            <span>Export Filtered ({filteredEntries.length})</span>
-          </button>
-        </div>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 150 }}
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="Pending Verification">Pending Verification</option>
+              <option value="Verified (Pending Approval)">Verified (Pending Approval)</option>
+              <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
+              <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
+              <option value="Tally Complete">Tally Complete</option>
+            </select>
 
-      {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="search-input-wrap">
-          <Search size={18} />
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Search by Work ID, Supervisor, Firm, Work, Voucher..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-          />
-        </div>
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 140 }}
+              value={firmFilter}
+              onChange={e => setFirmFilter(e.target.value)}
+            >
+              <option value="">All Firms</option>
+              {uniqueFirms.map(firm => (
+                <option key={firm} value={firm}>{firm}</option>
+              ))}
+            </select>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 150 }}
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
-          >
-            <option value="">All Statuses</option>
-            <option value="Pending Verification">Pending Verification</option>
-            <option value="Verified (Pending Approval)">Verified (Pending Approval)</option>
-            <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
-            <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
-            <option value="Tally Complete">Tally Complete</option>
-          </select>
-
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 140 }}
-            value={firmFilter}
-            onChange={e => setFirmFilter(e.target.value)}
-          >
-            <option value="">All Firms</option>
-            {uniqueFirms.map(firm => (
-              <option key={firm} value={firm}>{firm}</option>
-            ))}
-          </select>
-
-          <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 150 }}
-            value={inchargeFilter}
-            onChange={e => setInchargeFilter(e.target.value)}
-          >
-            <option value="">All Supervisors</option>
-            {uniqueIncharges.map(inc => (
-              <option key={inc} value={inc}>{inc}</option>
-            ))}
-          </select>
+            <select
+              className="form-select"
+              style={{ width: 'auto', minWidth: 150 }}
+              value={inchargeFilter}
+              onChange={e => setInchargeFilter(e.target.value)}
+            >
+              <option value="">All Supervisors</option>
+              {uniqueIncharges.map(inc => (
+                <option key={inc} value={inc}>{inc}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 

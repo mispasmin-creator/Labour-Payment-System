@@ -9,10 +9,6 @@ import {
   Users,
   Building2,
   CheckCircle2,
-  CheckCheck,
-  CreditCard,
-  FileCheck2,
-  ShieldCheck,
   Eye
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -30,29 +26,16 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
 
   if (!entry) return null;
 
-  // 4-Stage Status Checks
-  const isVerified = Boolean(entry.verificationActual) || [
-    'Verified (Pending Approval)',
-    'Approved (Pending Payment)',
-    'Paid (Pending Tally)',
-    'Paid',
-    'Tally Complete'
-  ].includes(entry.status);
-
-  const isApproved = Boolean(entry.approvalActual) || [
-    'Approved (Pending Payment)',
-    'Paid (Pending Tally)',
-    'Paid',
-    'Tally Complete'
-  ].includes(entry.status);
-
-  const isPaid = Boolean(entry.paymentActual) || [
-    'Paid (Pending Tally)',
-    'Paid',
-    'Tally Complete'
-  ].includes(entry.status);
-
-  const isTallied = Boolean(entry.tallyActual) || entry.status === 'Tally Complete';
+  // Verification Status Check
+  const isVerified =
+    Boolean(
+      entry.verificationActual &&
+        entry.verificationActual !== '-' &&
+        entry.verificationActual !== 'Pending'
+    ) ||
+    ['Verified', 'Payment Approved', 'Approved', 'Paid', 'Tally Done', 'Completed'].includes(
+      entry.status
+    );
 
   // Extract all labour names safely
   let labourersList = [];
@@ -120,70 +103,26 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
             </div>
           </div>
 
-        {/* 4-Stage Status Overview Cards */}
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.03em' }}>
-            4-Stage Workflow Status
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-            {/* Stage 1: Verification */}
-            <div style={{
-              background: isVerified ? '#ECFDF5' : '#FFFBEB',
-              border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}`,
-              borderRadius: 8,
-              padding: '10px 14px'
-            }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Stage 1</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0F172A', marginTop: 2 }}>Verification</div>
-              <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', fontWeight: 700, color: isVerified ? '#059669' : '#D97706' }}>
-                {isVerified ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                <span>{isVerified ? 'Verified' : 'Pending'}</span>
-              </div>
+        {/* Verification Status Card */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{
+            background: isVerified ? '#ECFDF5' : '#FFFBEB',
+            border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}`,
+            borderRadius: 8,
+            padding: '12px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10
+          }}>
+            <div>
+              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Workflow Stage</div>
+              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A', marginTop: 2 }}>Verification</div>
             </div>
-
-            {/* Stage 2: Payment Approval */}
-            <div style={{
-              background: isApproved ? '#ECFDF5' : '#FFFBEB',
-              border: `1px solid ${isApproved ? '#A7F3D0' : '#FDE68A'}`,
-              borderRadius: 8,
-              padding: '10px 14px'
-            }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Stage 2</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0F172A', marginTop: 2 }}>Payment Approval</div>
-              <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', fontWeight: 700, color: isApproved ? '#059669' : '#D97706' }}>
-                {isApproved ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                <span>{isApproved ? 'Approved' : 'Pending'}</span>
-              </div>
-            </div>
-
-            {/* Stage 3: Payment Disbursal */}
-            <div style={{
-              background: isPaid ? '#ECFDF5' : '#FFFBEB',
-              border: `1px solid ${isPaid ? '#A7F3D0' : '#FDE68A'}`,
-              borderRadius: 8,
-              padding: '10px 14px'
-            }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Stage 3</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0F172A', marginTop: 2 }}>Payment Disbursal</div>
-              <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', fontWeight: 700, color: isPaid ? '#059669' : '#D97706' }}>
-                {isPaid ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                <span>{isPaid ? 'Paid' : 'Pending'}</span>
-              </div>
-            </div>
-
-            {/* Stage 4: Tally Entry */}
-            <div style={{
-              background: isTallied ? '#ECFDF5' : '#FFFBEB',
-              border: `1px solid ${isTallied ? '#A7F3D0' : '#FDE68A'}`,
-              borderRadius: 8,
-              padding: '10px 14px'
-            }}>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Stage 4</div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0F172A', marginTop: 2 }}>Tally Entry</div>
-              <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.8rem', fontWeight: 700, color: isTallied ? '#059669' : '#D97706' }}>
-                {isTallied ? <CheckCircle2 size={14} /> : <Clock size={14} />}
-                <span>{isTallied ? 'Completed' : 'Pending'}</span>
-              </div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 700, color: isVerified ? '#047857' : '#B45309', background: isVerified ? '#D1FAE5' : '#FEF3C7', padding: '5px 12px', borderRadius: 6, border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}` }}>
+              {isVerified ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+              <span>{isVerified ? 'Verified' : 'Pending Verification'}</span>
             </div>
           </div>
         </div>

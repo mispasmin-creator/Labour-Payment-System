@@ -33,6 +33,11 @@ export function isValidEntry(item) {
   const incharge = String(item.incharge || '').trim().toLowerCase();
   if (INVALID_ROW_KEYWORDS.includes(incharge)) return false;
 
+  // Filter out dummy blank rows (like WRK-0015 & WRK-0016) that have no work activity and no incharge
+  const work = String(item.work || '').trim();
+  const inc = String(item.incharge || '').trim();
+  if (!work && !inc) return false;
+
   return true;
 }
 
@@ -42,17 +47,21 @@ export function cleanTimestamp(val) {
 }
 
 export function normalizeStatus(status, entry = {}) {
-  const s = String(status || '').toLowerCase().trim();
   const vActual = cleanTimestamp(entry.verificationActual);
   const aActual = cleanTimestamp(entry.approvalActual);
   const pActual = cleanTimestamp(entry.paymentActual);
   const tActual = cleanTimestamp(entry.tallyActual);
 
+  // If verification has not actually occurred (Col O Actual Timestamp is empty), it is strictly Pending Verification!
+  if (!vActual) {
+    return 'Pending Verification';
+  }
+
+  const s = String(status || '').toLowerCase().trim();
   if (s.includes('tally') || tActual) return 'Tally Complete';
-  if (s === 'paid' || s.includes('pending tally') || pActual) return 'Paid (Pending Tally)';
-  if (s === 'approved' || s.includes('pending payment') || aActual) return 'Approved (Pending Payment)';
-  if (s === 'verified' || s.includes('pending approval') || vActual) return 'Verified (Pending Approval)';
-  return 'Pending Verification';
+  if (s.includes('paid') || pActual) return 'Paid (Pending Tally)';
+  if (s.includes('approved') || aActual) return 'Approved (Pending Payment)';
+  return 'Verified (Pending Approval)';
 }
 
 export function cleanDelay(val) {
@@ -199,6 +208,70 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 9000) {
   }
 }
 
+export const STAGE_RANKS = {
+  'Pending Verification': 1,
+  'Pending': 1,
+  'Verified': 2,
+  'Verified (Pending Approval)': 2,
+  'Approved': 3,
+  'Approved (Pending Payment)': 3,
+  'Paid': 4,
+  'Paid (Pending Tally)': 4,
+  'Tally Complete': 5
+};
+
+export function reconcileRemoteWithLocal(remoteCleaned, localEntries = []) {
+  if (!Array.isArray(remoteCleaned)) return [];
+  if (remoteCleaned.length === 0) return [];
+  if (!Array.isArray(localEntries) || localEntries.length === 0) return remoteCleaned;
+
+  return remoteCleaned.map(remote => {
+    // Robust match: Check timestamp or workId+work first to avoid duplicate workId collisions (e.g. multiple WRK-0019 in Sheet)
+    const local = localEntries.find(l => 
+      (l.timestamp && remote.timestamp && l.timestamp === remote.timestamp) ||
+      (l.workId && remote.workId && l.workId === remote.workId && l.work === remote.work)
+    ) || localEntries.find(l => l.workId && remote.workId && l.workId === remote.workId);
+
+    if (!local) return remote;
+
+    const isLocalVerified = Boolean(local.verificationActual && local.verificationActual !== '-' && local.verificationActual !== 'null');
+    const isRemoteVerified = Boolean(remote.verificationActual && remote.verificationActual !== '-' && remote.verificationActual !== 'null');
+
+    const rRank = STAGE_RANKS[remote.status] || (isRemoteVerified ? 2 : 1);
+    const lRank = STAGE_RANKS[local.status] || (isLocalVerified ? 2 : 1);
+
+    // If local was verified, NEVER downgrade back to Pending even if remote is still pending sync
+    if (lRank > rRank || (isLocalVerified && !isRemoteVerified)) {
+      return {
+        ...remote,
+        status: local.status || (isLocalVerified ? 'Verified (Pending Approval)' : remote.status),
+        verificationActual: local.verificationActual || remote.verificationActual,
+        approvalActual: local.approvalActual || remote.approvalActual,
+        paymentActual: local.paymentActual || remote.paymentActual,
+        tallyActual: local.tallyActual || remote.tallyActual,
+        paymentMethod: local.paymentMethod || remote.paymentMethod,
+        paymentRef: local.paymentRef || remote.paymentRef,
+        tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
+        tallyLedger: local.tallyLedger || remote.tallyLedger,
+        labourNames: (local.labourNames && local.labourNames.length > 0) ? local.labourNames : (remote.labourNames || []),
+        firmName: local.firmName || remote.firmName || '',
+        workRemark: local.workRemark || remote.workRemark || ''
+      };
+    }
+
+    return {
+      ...remote,
+      verificationActual: remote.verificationActual || local.verificationActual || null,
+      approvalActual: remote.approvalActual || local.approvalActual || null,
+      paymentActual: remote.paymentActual || local.paymentActual || null,
+      tallyActual: remote.tallyActual || local.tallyActual || null,
+      labourNames: (remote.labourNames && remote.labourNames.length > 0) ? remote.labourNames : (local.labourNames || []),
+      firmName: remote.firmName || local.firmName || '',
+      workRemark: remote.workRemark || local.workRemark || ''
+    };
+  });
+}
+
 /**
  * Fetch All Data (Entries + Master + Users) in a single unified roundtrip
  */
@@ -213,13 +286,25 @@ export async function fetchAllData() {
       const json = await response.json();
       if (json && (json.entries || json.master || json.users)) {
         const cleanedEntries = filterValidEntries(json.entries || []);
+
+        // Read FRESH local entries right now (after the network response arrives)
+        let freshLocal = [];
+        try {
+          const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ENTRIES) : null;
+          freshLocal = rawLocal ? filterValidEntries(JSON.parse(rawLocal)) : [];
+        } catch (e) {
+          freshLocal = [];
+        }
+
+        const mergedEntries = reconcileRemoteWithLocal(cleanedEntries, freshLocal);
+
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(cleanedEntries));
+          localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(mergedEntries));
           if (json.master) localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(json.master));
           if (json.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(json.users));
         }
         return {
-          entries: cleanedEntries,
+          entries: mergedEntries,
           master: json.master,
           users: json.users
         };
@@ -397,47 +482,16 @@ export async function fetchEntries() {
             return [];
           }
 
-          const STAGE_RANKS = {
-            'Pending Verification': 1,
-            'Verified (Pending Approval)': 2,
-            'Approved (Pending Payment)': 3,
-            'Paid (Pending Tally)': 4,
-            'Tally Complete': 5
-          };
+          // Read FRESH local entries right now
+          let freshLocal = [];
+          try {
+            const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.ENTRIES) : null;
+            freshLocal = rawLocal ? filterValidEntries(JSON.parse(rawLocal)) : [];
+          } catch (e) {
+            freshLocal = [];
+          }
 
-          // Reconcile ONLY entries that actively exist in Google Sheet
-          const merged = remoteCleaned.map(remote => {
-            const local = localEntries.find(l => l.workId === remote.workId);
-            if (!local) return remote;
-
-            const rRank = STAGE_RANKS[remote.status] || 1;
-            const lRank = STAGE_RANKS[local.status] || 1;
-
-            if (lRank > rRank) {
-              return {
-                ...remote,
-                status: local.status,
-                verificationActual: local.verificationActual || remote.verificationActual,
-                approvalActual: local.approvalActual || remote.approvalActual,
-                paymentActual: local.paymentActual || remote.paymentActual,
-                tallyActual: local.tallyActual || remote.tallyActual,
-                paymentMethod: local.paymentMethod || remote.paymentMethod,
-                paymentRef: local.paymentRef || remote.paymentRef,
-                tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
-                tallyLedger: local.tallyLedger || remote.tallyLedger,
-                labourNames: (local.labourNames && local.labourNames.length > 0) ? local.labourNames : (remote.labourNames || []),
-                firmName: local.firmName || remote.firmName || '',
-                workRemark: local.workRemark || remote.workRemark || ''
-              };
-            }
-
-            return {
-              ...remote,
-              labourNames: (remote.labourNames && remote.labourNames.length > 0) ? remote.labourNames : (local.labourNames || []),
-              firmName: remote.firmName || local.firmName || '',
-              workRemark: remote.workRemark || local.workRemark || ''
-            };
-          });
+          const merged = reconcileRemoteWithLocal(remoteCleaned, freshLocal);
 
           if (typeof localStorage !== 'undefined') {
             localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(merged));

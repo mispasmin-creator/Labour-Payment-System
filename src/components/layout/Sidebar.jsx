@@ -15,7 +15,9 @@ import {
   Shield,
   User,
   LogOut,
-  Users
+  Users,
+  ReceiptText,
+  Factory
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
@@ -117,73 +119,40 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
             </NavLink>
           )}
 
-          {/* Stage 2 */}
-          {hasPermission('approval') && (
+          {/* Payment Report */}
+          {hasPermission('payment_report') && (
             <NavLink
-              to="/approval"
-              title="Payment Approval"
+              to="/payment-report"
+              title="Payment Report"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
-                <CheckCircle2 size={18} />
-                <span>Payment Approval</span>
+                <ReceiptText size={18} />
+                <span>Payment Report</span>
               </div>
-              {counts.pendingApproval > 0 && (
-                <span className="sidebar-badge amber">{counts.pendingApproval}</span>
+              {counts.verifiedCount > 0 && (
+                <span className="sidebar-badge green">{counts.verifiedCount}</span>
               )}
             </NavLink>
           )}
 
-          {/* Stage 3 */}
-          {hasPermission('payment') && (
+          {/* Production (Supabase Integration) */}
+          {hasPermission('production') && (
             <NavLink
-              to="/payment"
-              title="Payment Disbursal"
+              to="/production"
+              title="Production"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
               <div className="sidebar-link-content">
-                <CreditCard size={18} />
-                <span>Payment Disbursal</span>
+                <Factory size={18} />
+                <span>Production</span>
               </div>
-              {counts.pendingPayment > 0 && (
-                <span className="sidebar-badge amber">{counts.pendingPayment}</span>
-              )}
             </NavLink>
           )}
 
-          {/* Stage 4 */}
-          {hasPermission('tally') && (
-            <NavLink
-              to="/tally"
-              title="Tally Entry"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <FileCheck2 size={18} />
-                <span>Tally Entry</span>
-              </div>
-              {counts.pendingTally > 0 && (
-                <span className="sidebar-badge amber">{counts.pendingTally}</span>
-              )}
-            </NavLink>
-          )}
 
-          {hasPermission('reports') && (
-            <NavLink
-              to="/reports/incharge-wise"
-              title="Report"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <FileSpreadsheet size={18} />
-                <span>Report</span>
-              </div>
-            </NavLink>
-          )}
 
           {/* Administration & User Management */}
           {hasPermission('admin') && (

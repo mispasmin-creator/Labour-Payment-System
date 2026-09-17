@@ -5,14 +5,13 @@ import { Layout } from './components/layout/Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { NewEntryPage } from './pages/NewEntryPage';
 import { VerificationPage } from './pages/VerificationPage';
-import { PaymentApprovalPage } from './pages/PaymentApprovalPage';
-import { PaymentPage } from './pages/PaymentPage';
-import { TallyPage } from './pages/TallyPage';
+import { PaymentReportPage } from './pages/PaymentReportPage';
 import { WorkTrackerPage } from './pages/WorkTrackerPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { InchargeWiseReportPage } from './pages/InchargeWiseReportPage';
 import { LoginPage } from './pages/LoginPage';
 import { AdministrationPage } from './pages/AdministrationPage';
+import { ProductionPage } from './pages/ProductionPage';
 
 function ProtectedRoute({ children }) {
   const { currentUser } = useApp();
@@ -37,12 +36,14 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="new-entry" element={<NewEntryPage />} />
         <Route path="verification" element={<VerificationPage />} />
-        <Route path="approval" element={<PaymentApprovalPage />} />
-        <Route path="payment" element={<PaymentPage />} />
-        <Route path="tally" element={<TallyPage />} />
+        <Route path="payment-report" element={<PaymentReportPage />} />
+        <Route path="production" element={<ProductionPage />} />
+        <Route path="approval" element={<Navigate to="/payment-report" replace />} />
+        <Route path="payment" element={<Navigate to="/payment-report" replace />} />
+        <Route path="tally" element={<Navigate to="/payment-report" replace />} />
         <Route path="tracker" element={<WorkTrackerPage />} />
-        <Route path="reports" element={<InchargeWiseReportPage />} />
-        <Route path="reports/incharge-wise" element={<InchargeWiseReportPage />} />
+        <Route path="reports" element={<Navigate to="/payment-report" replace />} />
+        <Route path="reports/*" element={<Navigate to="/payment-report" replace />} />
         <Route path="admin" element={<AdministrationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

@@ -220,7 +220,7 @@ export const DEFAULT_LOGIN_USERS = [
     role: 'admin',
     status: 'active',
     assignedFirms: ['*'],
-    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'payment_report', 'reports', 'admin']
   },
   {
     id: 'usr_bhupendra',
@@ -230,7 +230,7 @@ export const DEFAULT_LOGIN_USERS = [
     role: 'user',
     status: 'active',
     assignedFirms: ['*'],
-    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally']
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'payment_report']
   }
 ];
 

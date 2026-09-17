@@ -699,70 +699,71 @@ export function InchargeWiseReportPage() {
 
   return (
     <div style={{ maxWidth: 1440, margin: '0 auto', paddingBottom: 40 }}>
-      {/* 1. Executive Top Header */}
-      <div style={{
-        marginBottom: 20,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 14
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button
-            onClick={() => navigate('/')}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
-          >
-            <ArrowLeft size={16} />
-            <span>Dashboard</span>
-          </button>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                Report
-              </h1>
-              <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '4px 10px', fontWeight: 700 }}>
-                MIS Analytics
-              </span>
+      {/* 1. Executive Top Header (Sticky Freeze) */}
+      <div className="sticky-page-header">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 14
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={() => navigate('/')}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+            >
+              <ArrowLeft size={16} />
+              <span>Dashboard</span>
+            </button>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                  Report
+                </h1>
+                <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '3px 8px', fontWeight: 700 }}>
+                  MIS Analytics
+                </span>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
+                Supervisor-wise labour deployments, working days, production output & payroll payments
+              </p>
             </div>
-            <p style={{ fontSize: '0.82rem', color: '#64748B', margin: '3px 0 0 0' }}>
-              Supervisor-wise labour deployments, working days, production output & payroll payments
-            </p>
           </div>
-        </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            onClick={refreshData}
-            disabled={syncing}
-            className="btn btn-outline-green btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Refresh & Synchronize Live Google Sheet Data"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            <span>{syncing ? 'Syncing...' : 'Sync Live'}</span>
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={refreshData}
+              disabled={syncing}
+              className="btn btn-outline-green btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              title="Refresh & Synchronize Live Google Sheet Data"
+            >
+              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+              <span>{syncing ? 'Syncing...' : 'Sync Live'}</span>
+            </button>
 
-          <button
-            onClick={handleExportCurrentCSV}
-            className="btn btn-outline-green btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Export Current View Data to Excel CSV"
-          >
-            <Download size={14} />
-            <span>Export Excel</span>
-          </button>
+            <button
+              onClick={handleExportCurrentCSV}
+              className="btn btn-outline-green btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              title="Export Current View Data to Excel CSV"
+            >
+              <Download size={14} />
+              <span>Export Excel</span>
+            </button>
 
-          <button
-            onClick={handlePrint}
-            className="btn btn-primary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Print Ready A4 Report or Download PDF"
-          >
-            <Printer size={14} />
-            <span>Print Report Sheet</span>
-          </button>
+            <button
+              onClick={handlePrint}
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              title="Print Ready A4 Report or Download PDF"
+            >
+              <Printer size={14} />
+              <span>Print Report Sheet</span>
+            </button>
+          </div>
         </div>
       </div>
 
