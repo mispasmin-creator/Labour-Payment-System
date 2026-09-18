@@ -151,7 +151,7 @@
       id: 'usr_admin',
       username: 'admin',
       password: 'admin123',
-      name: 'Administrator',
+      name: 'Admin',
       role: 'admin',
       status: 'active',
       assignedFirms: ['*'],
@@ -416,7 +416,7 @@
       loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
 
       const sampleRows = [
-        ['admin', 'admin123', 'Administrator', true, true, true, true, true, true, true, true, true],
+        ['admin', 'admin123', 'Admin', true, true, true, true, true, true, true, true, true],
         ['DME', 'user123', 'Bhupendra', false, true, true, true, true, true, true, true, false]
       ];
       loginSheet.getRange(2, 1, sampleRows.length, STANDARD_LOGIN_HEADERS.length).setValues(sampleRows);

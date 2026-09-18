@@ -9,6 +9,7 @@ import {
   Save,
   Building2,
   Layers
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isTonBasedWork } from '../utils/workTypes';
 
@@ -114,347 +115,256 @@ export function MasterDataPage() {
     setWorkTypes(workTypes.filter((_, i) => i !== idx));
   };
 
+  const tabButtonClass = tab =>
+    `inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold px-4 py-2 transition-colors ${
+      activeTab === tab
+        ? 'bg-indigo-600 text-white shadow-sm'
+        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+    }`;
+
+  const removeBtnClass =
+    'w-8 h-8 rounded-lg flex items-center justify-center text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors shrink-0';
+
+  const listItemClass =
+    'flex items-center justify-between bg-slate-50 px-3.5 py-2.5 rounded-lg border border-slate-200';
+
+  const inputClass =
+    'w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all';
+
+  const cardHeaderClass = (Icon, label) => (
+    <div className="flex items-center gap-2 pb-4 mb-4 border-b border-slate-100">
+      <Icon size={18} className="text-indigo-600" />
+      <span className="font-bold text-slate-800 text-sm">{label}</span>
+    </div>
+  );
+
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      {/* Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            Master Data Management
-          </h1>
-        </div>
-
-        <button
-          onClick={handleSaveAll}
-          disabled={syncing}
-          className="btn btn-primary"
-        >
-          <Save size={16} />
-          <span>{syncing ? 'Saving to Sheets...' : 'Save Master Changes'}</span>
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #E2E8F0', paddingBottom: 8, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setActiveTab('incharges')}
-          className={`btn ${activeTab === 'incharges' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <UserCheck size={16} />
-          <span>Supervisors ({incharges.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('labourers')}
-          className={`btn ${activeTab === 'labourers' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <Users size={16} />
-          <span>Labour Pool ({labourers.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('shifts')}
-          className={`btn ${activeTab === 'shifts' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <Layers size={16} />
-          <span>Shifts ({shifts.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('firmNames')}
-          className={`btn ${activeTab === 'firmNames' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <Building2 size={16} />
-          <span>Firm Names ({firmNames.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('workTypes')}
-          className={`btn ${activeTab === 'workTypes' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-        >
-          <Briefcase size={16} />
-          <span>Work Types & Rates ({workTypes.length})</span>
-        </button>
-      </div>
-
-      {/* TAB 1: INCHARGES */}
-      {activeTab === 'incharges' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">
-              <UserCheck size={18} color="#059669" />
-              <span>Incharge Supervisors</span>
+    <div className="h-full flex flex-col bg-slate-50 overflow-y-auto">
+      <div className="max-w-[1000px] w-full mx-auto space-y-4">
+        {/* Title */}
+        <div className="flex items-center justify-between flex-wrap gap-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Database size={20} />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-800">Master Data Management</h1>
+              <p className="text-xs text-slate-500">Manage supervisors, labour pool, shifts, firms & work rates</p>
             </div>
           </div>
 
-          <form onSubmit={handleAddIncharge} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Supervisor Name"
-              value={newIncharge}
-              onChange={e => setNewIncharge(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Add</span>
-            </button>
-          </form>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-            {incharges.map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#F8FAFC',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0'
-                }}
-              >
-                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: '0.9rem' }}>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => removeIncharge(idx)}
-                  className="btn-remove-slot"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={handleSaveAll}
+            disabled={syncing}
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <Save size={16} />
+            <span>{syncing ? 'Saving to Sheets...' : 'Save Master Changes'}</span>
+          </button>
         </div>
-      )}
 
-      {/* TAB 2: LABOUR POOL */}
-      {activeTab === 'labourers' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">
-              <Users size={18} color="#059669" />
-              <span>Labour Pool Master</span>
-            </div>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-2 flex-wrap border-b border-slate-200 pb-2">
+          <button onClick={() => setActiveTab('incharges')} className={tabButtonClass('incharges')}>
+            <UserCheck size={16} />
+            <span>Supervisors ({incharges.length})</span>
+          </button>
 
-          <form onSubmit={handleAddLabourer} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Labourer Name"
-              value={newLabourer}
-              onChange={e => setNewLabourer(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Add Labourer</span>
-            </button>
-          </form>
+          <button onClick={() => setActiveTab('labourers')} className={tabButtonClass('labourers')}>
+            <Users size={16} />
+            <span>Labour Pool ({labourers.length})</span>
+          </button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-            {labourers.map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#F8FAFC',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0'
-                }}
-              >
-                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: '0.9rem' }}>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => removeLabourer(idx)}
-                  className="btn-remove-slot"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
+          <button onClick={() => setActiveTab('shifts')} className={tabButtonClass('shifts')}>
+            <Layers size={16} />
+            <span>Shifts ({shifts.length})</span>
+          </button>
+
+          <button onClick={() => setActiveTab('firmNames')} className={tabButtonClass('firmNames')}>
+            <Building2 size={16} />
+            <span>Firm Names ({firmNames.length})</span>
+          </button>
+
+          <button onClick={() => setActiveTab('workTypes')} className={tabButtonClass('workTypes')}>
+            <Briefcase size={16} />
+            <span>Work Types & Rates ({workTypes.length})</span>
+          </button>
         </div>
-      )}
 
-      {/* TAB 3: SHIFTS */}
-      {activeTab === 'shifts' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">
-              <Layers size={18} color="#059669" />
-              <span>Shift Timing Master</span>
-            </div>
-          </div>
+        {/* TAB 1: INCHARGES */}
+        {activeTab === 'incharges' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+            {cardHeaderClass(UserCheck, 'Incharge Supervisors')}
 
-          <form onSubmit={handleAddShift} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Shift Name (e.g. Shift 1, Shift 2)"
-              value={newShift}
-              onChange={e => setNewShift(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Add Shift</span>
-            </button>
-          </form>
+            <form onSubmit={handleAddIncharge} className="flex gap-3 mb-5">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="Supervisor Name"
+                value={newIncharge}
+                onChange={e => setNewIncharge(e.target.value)}
+              />
+              <button type="submit" className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors shrink-0">
+                <PlusCircle size={16} />
+                <span>Add</span>
+              </button>
+            </form>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-            {shifts.map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#F8FAFC',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0'
-                }}
-              >
-                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: '0.9rem' }}>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => removeShift(idx)}
-                  className="btn-remove-slot"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: FIRM NAMES */}
-      {activeTab === 'firmNames' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">
-              <Building2 size={18} color="#059669" />
-              <span>Firm Name Master (Column E)</span>
-            </div>
-          </div>
-
-          <form onSubmit={handleAddFirmName} style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Firm / Company Name"
-              value={newFirmName}
-              onChange={e => setNewFirmName(e.target.value)}
-            />
-            <button type="submit" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Add Firm</span>
-            </button>
-          </form>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
-            {firmNames.map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#F8FAFC',
-                  padding: '10px 14px',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0'
-                }}
-              >
-                <span style={{ fontWeight: 600, color: '#1E293B', fontSize: '0.9rem' }}>{item}</span>
-                <button
-                  type="button"
-                  onClick={() => removeFirmName(idx)}
-                  className="btn-remove-slot"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: WORK TYPES */}
-      {activeTab === 'workTypes' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">
-              <Briefcase size={18} color="#059669" />
-              <span>Work Activities & Default Rates (₹ / Person)</span>
-            </div>
-          </div>
-
-          <form onSubmit={handleAddWorkType} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: 12, marginBottom: 20 }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Activity name (e.g. Packing & Palletizing)"
-              value={newWorkName}
-              onChange={e => setNewWorkName(e.target.value)}
-            />
-            <input
-              type="number"
-              className="form-input"
-              placeholder="Default Rate (₹)"
-              value={newWorkRate}
-              onChange={e => setNewWorkRate(Number(e.target.value))}
-            />
-            <button type="submit" className="btn btn-primary">
-              <PlusCircle size={16} />
-              <span>Add Activity</span>
-            </button>
-          </form>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {workTypes.map((item, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#F8FAFC',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: '1px solid #E2E8F0'
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.95rem' }}>
-                    {item.name}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 600 }}>
-                    Default Rate: ₹{item.defaultRate} / {isTonBasedWork(item.name) ? 'ton' : 'person'}
-                  </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-2.5">
+              {incharges.map((item, idx) => (
+                <div key={idx} className={listItemClass}>
+                  <span className="font-semibold text-slate-800 text-sm">{item}</span>
+                  <button type="button" onClick={() => removeIncharge(idx)} className={removeBtnClass} title="Delete">
+                    <Trash2 size={16} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeWorkType(idx)}
-                  className="btn-remove-slot"
-                  title="Delete"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* TAB 2: LABOUR POOL */}
+        {activeTab === 'labourers' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+            {cardHeaderClass(Users, 'Labour Pool Master')}
+
+            <form onSubmit={handleAddLabourer} className="flex gap-3 mb-5">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="Labourer Name"
+                value={newLabourer}
+                onChange={e => setNewLabourer(e.target.value)}
+              />
+              <button type="submit" className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors shrink-0">
+                <PlusCircle size={16} />
+                <span>Add Labourer</span>
+              </button>
+            </form>
+
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
+              {labourers.map((item, idx) => (
+                <div key={idx} className={listItemClass}>
+                  <span className="font-semibold text-slate-800 text-sm">{item}</span>
+                  <button type="button" onClick={() => removeLabourer(idx)} className={removeBtnClass} title="Delete">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: SHIFTS */}
+        {activeTab === 'shifts' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+            {cardHeaderClass(Layers, 'Shift Timing Master')}
+
+            <form onSubmit={handleAddShift} className="flex gap-3 mb-5">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="Shift Name (e.g. Shift 1, Shift 2)"
+                value={newShift}
+                onChange={e => setNewShift(e.target.value)}
+              />
+              <button type="submit" className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors shrink-0">
+                <PlusCircle size={16} />
+                <span>Add Shift</span>
+              </button>
+            </form>
+
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2.5">
+              {shifts.map((item, idx) => (
+                <div key={idx} className={listItemClass}>
+                  <span className="font-semibold text-slate-800 text-sm">{item}</span>
+                  <button type="button" onClick={() => removeShift(idx)} className={removeBtnClass} title="Delete">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: FIRM NAMES */}
+        {activeTab === 'firmNames' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+            {cardHeaderClass(Building2, 'Firm Name Master (Column E)')}
+
+            <form onSubmit={handleAddFirmName} className="flex gap-3 mb-5">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="Firm / Company Name"
+                value={newFirmName}
+                onChange={e => setNewFirmName(e.target.value)}
+              />
+              <button type="submit" className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors shrink-0">
+                <PlusCircle size={16} />
+                <span>Add Firm</span>
+              </button>
+            </form>
+
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-2.5">
+              {firmNames.map((item, idx) => (
+                <div key={idx} className={listItemClass}>
+                  <span className="font-semibold text-slate-800 text-sm">{item}</span>
+                  <button type="button" onClick={() => removeFirmName(idx)} className={removeBtnClass} title="Delete">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: WORK TYPES */}
+        {activeTab === 'workTypes' && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+            {cardHeaderClass(Briefcase, 'Work Activities & Default Rates (₹ / Person)')}
+
+            <form onSubmit={handleAddWorkType} className="grid grid-cols-[2fr_1fr_auto] gap-3 mb-5">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="Activity name (e.g. Packing & Palletizing)"
+                value={newWorkName}
+                onChange={e => setNewWorkName(e.target.value)}
+              />
+              <input
+                type="number"
+                className={inputClass}
+                placeholder="Default Rate (₹)"
+                value={newWorkRate}
+                onChange={e => setNewWorkRate(Number(e.target.value))}
+              />
+              <button type="submit" className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors shrink-0">
+                <PlusCircle size={16} />
+                <span>Add Activity</span>
+              </button>
+            </form>
+
+            <div className="flex flex-col gap-2.5">
+              {workTypes.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-slate-50 px-4 py-3 rounded-lg border border-slate-200">
+                  <div>
+                    <div className="font-bold text-slate-900 text-sm">
+                      {item.name}
+                    </div>
+                    <div className="text-xs text-emerald-600 font-semibold">
+                      Default Rate: ₹{item.defaultRate} / {isTonBasedWork(item.name) ? 'ton' : 'person'}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => removeWorkType(idx)} className={removeBtnClass} title="Delete">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

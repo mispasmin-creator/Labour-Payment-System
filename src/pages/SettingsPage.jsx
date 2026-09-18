@@ -17,7 +17,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { testGoogleSheetsConnection } from '../services/api';
 
-const GS_CODE = /**
+const GS_CODE = `/**
  * =========================================================================
  * Labour Payment & Workflow Tracking System - Google Apps Script Backend
  * =========================================================================
@@ -170,7 +170,7 @@ const DEFAULT_LOGIN_USERS = [
     id: 'usr_admin',
     username: 'admin',
     password: 'admin123',
-    name: 'Administrator',
+    name: 'Admin',
     role: 'admin',
     status: 'active',
     assignedFirms: ['*'],
@@ -203,7 +203,7 @@ function getFormattedSheetTimestamp(date) {
     const hours = d.getHours();
     const minutes = String(d.getMinutes()).padStart(2, '0');
     const seconds = String(d.getSeconds()).padStart(2, '0');
-    return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
+    return \`\${month}/\${day}/\${year} \${hours}:\${minutes}:\${seconds}\`;
   }
 }
 
@@ -435,7 +435,7 @@ function ensureLoginPageHeader(loginSheet) {
     loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
 
     const sampleRows = [
-      ['admin', 'admin123', 'Administrator', true, true, true, true, true, true, true, true, true],
+      ['admin', 'admin123', 'Admin', true, true, true, true, true, true, true, true, true],
       ['DME', 'user123', 'Bhupendra', false, true, true, true, true, true, true, true, false]
     ];
     loginSheet.getRange(2, 1, sampleRows.length, STANDARD_LOGIN_HEADERS.length).setValues(sampleRows);
@@ -456,7 +456,7 @@ function ensureLabourColumns(entrySheet, requiredLabourCount) {
     const cell = entrySheet.getRange(headerRow, targetCol);
     const val = String(cell.getValue() || '').trim();
     if (!val || !val.toLowerCase().startsWith('labour')) {
-      cell.setValue(`Labour ${i}`);
+      cell.setValue(\`Labour \${i}\`);
       cell.setFontWeight('bold');
       cell.setBackground('#D9EAD3');
       updated = true;
@@ -1048,8 +1048,8 @@ function handleUpdateUsers(ss, data) {
     const isAdmin = u.role === 'admin' || (Array.isArray(u.permissions) && u.permissions.includes('admin'));
     const perms = Array.isArray(u.permissions) ? u.permissions : [];
 
-    const hasFull = mod => isAdmin || perms.includes(mod) || perms.includes(`${mod}:full`);
-    const hasView = mod => isAdmin || hasFull(mod) || perms.includes(`${mod}:view`);
+    const hasFull = mod => isAdmin || perms.includes(mod) || perms.includes(\`\${mod}:full\`);
+    const hasView = mod => isAdmin || hasFull(mod) || perms.includes(\`\${mod}:view\`);
 
     return [
       u.username || '',
@@ -1376,7 +1376,7 @@ function ensureAllSheetsAndHeaders(ss) {
                      ss.insertSheet('Login Page');
   ensureLoginPageHeader(loginSheet);
 }
-;
+`;
 
 export function SettingsPage() {
   const { scriptUrl, updateScriptUrl, resetDemo, showToast } = useApp();
@@ -1413,132 +1413,137 @@ export function SettingsPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1050, margin: '0 auto' }}>
-      {/* Title */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-          Google Sheets Integration & Deployment
-        </h1>
-        <p style={{ color: '#64748B', fontSize: '0.9rem' }}>
-          Connect your Google Sheet backend via Apps Script Web App or test in local mock storage mode.
-        </p>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
+      {/* Page Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <Settings size={20} />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-slate-800">Google Sheets Integration & Deployment</h1>
+          <p className="text-xs text-slate-500">
+            Connect your Google Sheet backend via Apps Script Web App or test in local mock storage mode.
+          </p>
+        </div>
       </div>
 
-      {/* Connection Config Card */}
-      <div className="card" style={{ marginBottom: 28 }}>
-        <div className="card-header">
-          <div className="card-title">
-            <div className="card-title-icon">
-              <Link2 size={18} />
+      <div className="flex-1 overflow-y-auto space-y-4 pb-1">
+        {/* Connection Config Card */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <Link2 size={16} />
+              </div>
+              <span className="text-sm font-bold text-slate-800">Google Apps Script Web App Endpoint</span>
             </div>
-            <span>Google Apps Script Web App Endpoint</span>
-          </div>
 
-          <div className={`sync-indicator ${scriptUrl ? 'connected' : 'demo'}`}>
-            <span className="sync-dot"></span>
-            <span>{scriptUrl ? 'Live Google Sheets Connected' : 'Local Storage Mode (Offline Active)'}</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSaveUrl}>
-          <div className="form-group">
-            <label className="form-label">
-              Apps Script Executable URL (Ending in <code>/exec</code>)
-            </label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input
-                type="url"
-                className="form-input"
-                placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
-                value={inputUrl}
-                onChange={e => setInputUrl(e.target.value)}
-              />
-              <button type="submit" className="btn btn-primary">
-                Save URL
-              </button>
-            </div>
-            <div className="form-helper">
-              Leave blank to run in instant demo mode with preloaded sample data.
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleTestConnection}
-              disabled={testing || !inputUrl}
-              className="btn btn-secondary btn-sm"
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
+                scriptUrl ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'
+              }`}
             >
-              <RefreshCw size={14} className={testing ? 'animate-spin' : ''} />
-              <span>{testing ? 'Testing Endpoint...' : 'Test Connection'}</span>
-            </button>
+              <span className={`w-2 h-2 rounded-full ${scriptUrl ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+              <span>{scriptUrl ? 'Live Google Sheets Connected' : 'Local Storage Mode (Offline Active)'}</span>
+            </div>
+          </div>
 
-            {scriptUrl && (
+          <form onSubmit={handleSaveUrl}>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Apps Script Executable URL (Ending in <code className="font-mono text-indigo-600 normal-case">/exec</code>)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="url"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                  placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                  value={inputUrl}
+                  onChange={e => setInputUrl(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 shrink-0 transition-colors"
+                >
+                  Save URL
+                </button>
+              </div>
+              <div className="text-xs text-slate-500 mt-1.5">
+                Leave blank to run in instant demo mode with preloaded sample data.
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
               <button
                 type="button"
-                onClick={() => { setInputUrl(''); updateScriptUrl(''); }}
-                className="btn btn-outline-green btn-sm"
+                onClick={handleTestConnection}
+                disabled={testing || !inputUrl}
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Disconnect & Use Local Mode
+                <RefreshCw size={14} className={testing ? 'animate-spin' : ''} />
+                <span>{testing ? 'Testing Endpoint...' : 'Test Connection'}</span>
               </button>
-            )}
+
+              {scriptUrl && (
+                <button
+                  type="button"
+                  onClick={() => { setInputUrl(''); updateScriptUrl(''); }}
+                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                >
+                  Disconnect & Use Local Mode
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={resetDemo}
+                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+              >
+                Reset Sample Demo Data
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Deployment Instructions & Code.gs */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <Code2 size={16} />
+              </div>
+              <span className="text-sm font-bold text-slate-800">
+                Google Apps Script Backend Code (<span className="font-mono">Code.gs</span>)
+              </span>
+            </div>
 
             <button
-              type="button"
-              onClick={resetDemo}
-              className="btn btn-secondary btn-sm"
+              onClick={handleCopyCode}
+              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm px-3 py-1.5 transition-colors"
             >
-              Reset Sample Demo Data
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              <span>{copied ? 'Copied!' : 'Copy Code.gs'}</span>
             </button>
           </div>
-        </form>
-      </div>
 
-      {/* Deployment Instructions & Code.gs */}
-      <div className="card">
-        <div className="card-header">
-          <div className="card-title">
-            <div className="card-title-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
-              <Code2 size={18} />
-            </div>
-            <span>Google Apps Script Backend Code (`Code.gs`)</span>
+          {/* 4 Step Setup Guide */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-5 py-4 mb-5">
+            <div className="text-sm font-bold text-emerald-800 mb-2">4-Step Google Sheets Setup Guide:</div>
+            <ol className="text-xs text-slate-700 list-decimal pl-5 space-y-1.5 leading-relaxed">
+              <li>Create a new blank sheet in <strong>Google Sheets</strong>.</li>
+              <li>Go to <strong>Extensions &gt; Apps Script</strong> and replace the code with the script below.</li>
+              <li>Click <strong>Deploy &gt; New deployment</strong> &gt; Select type: <strong>Web app</strong>.</li>
+              <li>Configure: <strong>Execute as: Me</strong> and <strong>Who has access: Anyone</strong> &gt; Click <strong>Deploy</strong>.</li>
+              <li>Copy the Web App URL and paste it into the input above! The script will automatically create the <strong>Entry</strong>, <strong>FMS</strong>, <strong>Workflow</strong>, and <strong>Master</strong> sheets.</li>
+            </ol>
           </div>
 
-          <button onClick={handleCopyCode} className="btn btn-primary btn-sm">
-            {copied ? <Check size={15} /> : <Copy size={15} />}
-            <span>{copied ? 'Copied!' : 'Copy Code.gs'}</span>
-          </button>
-        </div>
-
-        {/* 4 Step Setup Guide */}
-        <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '16px 20px', marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, color: '#065F46', marginBottom: 8, fontSize: '0.95rem' }}>
-            4-Step Google Sheets Setup Guide:
+          {/* Code Preview */}
+          <div className="relative">
+            <pre className="bg-slate-900 text-slate-200 p-5 rounded-lg text-xs font-mono max-h-[380px] overflow-y-auto leading-relaxed">
+              <code>{GS_CODE}</code>
+            </pre>
           </div>
-          <ol style={{ fontSize: '0.85rem', color: '#1E293B', paddingLeft: 20, lineHeight: 1.7 }}>
-            <li>Create a new blank sheet in <strong>Google Sheets</strong>.</li>
-            <li>Go to <strong>Extensions &gt; Apps Script</strong> and replace the code with the script below.</li>
-            <li>Click <strong>Deploy &gt; New deployment</strong> &gt; Select type: <strong>Web app</strong>.</li>
-            <li>Configure: <strong>Execute as: Me</strong> and <strong>Who has access: Anyone</strong> &gt; Click <strong>Deploy</strong>.</li>
-            <li>Copy the Web App URL and paste it into the input above! The script will automatically create the <strong>Entry</strong>, <strong>FMS</strong>, <strong>Workflow</strong>, and <strong>Master</strong> sheets.</li>
-          </ol>
-        </div>
-
-        {/* Code Preview */}
-        <div style={{ position: 'relative' }}>
-          <pre style={{
-            background: '#0F172A',
-            color: '#E2E8F0',
-            padding: '20px',
-            borderRadius: 10,
-            fontSize: '0.8rem',
-            fontFamily: 'var(--font-mono)',
-            maxHeight: 380,
-            overflowY: 'auto',
-            lineHeight: 1.5
-          }}>
-            <code>{GS_CODE}</code>
-          </pre>
         </div>
       </div>
     </div>

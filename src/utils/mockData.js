@@ -216,7 +216,7 @@ export const DEFAULT_LOGIN_USERS = [
     id: 'usr_admin',
     username: 'admin',
     password: 'admin123',
-    name: 'Administrator',
+    name: 'Admin',
     role: 'admin',
     status: 'active',
     assignedFirms: ['*'],

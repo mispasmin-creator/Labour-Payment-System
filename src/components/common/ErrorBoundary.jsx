@@ -30,82 +30,28 @@ export class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#0F172A',
-          padding: '24px',
-          fontFamily: 'Inter, system-ui, sans-serif'
-        }}>
-          <div style={{
-            maxWidth: '520px',
-            width: '100%',
-            backgroundColor: '#1E293B',
-            border: '1px solid #334155',
-            borderRadius: '16px',
-            padding: '32px',
-            textAlign: 'center',
-            color: '#F8FAFC',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{
-              width: '64px',
-              height: '64px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(239, 68, 68, 0.15)',
-              color: '#EF4444',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '20px'
-            }}>
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6 font-sans">
+          <div className="max-w-[520px] w-full bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center text-slate-50 shadow-2xl">
+            <div className="w-16 h-16 rounded-full bg-rose-500/15 text-rose-500 inline-flex items-center justify-center mb-5">
               <AlertTriangle size={32} />
             </div>
 
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '8px', color: '#FFFFFF' }}>
-              Something Went Wrong
-            </h2>
+            <h2 className="text-xl font-extrabold mb-2 text-white">Something Went Wrong</h2>
 
-            <p style={{ fontSize: '0.88rem', color: '#94A3B8', marginBottom: '24px', lineHeight: 1.5 }}>
+            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
               The application encountered a display error. Don't worry, your data is safe in Google Sheets.
             </p>
 
             {this.state.error && (
-              <div style={{
-                backgroundColor: '#0F172A',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                padding: '12px',
-                textAlign: 'left',
-                marginBottom: '24px',
-                fontSize: '0.78rem',
-                color: '#F87171',
-                fontFamily: 'monospace',
-                overflowX: 'auto',
-                maxHeight: '100px'
-              }}>
+              <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-left mb-6 text-xs text-rose-400 font-mono overflow-x-auto max-h-[100px]">
                 {this.state.error.toString()}
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <div className="flex gap-3 justify-center">
               <button
                 onClick={this.handleReload}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: '#059669',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '10px 20px',
-                  fontWeight: 700,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
+                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-5 py-2.5 font-semibold text-sm transition-colors"
               >
                 <RefreshCw size={16} />
                 <span>Reload Page</span>
@@ -113,19 +59,7 @@ export class ErrorBoundary extends React.Component {
 
               <button
                 onClick={this.handleResetSession}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  color: '#CBD5E1',
-                  border: '1px solid #475569',
-                  borderRadius: '10px',
-                  padding: '10px 18px',
-                  fontWeight: 600,
-                  fontSize: '0.9rem',
-                  cursor: 'pointer'
-                }}
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-slate-300 border border-slate-600 rounded-lg px-5 py-2.5 font-semibold text-sm transition-colors"
               >
                 <LogOut size={16} />
                 <span>Re-login</span>

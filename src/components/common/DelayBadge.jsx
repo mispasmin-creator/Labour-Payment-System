@@ -2,19 +2,23 @@ import React from 'react';
 import { Clock, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
 import { calculateWorkflowDelay } from '../../utils/dateUtils';
 
+const badgeBase = 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border whitespace-nowrap';
+const severe = `${badgeBase} bg-rose-50 text-rose-700 border-rose-200`;
+const moderate = `${badgeBase} bg-amber-50 text-amber-700 border-amber-200`;
+const ontime = `${badgeBase} bg-emerald-50 text-emerald-700 border-emerald-200`;
+
 export function DelayBadge({ plannedDate, actualDate, storedDelay }) {
   if (!plannedDate) {
-    return <span className="badge" style={{ background: '#F8FAFC', color: '#94A3B8' }}>-</span>;
+    return <span className={`${badgeBase} bg-slate-50 text-slate-400 border-slate-200`}>-</span>;
   }
 
-  // If actual date exists, compute or use stored
   if (actualDate) {
     const delay = calculateWorkflowDelay(plannedDate, actualDate);
     const text = storedDelay && storedDelay !== '-' ? storedDelay : delay.formatted;
 
     if (delay.severity === 'severe') {
       return (
-        <span className="badge badge-delay-severe" title={`Delay: ${text}`}>
+        <span className={severe} title={`Delay: ${text}`}>
           <AlertCircle size={13} />
           {text}
         </span>
@@ -22,33 +26,32 @@ export function DelayBadge({ plannedDate, actualDate, storedDelay }) {
     }
     if (delay.severity === 'moderate') {
       return (
-        <span className="badge badge-delay-moderate" title={`Delay: ${text}`}>
+        <span className={moderate} title={`Delay: ${text}`}>
           <AlertTriangle size={13} />
           {text}
         </span>
       );
     }
     return (
-      <span className="badge badge-delay-ontime" title={`On time: ${text}`}>
+      <span className={ontime} title={`On time: ${text}`}>
         <CheckCircle size={13} />
         {text}
       </span>
     );
   }
 
-  // Stage is still pending: compute live elapsed delay from planned date to current time
   const liveDelay = calculateWorkflowDelay(plannedDate, new Date().toISOString());
 
   if (liveDelay.diffHours > 24) {
     return (
-      <span className="badge badge-delay-severe" title="Overdue by more than 24 hrs">
+      <span className={severe} title="Overdue by more than 24 hrs">
         <AlertCircle size={13} />
         Overdue ({liveDelay.formatted})
       </span>
     );
   } else if (liveDelay.diffHours > 8) {
     return (
-      <span className="badge badge-delay-moderate" title="Due soon / pending">
+      <span className={moderate} title="Due soon / pending">
         <Clock size={13} />
         Pending ({liveDelay.formatted})
       </span>
@@ -56,7 +59,7 @@ export function DelayBadge({ plannedDate, actualDate, storedDelay }) {
   }
 
   return (
-    <span className="badge badge-delay-ontime" title="Pending within SLA">
+    <span className={ontime} title="Pending within SLA">
       <Clock size={13} />
       In Progress
     </span>

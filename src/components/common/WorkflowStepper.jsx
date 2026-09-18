@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Clock, AlertTriangle, ShieldCheck, CheckCircle2, CreditCard, FileCheck2 } from 'lucide-react';
+import { Check, ShieldCheck, CheckCircle2, CreditCard, FileCheck2 } from 'lucide-react';
 import { formatDateTime } from '../../utils/dateUtils';
 import { DelayBadge } from './DelayBadge';
 
@@ -54,64 +54,69 @@ export function WorkflowStepper({ entry }) {
   ];
 
   return (
-    <div className="stepper-container">
-      {stages.map((st, idx) => {
+    <div className="flex flex-col md:flex-row items-stretch gap-4 my-6">
+      {stages.map(st => {
         const Icon = st.icon;
-        let cardClass = 'stepper-stage-card';
-        if (st.isCompleted) cardClass += ' completed';
-        else if (st.isActive) cardClass += ' active';
 
         return (
-          <div key={st.num} className={cardClass}>
+          <div
+            key={st.num}
+            className={`flex-1 rounded-xl border p-4 flex flex-col justify-between transition-all ${
+              st.isCompleted
+                ? 'border-emerald-200 bg-emerald-50/40'
+                : st.isActive
+                ? 'border-indigo-300 bg-white shadow-md shadow-indigo-100'
+                : 'border-slate-200 bg-white'
+            }`}
+          >
             <div>
-              <div className="stepper-stage-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div className="stage-number-bubble">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                      st.isCompleted
+                        ? 'bg-emerald-500 text-white'
+                        : st.isActive
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
                     {st.isCompleted ? <Check size={16} /> : st.num}
                   </div>
                   <div>
-                    <div className="stage-title">{st.title}</div>
-                    <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                      Stage {st.num} of 4
-                    </div>
+                    <div className="font-bold text-sm text-slate-900">{st.title}</div>
+                    <div className="text-[11px] text-slate-500">Stage {st.num} of 4</div>
                   </div>
                 </div>
 
-                <div style={{ color: st.isCompleted ? '#10B981' : st.isActive ? '#059669' : '#94A3B8' }}>
-                  <Icon size={20} />
-                </div>
+                <Icon
+                  size={20}
+                  className={st.isCompleted ? 'text-emerald-500' : st.isActive ? 'text-indigo-600' : 'text-slate-300'}
+                />
               </div>
 
               {st.details && (
-                <div style={{
-                  fontSize: '0.78rem',
-                  background: '#F0FDF4',
-                  border: '1px solid #D1FAE5',
-                  color: '#065F46',
-                  padding: '4px 8px',
-                  borderRadius: 6,
-                  marginBottom: 8
-                }}>
+                <div className="text-xs bg-indigo-50 border border-indigo-100 text-indigo-700 px-2 py-1 rounded mb-2">
                   {st.details}
                 </div>
               )}
             </div>
 
-            <div className="stage-date-row">
-              <div className="stage-date-item">
-                <span className="label">Planned Date:</span>
-                <span className="val">{formatDateTime(st.planned)}</span>
+            <div className="flex flex-col gap-1.5 mt-2.5 pt-2.5 border-t border-slate-100 text-xs">
+              <div className="flex justify-between items-center text-slate-600">
+                <span className="font-semibold text-slate-500">Planned Date:</span>
+                <span className="font-mono text-slate-800">{formatDateTime(st.planned)}</span>
               </div>
 
-              <div className="stage-date-item">
-                <span className="label">Actual Date:</span>
-                <span className="val">
-                  {st.actual ? formatDateTime(st.actual) : <span style={{ color: '#F59E0B' }}>Pending</span>}
+              <div className="flex justify-between items-center text-slate-600">
+                <span className="font-semibold text-slate-500">Actual Date:</span>
+                <span className="font-mono text-slate-800">
+                  {st.actual ? formatDateTime(st.actual) : <span className="text-amber-600">Pending</span>}
                 </span>
               </div>
 
-              <div className="stage-date-item" style={{ marginTop: 4 }}>
-                <span className="label">Stage Delay:</span>
+              <div className="flex justify-between items-center text-slate-600 mt-0.5">
+                <span className="font-semibold text-slate-500">Stage Delay:</span>
                 <DelayBadge plannedDate={st.planned} actualDate={st.actual} storedDelay={st.delay} />
               </div>
             </div>

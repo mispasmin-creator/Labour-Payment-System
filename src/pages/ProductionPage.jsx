@@ -69,7 +69,7 @@ function formatDisplayTimestamp(ts) {
 
 export function ProductionPage() {
   const [activeTab, setActiveTab] = useState('semi_actual'); // 'semi_actual' | 'crushing_actual'
-  
+
   // Data States
   const [semiActuals, setSemiActuals] = useState([]);
   const [crushingActuals, setCrushingActuals] = useState([]);
@@ -239,75 +239,47 @@ export function ProductionPage() {
   };
 
   return (
-    <div>
-      {/* Top Banner */}
-      <div
-        style={{
-          background: 'linear-gradient(135deg, #059669 0%, #047857 50%, #064E3B 100%)',
-          borderRadius: 14,
-          padding: '16px 24px',
-          color: '#FFFFFF',
-          marginBottom: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 16,
-          boxShadow: '0 8px 20px -4px rgba(5, 150, 105, 0.25)'
-        }}
-      >
-        <h1 style={{ color: '#FFFFFF', fontSize: '1.6rem', fontWeight: 800, margin: 0 }}>
-          Production Management
-        </h1>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <Factory size={20} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800">Production Management</h1>
+            <p className="text-xs text-slate-500">
+              {activeTab === 'semi_actual' ? 'Actual Production Entry' : 'Crushing Department'} &bull; {filteredData.length} records
+            </p>
+          </div>
+        </div>
 
         <button
+          type="button"
           onClick={() => loadSupabaseData(true)}
           disabled={refreshing || loading}
-          className="btn btn-lg"
-          style={{
-            background: 'rgba(255, 255, 255, 0.2)',
-            color: '#FFFFFF',
-            border: '1px solid rgba(255, 255, 255, 0.4)',
-            fontWeight: 700,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '8px 18px',
-            borderRadius: 8
-          }}
+          className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
           title="Refresh Data"
         >
-          <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+          <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
           <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
         </button>
       </div>
 
       {/* Error Alert if any */}
       {error && (
-        <div
-          style={{
-            background: '#FEF2F2',
-            border: '1px solid #FECACA',
-            borderRadius: 10,
-            padding: '14px 18px',
-            marginBottom: 20,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            color: '#B91C1C'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <AlertCircle size={20} />
+        <div className="shrink-0 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5 text-rose-700">
+            <AlertCircle size={18} className="shrink-0" />
             <div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Supabase Connection Notice</div>
-              <div style={{ fontSize: '0.82rem' }}>{error}</div>
+              <div className="font-bold text-sm">Supabase Connection Notice</div>
+              <div className="text-xs">{error}</div>
             </div>
           </div>
           <button
+            type="button"
             onClick={() => loadSupabaseData(true)}
-            className="btn btn-sm"
-            style={{ background: '#DC2626', color: '#FFFFFF' }}
+            className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-lg px-3 py-1.5 shadow-sm transition-colors shrink-0"
           >
             Retry
           </button>
@@ -315,46 +287,22 @@ export function ProductionPage() {
       )}
 
       {/* Department Sub-Tabs Navigation */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          marginBottom: 16,
-          borderBottom: '2px solid #E2E8F0',
-          paddingBottom: 2,
-          flexWrap: 'wrap'
-        }}
-      >
+      <div className="flex items-center gap-2 border-b border-slate-200 flex-wrap shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab('semi_actual')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 18px',
-            border: 'none',
-            borderBottom: activeTab === 'semi_actual' ? '3px solid #059669' : '3px solid transparent',
-            background: activeTab === 'semi_actual' ? '#ECFDF5' : 'transparent',
-            color: activeTab === 'semi_actual' ? '#065F46' : '#64748B',
-            fontWeight: activeTab === 'semi_actual' ? 800 : 600,
-            borderRadius: '8px 8px 0 0',
-            cursor: 'pointer',
-            fontSize: '0.92rem',
-            transition: 'all 0.15s ease'
-          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === 'semi_actual'
+              ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
         >
-          <Layers size={18} />
+          <Layers size={16} />
           <span>Actual Production Entry</span>
           <span
-            style={{
-              fontSize: '0.74rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 12,
-              background: activeTab === 'semi_actual' ? '#059669' : '#E2E8F0',
-              color: activeTab === 'semi_actual' ? '#FFFFFF' : '#475569'
-            }}
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              activeTab === 'semi_actual' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
           >
             {displayCountSemiActual}
           </span>
@@ -363,33 +311,18 @@ export function ProductionPage() {
         <button
           type="button"
           onClick={() => setActiveTab('crushing_actual')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 18px',
-            border: 'none',
-            borderBottom: activeTab === 'crushing_actual' ? '3px solid #059669' : '3px solid transparent',
-            background: activeTab === 'crushing_actual' ? '#ECFDF5' : 'transparent',
-            color: activeTab === 'crushing_actual' ? '#065F46' : '#64748B',
-            fontWeight: activeTab === 'crushing_actual' ? 800 : 600,
-            borderRadius: '8px 8px 0 0',
-            cursor: 'pointer',
-            fontSize: '0.92rem',
-            transition: 'all 0.15s ease'
-          }}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-semibold border-b-2 transition-colors ${
+            activeTab === 'crushing_actual'
+              ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
         >
-          <Factory size={18} />
+          <Factory size={16} />
           <span>Crushing Department</span>
           <span
-            style={{
-              fontSize: '0.74rem',
-              fontWeight: 700,
-              padding: '2px 8px',
-              borderRadius: 12,
-              background: activeTab === 'crushing_actual' ? '#059669' : '#E2E8F0',
-              color: activeTab === 'crushing_actual' ? '#FFFFFF' : '#475569'
-            }}
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              activeTab === 'crushing_actual' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'
+            }`}
           >
             {crushingActuals.length}
           </span>
@@ -397,54 +330,20 @@ export function ProductionPage() {
       </div>
 
       {/* Sleek Filter & Search Toolbar */}
-      <div
-        style={{
-          background: '#FFFFFF',
-          borderRadius: 12,
-          border: '1px solid #E2E8F0',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
-          padding: '8px 14px',
-          marginBottom: 18,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'nowrap',
-          overflowX: 'auto',
-          gap: 10
-        }}
-      >
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shrink-0">
         {/* Left Side: Week Navigation & Preset Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginRight: 2 }}>
-            <Calendar size={16} color="#059669" />
-            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>
-              Date Filter:
-            </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mr-1">
+            <Calendar size={15} className="text-emerald-600" />
+            <span className="text-xs font-bold text-slate-800 whitespace-nowrap">Date Filter:</span>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              border: '1px solid #CBD5E1',
-              borderRadius: 6,
-              overflow: 'hidden'
-            }}
-          >
+          <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
             <button
               type="button"
               onClick={() => handleShiftWeek(-1)}
               title="Previous Week"
-              style={{
-                background: '#F8FAFC',
-                border: 'none',
-                borderRight: '1px solid #CBD5E1',
-                padding: '4px 7px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                color: '#475569'
-              }}
+              className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2 py-1.5 text-slate-500 flex items-center transition-colors"
             >
               <ChevronLeft size={14} />
             </button>
@@ -452,15 +351,7 @@ export function ProductionPage() {
               type="button"
               onClick={() => handleShiftWeek(1)}
               title="Next Week"
-              style={{
-                background: '#F8FAFC',
-                border: 'none',
-                padding: '4px 7px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                color: '#475569'
-              }}
+              className="bg-slate-50 hover:bg-slate-100 px-2 py-1.5 text-slate-500 flex items-center transition-colors"
             >
               <ChevronRight size={14} />
             </button>
@@ -471,18 +362,11 @@ export function ProductionPage() {
               key={preset}
               type="button"
               onClick={() => handleSetPreset(preset)}
-              style={{
-                padding: '5px 9px',
-                borderRadius: 6,
-                fontSize: '0.78rem',
-                fontWeight: selectedPreset === preset ? 700 : 500,
-                background: selectedPreset === preset ? '#0F172A' : '#F1F5F9',
-                color: selectedPreset === preset ? '#FFFFFF' : '#475569',
-                border: 'none',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease'
-              }}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                selectedPreset === preset
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
             >
               {preset}
             </button>
@@ -492,33 +376,22 @@ export function ProductionPage() {
           <button
             type="button"
             onClick={() => setOnlyCompleted(!onlyCompleted)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '5px 10px',
-              borderRadius: 6,
-              fontSize: '0.78rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              border: onlyCompleted ? '1.5px solid #059669' : '1px solid #CBD5E1',
-              background: onlyCompleted ? '#ECFDF5' : '#F8FAFC',
-              color: onlyCompleted ? '#065F46' : '#64748B',
-              boxShadow: onlyCompleted ? '0 1px 3px rgba(5, 150, 105, 0.15)' : 'none',
-              transition: 'all 0.15s ease'
-            }}
             title="Click to toggle between Completed Only and All records"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap border transition-colors ${
+              onlyCompleted
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                : 'bg-slate-50 border-slate-200 text-slate-500'
+            }`}
           >
-            <CheckCircle2 size={14} color={onlyCompleted ? '#059669' : '#94A3B8'} />
+            <CheckCircle2 size={14} className={onlyCompleted ? 'text-emerald-600' : 'text-slate-400'} />
             <span>{onlyCompleted ? 'Completed Only' : 'All Statuses'}</span>
           </button>
         </div>
 
         {/* Right Side: Custom Date Pickers, Status & Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.78rem', color: '#475569', whiteSpace: 'nowrap' }}>
-            <span style={{ fontWeight: 600 }}>From:</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
+            <span className="font-semibold">From:</span>
             <input
               type="date"
               value={dateFrom}
@@ -526,17 +399,9 @@ export function ProductionPage() {
                 setDateFrom(e.target.value);
                 setSelectedPreset('');
               }}
-              style={{
-                padding: '4px 6px',
-                borderRadius: 6,
-                border: '1px solid #CBD5E1',
-                fontSize: '0.78rem',
-                background: '#FFFFFF',
-                color: '#0F172A',
-                width: 122
-              }}
+              className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
-            <span style={{ fontWeight: 600, marginLeft: 2 }}>To:</span>
+            <span className="font-semibold">To:</span>
             <input
               type="date"
               value={dateTo}
@@ -544,48 +409,25 @@ export function ProductionPage() {
                 setDateTo(e.target.value);
                 setSelectedPreset('');
               }}
-              style={{
-                padding: '4px 6px',
-                borderRadius: 6,
-                border: '1px solid #CBD5E1',
-                fontSize: '0.78rem',
-                background: '#FFFFFF',
-                color: '#0F172A',
-                width: 122
-              }}
+              className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
           </div>
 
           {/* Quick Search */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <Search size={13} color="#94A3B8" style={{ position: 'absolute', left: 8 }} />
+          <div className="relative flex items-center">
+            <Search size={13} className="absolute left-2.5 text-slate-400" />
             <input
               type="text"
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                padding: '4px 8px 4px 25px',
-                borderRadius: 6,
-                border: '1px solid #CBD5E1',
-                fontSize: '0.78rem',
-                width: 125,
-                background: '#FFFFFF'
-              }}
+              className="pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 text-xs w-[130px] bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             />
             {searchTerm && (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                style={{
-                  position: 'absolute',
-                  right: 5,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: '#94A3B8',
-                  padding: 2
-                }}
+                className="absolute right-2 text-slate-400 hover:text-slate-600"
               >
                 <X size={12} />
               </button>
@@ -596,18 +438,8 @@ export function ProductionPage() {
             <button
               type="button"
               onClick={() => handleSetPreset('All Time')}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 6,
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                background: '#FEE2E2',
-                color: '#B91C1C',
-                border: '1px solid #FECACA',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
               title="Reset all filters"
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 whitespace-nowrap transition-colors"
             >
               Clear
             </button>
@@ -616,144 +448,127 @@ export function ProductionPage() {
       </div>
 
       {/* Main Table Card */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-
-
+      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col overflow-hidden">
         {/* Loading Spinner */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748B' }}>
-            <RefreshCw size={28} className="animate-spin" style={{ margin: '0 auto 10px auto', color: '#059669' }} />
-            <div style={{ fontWeight: 700 }}>Loading Supabase Production Data...</div>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 py-14">
+            <RefreshCw size={26} className="animate-spin text-emerald-600 mb-2.5" />
+            <div className="font-bold text-sm">Loading Supabase Production Data...</div>
           </div>
         ) : filteredData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#64748B' }}>
-            <FileSpreadsheet size={36} color="#94A3B8" style={{ margin: '0 auto 10px auto' }} />
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1E293B' }}>
-              No production records found
-            </div>
-            <div style={{ fontSize: '0.82rem', marginTop: 4 }}>
+          <div className="flex-1 flex flex-col items-center justify-center text-center py-14 px-5">
+            <FileSpreadsheet size={34} className="text-slate-300 mb-2.5" />
+            <div className="text-sm font-bold text-slate-800">No production records found</div>
+            <div className="text-xs text-slate-500 mt-1">
               Try changing the date range, clearing search terms, or clicking "All Time".
             </div>
             <button
               type="button"
               onClick={() => handleSetPreset('All Time')}
-              className="btn btn-outline-green btn-sm"
-              style={{ marginTop: 12 }}
+              className="mt-3 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
             >
               Show All Time Records
             </button>
           </div>
         ) : (
-          <div className="table-container" style={{ maxHeight: '680px', overflowY: 'auto' }}>
+          <div className="flex-1 overflow-x-auto overflow-y-auto">
             {/* ============================================================
                 TAB 1: ACTUAL PRODUCTION ENTRY TABLE
                 ============================================================ */}
             {activeTab === 'semi_actual' && (
-              <table className="data-table">
-                <thead>
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
                   <tr>
-                    <th>S No.</th>
-                    <th>Timestamp / Date</th>
-                    <th>SJC Ref No.</th>
-                    <th>SF Prod No.</th>
-                    <th>Supervisor</th>
-                    <th>Product Name</th>
-                    <th>SF Good Qty</th>
-                    <th>Raw Material 1</th>
-                    <th>Raw Material 2</th>
-                    <th>Machine Running</th>
-                    <th>Photos</th>
-                    <th>Status</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">S No.</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Timestamp / Date</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">SJC Ref No.</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">SF Prod No.</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Supervisor</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Product Name</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">SF Good Qty</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Raw Material 1</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Raw Material 2</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Machine Running</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Photos</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {filteredData.map((row) => (
-                    <tr key={row.id || row['S No.']}>
-                      <td>
-                        <span className="work-id-badge">{row['S No.']}</span>
+                    <tr key={row.id || row['S No.']} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{row['S No.']}</span>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="font-bold text-slate-800 text-xs">
                           {formatDisplayTimestamp(row.Timestamp || row['Date Of Production'])}
                         </div>
                         {row['Date Of Production'] && (
-                          <div style={{ fontSize: '0.72rem', color: '#64748B', whiteSpace: 'nowrap', marginTop: 2 }}>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
                             Prod: {formatDate(row['Date Of Production'])}
                           </div>
                         )}
                       </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#059669', fontSize: '0.85rem' }}>
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">
                           {row['Semi Finished Job Card No.'] || '-'}
                         </span>
                       </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#2563EB', fontSize: '0.85rem' }}>
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">
                           {row['Semi Finished Production No.'] || '-'}
                         </span>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Supervisor Name']}</div>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-800 text-xs">{row['Supervisor Name']}</div>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#0F172A', maxWidth: 200 }}>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-800 text-xs max-w-[200px] truncate">
                           {row['Product Name']}
                         </div>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 800, color: '#047857', fontSize: '0.92rem' }}>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-extrabold text-emerald-700 text-xs">
                           {row['Qty Of Semi Finished Good'] !== null && row['Qty Of Semi Finished Good'] !== undefined ? `${formatQty(row['Qty Of Semi Finished Good'])} MT` : '-'}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         {row['Raw Material Name 1'] ? (
-                          <div style={{ fontSize: '0.8rem' }}>
-                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Raw Material Name 1']}</div>
-                            <div style={{ color: '#059669', fontWeight: 700 }}>
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-800">{row['Raw Material Name 1']}</div>
+                            <div className="text-emerald-700 font-bold">
                               {row['Quantity Of Raw Material 1'] !== null && row['Quantity Of Raw Material 1'] !== undefined ? `${formatQty(row['Quantity Of Raw Material 1'])} MT` : '-'}
                             </div>
                           </div>
                         ) : (
-                          '-'
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         {row['Raw Material Name 2'] ? (
-                          <div style={{ fontSize: '0.8rem' }}>
-                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Raw Material Name 2']}</div>
-                            <div style={{ color: '#059669', fontWeight: 700 }}>
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-800">{row['Raw Material Name 2']}</div>
+                            <div className="text-emerald-700 font-bold">
                               {row['Quantity Of Raw Material 2'] !== null && row['Quantity Of Raw Material 2'] !== undefined ? `${formatQty(row['Quantity Of Raw Material 2'])} MT` : '-'}
                             </div>
                           </div>
                         ) : (
-                          '-'
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="font-bold text-slate-700 text-xs">
                           {row['Machine Running hour'] ? `${row['Machine Running hour']} hrs` : '-'}
                         </div>
                       </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
                           {row['Starting Reading Photo'] && (
                             <button
                               type="button"
                               onClick={() => setPreviewPhoto({ url: row['Starting Reading Photo'], title: `Start Reading - ${row['S No.']}` })}
-                              style={{
-                                background: '#EFF6FF',
-                                border: '1px solid #BFDBFE',
-                                color: '#1D4ED8',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}
                               title="View Start Photo"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 text-white"
                             >
                               <Eye size={12} />
                               <span>Start</span>
@@ -763,38 +578,25 @@ export function ProductionPage() {
                             <button
                               type="button"
                               onClick={() => setPreviewPhoto({ url: row['Ending Reading Photo'], title: `End Reading - ${row['S No.']}` })}
-                              style={{
-                                background: '#ECFDF5',
-                                border: '1px solid #A7F3D0',
-                                color: '#047857',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}
                               title="View End Photo"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 text-white"
                             >
                               <Eye size={12} />
                               <span>End</span>
                             </button>
                           )}
                           {!row['Starting Reading Photo'] && !row['Ending Reading Photo'] && (
-                            <span style={{ color: '#94A3B8', fontSize: '0.75rem' }}>No photo</span>
+                            <span className="text-slate-400 text-[11px]">No photo</span>
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         <span
-                          className={`badge ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold uppercase border ${
                             String(row.Status || row.Status1).toUpperCase() === 'DONE'
-                              ? 'badge-verified'
-                              : 'badge-amber'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
                           }`}
-                          style={{ textTransform: 'uppercase', fontSize: '0.72rem', fontWeight: 800 }}
                         >
                           {row.Status || row.Status1 || 'DONE'}
                         </span>
@@ -809,110 +611,98 @@ export function ProductionPage() {
                 TAB 3: CRUSHING DEPARTMENT TABLE
                 ============================================================ */}
             {activeTab === 'crushing_actual' && (
-              <table className="data-table">
-                <thead>
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
                   <tr>
-                    <th>Timestamp / Date</th>
-                    <th>Firm Name</th>
-                    <th>Input Product</th>
-                    <th>Input Qty</th>
-                    <th>Finished Good 1</th>
-                    <th>Finished Good 2</th>
-                    <th>Finished Good 3</th>
-                    <th>Machine Hours</th>
-                    <th>Photos</th>
-                    <th>Remarks</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Timestamp / Date</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm Name</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Input Product</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Input Qty</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Finished Good 1</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Finished Good 2</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Finished Good 3</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Machine Hours</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Photos</th>
+                    <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Remarks</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {filteredData.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                    <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="font-bold text-slate-800 text-xs">
                           {formatDisplayTimestamp(row.Timestamp || row['Date Of Production'])}
                         </div>
                         {row['Date Of Production'] && (
-                          <div style={{ fontSize: '0.72rem', color: '#64748B', whiteSpace: 'nowrap', marginTop: 2 }}>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
                             Prod: {formatDate(row['Date Of Production'])}
                           </div>
                         )}
                       </td>
-                      <td>
-                        <span style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.86rem' }}>
+                      <td className="px-3 py-2.5">
+                        <span className="font-semibold text-slate-800 text-xs">
                           {row['Firm Name'] || '-'}
                         </span>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#0F172A', maxWidth: 180 }}>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-800 text-xs max-w-[180px] truncate">
                           {row['Crushing Product Name']}
                         </div>
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 800, color: '#B45309', fontSize: '0.92rem' }}>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-extrabold text-emerald-700 text-xs">
                           {row['Qty Of Crushing Product'] !== null && row['Qty Of Crushing Product'] !== undefined ? `${formatQty(row['Qty Of Crushing Product'])} MT` : '-'}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         {row['Finished Goods Name 1'] ? (
-                          <div style={{ fontSize: '0.8rem' }}>
-                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Finished Goods Name 1']}</div>
-                            <div style={{ color: '#059669', fontWeight: 700 }}>
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-800">{row['Finished Goods Name 1']}</div>
+                            <div className="text-emerald-700 font-bold">
                               {row['Qty 1'] !== null && row['Qty 1'] !== undefined ? `${formatQty(row['Qty 1'])} MT` : '-'}
                             </div>
                           </div>
                         ) : (
-                          '-'
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         {row['Finished Goods Name 2'] ? (
-                          <div style={{ fontSize: '0.8rem' }}>
-                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Finished Goods Name 2']}</div>
-                            <div style={{ color: '#059669', fontWeight: 700 }}>
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-800">{row['Finished Goods Name 2']}</div>
+                            <div className="text-emerald-700 font-bold">
                               {row['Qty 2'] !== null && row['Qty 2'] !== undefined ? `${formatQty(row['Qty 2'])} MT` : '-'}
                             </div>
                           </div>
                         ) : (
-                          '-'
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         {row['Finished Goods Name 3'] && row['Qty 3'] > 0 ? (
-                          <div style={{ fontSize: '0.8rem' }}>
-                            <div style={{ fontWeight: 600, color: '#0F172A' }}>{row['Finished Goods Name 3']}</div>
-                            <div style={{ color: '#059669', fontWeight: 700 }}>
+                          <div className="text-xs">
+                            <div className="font-semibold text-slate-800">{row['Finished Goods Name 3']}</div>
+                            <div className="text-emerald-700 font-bold">
                               {row['Qty 3'] !== null && row['Qty 3'] !== undefined ? `${formatQty(row['Qty 3'])} MT` : '-'}
                             </div>
                           </div>
                         ) : (
-                          '-'
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
-                      <td>
-                        <div style={{ fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <div className="font-bold text-slate-700 text-xs">
                           {row['Machine Running Hour'] ? `${row['Machine Running Hour']} hrs` : '-'}
                         </div>
                       </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
                           {row['Starting Reading Photo'] && (
                             <button
                               type="button"
                               onClick={() => setPreviewPhoto({ url: row['Starting Reading Photo'], title: `Crushing Start - ${row['Firm Name'] || ''}` })}
-                              style={{
-                                background: '#EFF6FF',
-                                border: '1px solid #BFDBFE',
-                                color: '#1D4ED8',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}
                               title="View Start Photo"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 text-white"
                             >
                               <Eye size={12} />
                               <span>Start</span>
@@ -922,20 +712,8 @@ export function ProductionPage() {
                             <button
                               type="button"
                               onClick={() => setPreviewPhoto({ url: row['Ending Reading Photo'], title: `Crushing End - ${row['Firm Name'] || ''}` })}
-                              style={{
-                                background: '#ECFDF5',
-                                border: '1px solid #A7F3D0',
-                                color: '#047857',
-                                padding: '3px 8px',
-                                borderRadius: 4,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4
-                              }}
                               title="View End Photo"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 text-white"
                             >
                               <Eye size={12} />
                               <span>End</span>
@@ -943,16 +721,9 @@ export function ProductionPage() {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         <div
-                          style={{
-                            maxWidth: 160,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            fontSize: '0.8rem',
-                            color: '#64748B'
-                          }}
+                          className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap text-xs text-slate-500"
                           title={row.Remarks || ''}
                         >
                           {row.Remarks || '-'}
@@ -975,24 +746,17 @@ export function ProductionPage() {
           title={previewPhoto.title || 'Reading Photo Preview'}
           maxWidth="640px"
         >
-          <div style={{ textAlign: 'center', padding: '10px' }}>
+          <div className="text-center">
             <img
               src={previewPhoto.url}
               alt="Reading Photo"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '520px',
-                borderRadius: 8,
-                border: '1px solid #CBD5E1',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
-                objectFit: 'contain'
-              }}
+              className="max-w-full max-h-[520px] rounded-lg border border-slate-200 shadow-md object-contain mx-auto"
             />
-            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+            <div className="mt-3.5 flex justify-end">
               <button
                 type="button"
                 onClick={() => setPreviewPhoto(null)}
-                className="btn btn-secondary btn-sm"
+                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
               >
                 Close Preview
               </button>

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { MetricCard } from '../components/common/MetricCard';
 import { formatDate } from '../utils/dateUtils';
 import {
   exportToCSV,
@@ -59,7 +60,7 @@ export function InchargeWiseReportPage() {
   // 'dateShift'= Date & Shift Analysis
   // 'detailed' = Master Detailed Ledger
   const [reportMode, setReportMode] = useState('incharge');
-  
+
   // Table search & sorting & pagination for tables
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('totalAmount');
@@ -228,7 +229,7 @@ export function InchargeWiseReportPage() {
     const uniqueLabourers = uniqueLabourNames.size;
     const totalAmount = filteredRecords.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     const avgPerLabour = uniqueLabourers > 0 ? Math.round(totalAmount / uniqueLabourers) : 0;
-    
+
     // Distinct work entries
     const distinctWorkIds = new Set(filteredRecords.map(r => r.workId));
     const totalWorkEntries = distinctWorkIds.size;
@@ -697,119 +698,104 @@ export function InchargeWiseReportPage() {
     dateFrom || dateTo || inchargeFilter || shiftFilter || firmFilter || workTypeFilter || statusFilter || selectedSectionLabour
   );
 
+  // Presentational helper for sortable/plain table headers (keeps the 5 report tables consistent)
+  const Th = ({ children, field, align = 'left', width }) => (
+    <th
+      onClick={field ? () => handleSort(field) : undefined}
+      style={width ? { width } : undefined}
+      className={`px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap ${
+        align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+      } ${field ? 'cursor-pointer select-none hover:text-indigo-600' : ''}`}
+    >
+      {children}
+      {field && <ArrowUpDown size={11} className="inline ml-1" />}
+    </th>
+  );
+
+  const inputClass = 'w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all';
+  const labelClass = 'block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5';
+  const secondaryBtn = 'inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors disabled:opacity-60 disabled:cursor-not-allowed';
+  const badgeSlate = 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-slate-100 text-slate-600 border-slate-200';
+  const badgeEmerald = 'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200';
+
+  const modeTabs = [
+    { id: 'incharge', label: 'Incharge Summary', count: inchargeSummary.length, icon: Users },
+    { id: 'labour', label: selectedSectionLabour ? `Labour: ${selectedSectionLabour}` : `Labour Wise Payout`, count: labourSummary.length, icon: User },
+    { id: 'workType', label: 'Work Activity & Output', count: workTypeAnalysis.length, icon: Briefcase },
+    { id: 'dateShift', label: 'Date & Shift Matrix', count: dateWiseSummary.length, icon: CalendarDays },
+    { id: 'detailed', label: 'Master Detailed Ledger', count: filteredRecords.length, icon: FileSpreadsheet }
+  ];
+
   return (
-    <div style={{ maxWidth: 1440, margin: '0 auto', paddingBottom: 40 }}>
-      {/* 1. Executive Top Header (Sticky Freeze) */}
-      <div className="sticky-page-header">
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 14
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button
-              onClick={() => navigate('/')}
-              className="btn btn-secondary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
-            >
-              <ArrowLeft size={16} />
-              <span>Dashboard</span>
-            </button>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Report
-                </h1>
-                <span className="badge badge-emerald" style={{ fontSize: '0.75rem', padding: '3px 8px', fontWeight: 700 }}>
-                  MIS Analytics
-                </span>
-              </div>
-              <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '2px 0 0 0' }}>
-                Supervisor-wise labour deployments, working days, production output & payroll payments
-              </p>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
+      {/* 1. Executive Top Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className={secondaryBtn}
+          >
+            <ArrowLeft size={14} />
+            <span>Dashboard</span>
+          </button>
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <Users size={20} />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-800">Report</h1>
+              <span className={badgeEmerald}>MIS Analytics</span>
             </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Supervisor-wise labour deployments, working days, production output &amp; payroll payments
+            </p>
           </div>
+        </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              onClick={refreshData}
-              disabled={syncing}
-              className="btn btn-outline-green btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              title="Refresh & Synchronize Live Google Sheet Data"
-            >
-              <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-              <span>{syncing ? 'Syncing...' : 'Sync Live'}</span>
-            </button>
+        <div className="flex gap-2 flex-wrap items-center">
+          <button
+            onClick={refreshData}
+            disabled={syncing}
+            title="Refresh & Synchronize Live Google Sheet Data"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync Live'}</span>
+          </button>
 
-            <button
-              onClick={handleExportCurrentCSV}
-              className="btn btn-outline-green btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              title="Export Current View Data to Excel CSV"
-            >
-              <Download size={14} />
-              <span>Export Excel</span>
-            </button>
+          <button
+            onClick={handleExportCurrentCSV}
+            title="Export Current View Data to Excel CSV"
+            className={secondaryBtn}
+          >
+            <Download size={14} />
+            <span>Export Excel</span>
+          </button>
 
-            <button
-              onClick={handlePrint}
-              className="btn btn-primary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-              title="Print Ready A4 Report or Download PDF"
-            >
-              <Printer size={14} />
-              <span>Print Report Sheet</span>
-            </button>
-          </div>
+          <button
+            onClick={handlePrint}
+            title="Print Ready A4 Report or Download PDF"
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
+          >
+            <Printer size={14} />
+            <span>Print Report Sheet</span>
+          </button>
         </div>
       </div>
 
       {/* 2. Professional Filter & Requirement Selector Panel */}
-      <div className="card" style={{
-        marginBottom: 20,
-        padding: '18px 20px',
-        background: '#FFFFFF',
-        border: '1px solid #E2E8F0',
-        borderRadius: 12,
-        boxShadow: 'var(--shadow-sm)'
-      }}>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 shrink-0">
         {/* Row 1: Report Requirement Mode Selector */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 12,
-          borderBottom: '1px solid #F1F5F9',
-          paddingBottom: 14
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0F172A', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Select Report Requirement:
-            </span>
-          </div>
+        <div className="flex items-center justify-between flex-wrap gap-3 pb-3.5 mb-3.5 border-b border-slate-100">
+          <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+            Select Report Requirement:
+          </span>
 
           {/* Segmented Mode Tabs */}
-          <div style={{
-            display: 'inline-flex',
-            background: '#F1F5F9',
-            padding: 4,
-            borderRadius: 8,
-            gap: 4,
-            flexWrap: 'wrap'
-          }}>
-            {[
-              { id: 'incharge', label: 'Incharge Summary', count: inchargeSummary.length },
-              { id: 'labour', label: selectedSectionLabour ? `Labour: ${selectedSectionLabour}` : `Labour Wise Payout`, count: labourSummary.length },
-              { id: 'workType', label: 'Work Activity & Output', count: workTypeAnalysis.length },
-              { id: 'dateShift', label: 'Date & Shift Matrix', count: dateWiseSummary.length },
-              { id: 'detailed', label: 'Master Detailed Ledger', count: filteredRecords.length }
-            ].map(tab => {
+          <div className="inline-flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
+            {modeTabs.map(tab => {
               const active = reportMode === tab.id;
+              const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
@@ -818,29 +804,13 @@ export function InchargeWiseReportPage() {
                     setCurrentPage(1);
                     setSearchTerm('');
                   }}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: active ? '#059669' : 'transparent',
-                    color: active ? '#FFFFFF' : '#475569',
-                    fontSize: '0.8rem',
-                    fontWeight: active ? 700 : 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                    active ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-white/70'
+                  }`}
                 >
+                  <Icon size={13} />
                   <span>{tab.label}</span>
-                  <span style={{
-                    fontSize: '0.72rem',
-                    padding: '1px 6px',
-                    borderRadius: 10,
-                    background: active ? 'rgba(255,255,255,0.25)' : '#E2E8F0',
-                    color: active ? '#FFFFFF' : '#64748B'
-                  }}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${active ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-600'}`}>
                     {tab.count}
                   </span>
                 </button>
@@ -851,22 +821,15 @@ export function InchargeWiseReportPage() {
 
         {/* Row 2: Comprehensive Filters Grid */}
         <div>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-            flexWrap: 'wrap',
-            gap: 8
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>
-              <Filter size={14} color="#059669" />
-              <span>Data Scope & Date Filters:</span>
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+              <Filter size={14} className="text-indigo-600" />
+              <span>Data Scope &amp; Date Filters:</span>
             </div>
 
             {/* Quick Date Presets */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.74rem', color: '#64748B', fontWeight: 600 }}>Quick:</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-xs text-slate-500 font-semibold">Quick:</span>
               {[
                 { key: 'today', label: 'Today' },
                 { key: 'yesterday', label: 'Yesterday' },
@@ -877,12 +840,7 @@ export function InchargeWiseReportPage() {
                 <button
                   key={r.key}
                   onClick={() => handleQuickDate(r.key)}
-                  className="btn btn-secondary btn-sm"
-                  style={{
-                    fontSize: '0.74rem',
-                    padding: '3px 8px',
-                    borderRadius: 5
-                  }}
+                  className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md text-[11px] font-semibold px-2 py-1 transition-colors"
                 >
                   {r.label}
                 </button>
@@ -890,18 +848,12 @@ export function InchargeWiseReportPage() {
             </div>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-            gap: 10,
-            alignItems: 'flex-end'
-          }}>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5 items-end">
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Date From</label>
+              <label className={labelClass}>Date From</label>
               <input
                 type="date"
-                className="form-input"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={dateFrom}
                 onChange={e => {
                   setDateFrom(e.target.value);
@@ -911,11 +863,10 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Date To</label>
+              <label className={labelClass}>Date To</label>
               <input
                 type="date"
-                className="form-input"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={dateTo}
                 onChange={e => {
                   setDateTo(e.target.value);
@@ -925,10 +876,9 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Supervisor / Incharge</label>
+              <label className={labelClass}>Supervisor / Incharge</label>
               <select
-                className="form-select"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={inchargeFilter}
                 onChange={e => {
                   setInchargeFilter(e.target.value);
@@ -943,10 +893,9 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Shift</label>
+              <label className={labelClass}>Shift</label>
               <select
-                className="form-select"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={shiftFilter}
                 onChange={e => {
                   setShiftFilter(e.target.value);
@@ -961,10 +910,9 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Firm Name</label>
+              <label className={labelClass}>Firm Name</label>
               <select
-                className="form-select"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={firmFilter}
                 onChange={e => {
                   setFirmFilter(e.target.value);
@@ -979,10 +927,9 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Type of Work</label>
+              <label className={labelClass}>Type of Work</label>
               <select
-                className="form-select"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={workTypeFilter}
                 onChange={e => {
                   setWorkTypeFilter(e.target.value);
@@ -997,10 +944,9 @@ export function InchargeWiseReportPage() {
             </div>
 
             <div>
-              <label className="form-label" style={{ fontSize: '0.74rem', marginBottom: 3 }}>Status</label>
+              <label className={labelClass}>Status</label>
               <select
-                className="form-select"
-                style={{ padding: '6px 8px', fontSize: '0.82rem' }}
+                className={inputClass}
                 value={statusFilter}
                 onChange={e => {
                   setStatusFilter(e.target.value);
@@ -1020,18 +966,8 @@ export function InchargeWiseReportPage() {
               <button
                 onClick={clearAllFilters}
                 disabled={!hasActiveFilters}
-                className="btn btn-secondary"
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '6px 10px',
-                  fontSize: '0.82rem',
-                  opacity: hasActiveFilters ? 1 : 0.6
-                }}
                 title="Reset all active filters"
+                className={`w-full justify-center ${secondaryBtn} py-2.5`}
               >
                 <RotateCcw size={13} />
                 <span>Reset Filters</span>
@@ -1042,137 +978,57 @@ export function InchargeWiseReportPage() {
       </div>
 
       {/* 3. Executive Financial Metrics Strip */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 12,
-        marginBottom: 20
-      }}>
-        {/* Metric 1: Total Payroll */}
-        <div style={{
-          background: 'linear-gradient(135deg, #F0FDF4 0%, #FFFFFF 100%)',
-          border: '1.5px solid #86EFAC',
-          borderRadius: 10,
-          padding: '14px 16px',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Reconciled Payout
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <IndianRupee size={15} color="#15803D" />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.6rem', fontWeight: 900, color: '#15803D', marginTop: 4 }}>
-            ₹{summaryKPI.totalAmount.toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: '#166534', marginTop: 2, fontWeight: 600 }}>
-            Scope Total Payroll Amount
-          </div>
-        </div>
-
-        {/* Metric 2: Headcount */}
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: 10,
-          padding: '14px 16px',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Labour Headcount
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Users size={15} color="#0F172A" />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.uniqueLabourers} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>workers</span>
-          </div>
-          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            Across {summaryKPI.totalWorkEntries} Work Orders
-          </div>
-        </div>
-
-        {/* Metric 3: Production Volume */}
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: 10,
-          padding: '14px 16px',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Production Output
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Boxes size={15} color="#0F172A" />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            {summaryKPI.totalProductionQty.toLocaleString('en-IN')} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>tons / units</span>
-          </div>
-          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            Total Production Handled
-          </div>
-        </div>
-
-        {/* Metric 4: Per Person Avg */}
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: 10,
-          padding: '14px 16px',
-          boxShadow: 'var(--shadow-sm)'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Per Person Average
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <TrendingUp size={15} color="#059669" />
-            </div>
-          </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 4 }}>
-            ₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 2, fontWeight: 600 }}>
-            Average Payout / Worker
-          </div>
-        </div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 shrink-0">
+        <MetricCard
+          title="Total Reconciled Payout"
+          value={`₹${summaryKPI.totalAmount.toLocaleString('en-IN')}`}
+          subtitle="Scope Total Payroll Amount"
+          icon={IndianRupee}
+          theme="emerald"
+        />
+        <MetricCard
+          title="Labour Headcount"
+          value={<>{summaryKPI.uniqueLabourers} <span className="text-sm font-semibold text-slate-500">workers</span></>}
+          subtitle={`Across ${summaryKPI.totalWorkEntries} Work Orders`}
+          icon={Users}
+          theme="indigo"
+        />
+        <MetricCard
+          title="Production Output"
+          value={<>{summaryKPI.totalProductionQty.toLocaleString('en-IN')} <span className="text-sm font-semibold text-slate-500">tons / units</span></>}
+          subtitle="Total Production Handled"
+          icon={Boxes}
+          theme="teal"
+        />
+        <MetricCard
+          title="Per Person Average"
+          value={`₹${summaryKPI.avgPerLabour.toLocaleString('en-IN')}`}
+          subtitle="Average Payout / Worker"
+          icon={TrendingUp}
+          theme="emerald"
+        />
       </div>
 
       {/* 4. Loading State */}
       {loading && (
-        <div style={{ padding: '60px', textAlign: 'center', background: '#FFFFFF', borderRadius: 12, border: '1px solid #E2E8F0' }}>
-          <div className="animate-spin" style={{ display: 'inline-block', marginBottom: 12 }}>
-            <RefreshCw size={32} color="#059669" />
-          </div>
-          <div style={{ color: '#0F172A', fontWeight: 700, fontSize: '1.05rem' }}>Reconciling Enterprise Labour Ledger...</div>
-          <div style={{ color: '#64748B', fontSize: '0.84rem', marginTop: 4 }}>Pulling live data and computing breakdowns</div>
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 py-16">
+          <RefreshCw size={32} className="text-indigo-600 animate-spin mb-3" />
+          <div className="text-slate-800 font-bold text-base">Reconciling Enterprise Labour Ledger...</div>
+          <div className="text-slate-500 text-sm mt-1">Pulling live data and computing breakdowns</div>
         </div>
       )}
 
       {/* 5. Empty State */}
       {!loading && filteredRecords.length === 0 && (
-        <div style={{
-          background: '#FFFFFF',
-          padding: '48px 24px',
-          borderRadius: 12,
-          border: '1px solid #E2E8F0',
-          textAlign: 'center'
-        }}>
-          <div style={{ display: 'inline-flex', padding: 16, borderRadius: '50%', background: '#F1F5F9', color: '#64748B', marginBottom: 14 }}>
-            <Users size={36} />
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 py-16 text-center px-6">
+          <div className="w-14 h-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3.5">
+            <Users size={28} />
           </div>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0' }}>No Records In Selected Scope</h3>
-          <p style={{ color: '#64748B', maxWidth: 440, margin: '0 auto 18px', fontSize: '0.85rem' }}>
+          <h3 className="text-base font-bold text-slate-800 mb-1.5">No Records In Selected Scope</h3>
+          <p className="text-sm text-slate-500 max-w-md mb-4">
             No work deployment records match your active filters. Try adjusting the date range, incharge or work activity filter.
           </p>
-          <button onClick={clearAllFilters} className="btn btn-outline-green btn-sm">
+          <button onClick={clearAllFilters} className={secondaryBtn}>
             Reset All Filters
           </button>
         </div>
@@ -1180,53 +1036,30 @@ export function InchargeWiseReportPage() {
 
       {/* 6. Active Professional Report Sheet Section */}
       {!loading && filteredRecords.length > 0 && (
-        <div className="card" style={{
-          padding: '20px',
-          background: '#FFFFFF',
-          border: '1px solid #E2E8F0',
-          borderRadius: 12,
-          boxShadow: 'var(--shadow-sm)'
-        }}>
+        <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col overflow-hidden">
           {/* Table Header Strip: Title, Search, and Scope Actions */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 16,
-            flexWrap: 'wrap',
-            gap: 12,
-            borderBottom: '1px solid #F1F5F9',
-            paddingBottom: 14
-          }}>
+          <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4 pb-3.5 border-b border-slate-100 shrink-0">
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  {reportMode === 'incharge' && '1. Incharge / Supervisor Deployment Summary'}
-                  {reportMode === 'labour' && (selectedSectionLabour ? `2. Attendance & Payout Ledger: ${selectedSectionLabour}` : '2. Labour Wise Attendance & Payout Summary')}
-                  {reportMode === 'workType' && '3. Work Activity & Production Output Ledger'}
-                  {reportMode === 'dateShift' && '4. Date & Shift Deployment Matrix'}
-                  {reportMode === 'detailed' && '5. Master Detailed Transaction Ledger'}
-                </h3>
-              </div>
-              <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 3 }}>
+              <h3 className="text-base font-bold text-slate-800">
+                {reportMode === 'incharge' && '1. Incharge / Supervisor Deployment Summary'}
+                {reportMode === 'labour' && (selectedSectionLabour ? `2. Attendance & Payout Ledger: ${selectedSectionLabour}` : '2. Labour Wise Attendance & Payout Summary')}
+                {reportMode === 'workType' && '3. Work Activity & Production Output Ledger'}
+                {reportMode === 'dateShift' && '4. Date & Shift Deployment Matrix'}
+                {reportMode === 'detailed' && '5. Master Detailed Transaction Ledger'}
+              </h3>
+              <div className="text-xs text-slate-500 mt-0.5">
                 Showing {currentViewData.length} records matching current criteria
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div className="flex items-center gap-2.5 flex-wrap">
               {/* If on labour mode, provide quick labour switcher */}
               {reportMode === 'labour' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="flex items-center gap-1.5">
                   <select
-                    className="form-select"
-                    style={{
-                      padding: '5px 10px',
-                      fontSize: '0.8rem',
-                      maxWidth: 220,
-                      fontWeight: selectedSectionLabour ? 700 : 500,
-                      borderColor: selectedSectionLabour ? '#059669' : '#CBD5E1',
-                      background: selectedSectionLabour ? '#F0FDF4' : '#FFFFFF'
-                    }}
+                    className={`px-3 py-2 bg-slate-50 border rounded-lg text-sm max-w-[220px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all ${
+                      selectedSectionLabour ? 'font-bold border-emerald-300 bg-emerald-50 text-emerald-800' : 'font-medium border-slate-200 text-slate-800'
+                    }`}
                     value={selectedSectionLabour}
                     onChange={e => {
                       setSelectedSectionLabour(e.target.value);
@@ -1242,8 +1075,7 @@ export function InchargeWiseReportPage() {
                   {selectedSectionLabour && (
                     <button
                       onClick={() => setSelectedSectionLabour('')}
-                      className="btn btn-secondary btn-sm"
-                      style={{ fontSize: '0.74rem', padding: '5px 8px' }}
+                      className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md text-[11px] font-semibold px-2 py-1.5 transition-colors"
                     >
                       View All
                     </button>
@@ -1252,12 +1084,11 @@ export function InchargeWiseReportPage() {
               )}
 
               {/* Table Search Input */}
-              <div className="search-input-wrap" style={{ minWidth: 220 }}>
-                <Search size={14} />
+              <div className="relative min-w-[220px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  className="form-input"
-                  style={{ padding: '6px 10px 6px 32px', fontSize: '0.82rem' }}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
                   placeholder="Search table rows..."
                   value={searchTerm}
                   onChange={e => {
@@ -1269,9 +1100,8 @@ export function InchargeWiseReportPage() {
 
               <button
                 onClick={handleExportCurrentCSV}
-                className="btn btn-secondary btn-sm"
-                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
                 title="Export this specific table view to CSV"
+                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md text-[11px] font-semibold px-2.5 py-2 transition-colors inline-flex items-center gap-1.5"
               >
                 <Download size={13} />
                 <span>Export Table CSV</span>
@@ -1281,121 +1111,86 @@ export function InchargeWiseReportPage() {
 
           {/* Drill-down Worker Header (If single labour is selected) */}
           {reportMode === 'labour' && selectedSectionLabour && selectedLabourStats && (
-            <div style={{
-              marginBottom: 16,
-              padding: '14px 18px',
-              background: 'linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%)',
-              border: '1px solid #A7F3D0',
-              borderRadius: 8,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 12
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: '50%',
-                  background: '#059669',
-                  color: '#FFFFFF',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 800,
-                  fontSize: '1.1rem'
-                }}>
+            <div className="mx-4 mt-3.5 px-4 py-3 bg-emerald-50/60 border border-emerald-200 rounded-lg flex items-center justify-between flex-wrap gap-3 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-base shrink-0">
                   {selectedLabourStats.labourName.charAt(0)}
                 </div>
                 <div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#064E3B' }}>
+                  <div className="text-sm font-bold text-emerald-900">
                     {selectedLabourStats.labourName}
                   </div>
-                  <div style={{ fontSize: '0.76rem', color: '#047857', fontWeight: 600 }}>
+                  <div className="text-xs text-emerald-700 font-semibold">
                     Supervisors: {selectedLabourStats.incharges.join(', ') || 'N/A'} • Activities: {selectedLabourStats.workTypes.join(', ') || 'N/A'}
                   </div>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Working Days</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalDays} Days</div>
+              <div className="flex gap-2.5 flex-wrap">
+                <div className="text-center bg-white px-3 py-1 rounded-md border border-emerald-200">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Working Days</div>
+                  <div className="text-sm font-bold text-slate-900">{selectedLabourStats.totalDays} Days</div>
                 </div>
-                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Total Payout</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</div>
+                <div className="text-center bg-white px-3 py-1 rounded-md border border-emerald-200">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Total Payout</div>
+                  <div className="text-sm font-bold text-emerald-600">₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</div>
                 </div>
-                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Daily Avg</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#047857' }}>₹{selectedLabourStats.avgPerDay}</div>
+                <div className="text-center bg-white px-3 py-1 rounded-md border border-emerald-200">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Daily Avg</div>
+                  <div className="text-sm font-bold text-emerald-600">₹{selectedLabourStats.avgPerDay}</div>
                 </div>
-                <div style={{ textAlign: 'center', background: '#FFFFFF', padding: '4px 12px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Output</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0F172A' }}>{selectedLabourStats.totalQtyMade}</div>
+                <div className="text-center bg-white px-3 py-1 rounded-md border border-emerald-200">
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">Output</div>
+                  <div className="text-sm font-bold text-slate-900">{selectedLabourStats.totalQtyMade}</div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Table Container */}
-          <div className="table-container" style={{ overflowX: 'auto' }}>
+          {/* Table Container - only scrollable region on screen */}
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto px-4 pt-3.5 pb-1">
             {/* VIEW 1: INCHARGE SUMMARY TABLE */}
             {reportMode === 'incharge' && (
-              <table className="data-table">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr>
-                    <th style={{ width: 45 }}>#</th>
-                    <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
-                      Incharge / Supervisor <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
-                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
-                      Labourers (Count) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
-                      Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgPerLabour')}>
-                      Per Person Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
-                      Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'center', width: 90 }}>Action</th>
+                  <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                    <Th width={45}>#</Th>
+                    <Th field="incharge">Incharge / Supervisor</Th>
+                    <Th field="workEntries" align="right">Work Orders</Th>
+                    <Th field="uniqueLabourers" align="right">Labourers (Count)</Th>
+                    <Th field="qtyMade" align="right">Output (Tons/Units)</Th>
+                    <Th field="avgPerLabour" align="right">Per Person Amount (₹)</Th>
+                    <Th field="totalAmount" align="right">Total Amount (₹)</Th>
+                    <Th align="center" width={100}>Action</Th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((inc, idx) => (
-                    <tr key={inc.incharge}>
-                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                    <tr key={inc.incharge} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                         {(currentPage - 1) * pageSize + idx + 1}
                       </td>
-                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                        <span style={{ color: '#059669', marginRight: 6 }}>●</span>
+                      <td className="px-3 py-2.5 text-xs font-bold text-slate-900">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block mr-2" />
                         {inc.incharge}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#64748B', fontWeight: 600 }}>{inc.workEntries}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.uniqueLabourers}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#047857' }}>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{inc.workEntries}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{inc.uniqueLabourers}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{inc.qtyMade ? inc.qtyMade.toLocaleString('en-IN') : '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-right font-bold text-emerald-600">
                         ₹{Number(inc.avgPerLabour).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                      <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                         ₹{Number(inc.totalAmount).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="px-3 py-2.5 text-center">
                         <button
                           onClick={() => {
                             setInchargeFilter(inc.incharge);
                             setReportMode('detailed');
                           }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                           title={`View detailed entries for ${inc.incharge}`}
+                          className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md text-[11px] font-semibold px-2 py-1 transition-colors"
                         >
                           View Ledger
                         </button>
@@ -1404,13 +1199,13 @@ export function InchargeWiseReportPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                    <td colSpan={2}>Grand Total ({inchargeSummary.length} Incharges)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#047857' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                  <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td className="px-3 py-2.5 text-xs" colSpan={2}>Grand Total ({inchargeSummary.length} Incharges)</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalWorkEntries}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.uniqueLabourers}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1421,135 +1216,114 @@ export function InchargeWiseReportPage() {
             {reportMode === 'labour' && (
               selectedSectionLabour ? (
                 /* 2A: Single Worker Date-wise History Table */
-                <table className="data-table">
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr>
-                      <th style={{ width: 45 }}>#</th>
-                      <th>Date</th>
-                      <th>Supervisor / Incharge</th>
-                      <th>Shift</th>
-                      <th>Firm</th>
-                      <th>Work Activity</th>
-                      <th>Work Remark</th>
-                      <th style={{ textAlign: 'right' }}>Days</th>
-                      <th style={{ textAlign: 'right' }}>Amount (₹)</th>
-                      <th style={{ textAlign: 'right' }}>Output Qty</th>
-                      <th>Workflow Status</th>
+                    <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                      <Th width={45}>#</Th>
+                      <Th>Date</Th>
+                      <Th>Supervisor / Incharge</Th>
+                      <Th>Shift</Th>
+                      <Th>Firm</Th>
+                      <Th>Work Activity</Th>
+                      <Th>Work Remark</Th>
+                      <Th align="right">Days</Th>
+                      <Th align="right">Amount (₹)</Th>
+                      <Th align="right">Output Qty</Th>
+                      <Th>Workflow Status</Th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {paginatedData.map((r, idx) => (
-                      <tr key={`${r.workId}_${idx}`}>
-                        <td style={{ color: '#64748B', fontWeight: 600 }}>
+                      <tr key={`${r.workId}_${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                           {(currentPage - 1) * pageSize + idx + 1}
                         </td>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                        <td className="px-3 py-2.5 text-xs font-bold text-slate-900 whitespace-nowrap">
                           {formatDate(r.date)}
                         </td>
-                        <td style={{ fontWeight: 600, color: '#065F46' }}>
-                          <span style={{ color: '#059669', marginRight: 4 }}>●</span>
+                        <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 inline-block mr-1.5" />
                           {r.incharge}
                         </td>
-                        <td>{r.shift || '-'}</td>
-                        <td>
-                          <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.74rem' }}>
-                            {r.firmName || '-'}
-                          </span>
+                        <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{r.shift || '-'}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={badgeSlate}>{r.firmName || '-'}</span>
                         </td>
-                        <td>
-                          <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.74rem', fontWeight: 600 }}>
-                            {r.work}
-                          </span>
+                        <td className="px-3 py-2.5">
+                          <span className={badgeEmerald}>{r.work}</span>
                         </td>
-                        <td>
+                        <td className="px-3 py-2.5">
                           <div
-                            style={{
-                              maxWidth: 180,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              color: r.workRemark ? '#334155' : '#94A3B8',
-                              fontStyle: r.workRemark ? 'normal' : 'italic'
-                            }}
+                            className={`max-w-[180px] whitespace-nowrap overflow-hidden text-ellipsis text-xs ${r.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
                             title={r.workRemark || 'No remark'}
                           >
                             {r.workRemark || '—'}
                           </div>
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.days}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{r.days}</td>
+                        <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                           ₹{Number(r.amount).toLocaleString('en-IN')}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.qtyMade || 0}</td>
-                        <td>
+                        <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{r.qtyMade || 0}</td>
+                        <td className="px-3 py-2.5">
                           <StatusBadge status={r.status} />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                      <td colSpan={7}>Total Payout for {selectedLabourStats.labourName}</td>
-                      <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalDays}</td>
-                      <td style={{ textAlign: 'right', color: '#059669' }}>₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>{selectedLabourStats.totalQtyMade}</td>
+                    <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                      <td className="px-3 py-2.5 text-xs" colSpan={7}>Total Payout for {selectedLabourStats.labourName}</td>
+                      <td className="px-3 py-2.5 text-xs text-right">{selectedLabourStats.totalDays}</td>
+                      <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{Number(selectedLabourStats.totalAmount).toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2.5 text-xs text-right">{selectedLabourStats.totalQtyMade}</td>
                       <td></td>
                     </tr>
                   </tfoot>
                 </table>
               ) : (
                 /* 2B: All Workers Summary Table */
-                <table className="data-table">
+                <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr>
-                      <th style={{ width: 45 }}>#</th>
-                      <th onClick={() => handleSort('labourName')} style={{ cursor: 'pointer' }}>
-                        Labour Worker Name <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th>Supervising Incharge(s)</th>
-                      <th>Assigned Work Types</th>
-                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalDays')}>
-                        Working Days <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalQty')}>
-                        Total Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
-                        Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                      </th>
-                      <th style={{ textAlign: 'right' }}>Work Orders</th>
-                      <th style={{ textAlign: 'center', width: 80 }}>Action</th>
+                    <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                      <Th width={45}>#</Th>
+                      <Th field="labourName">Labour Worker Name</Th>
+                      <Th>Supervising Incharge(s)</Th>
+                      <Th>Assigned Work Types</Th>
+                      <Th field="totalDays" align="right">Working Days</Th>
+                      <Th field="totalQty" align="right">Total Output</Th>
+                      <Th field="totalAmount" align="right">Total Amount (₹)</Th>
+                      <Th align="right">Work Orders</Th>
+                      <Th align="center" width={90}>Action</Th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-slate-100">
                     {paginatedData.map((l, idx) => (
                       <tr
                         key={l.labourName}
                         onClick={() => setSelectedSectionLabour(l.labourName)}
-                        style={{ cursor: 'pointer' }}
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                       >
-                        <td style={{ color: '#64748B', fontWeight: 600 }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                           {(currentPage - 1) * pageSize + idx + 1}
                         </td>
-                        <td style={{ fontWeight: 700, color: '#0F172A' }}>
-                          <span style={{ color: '#059669', textDecoration: 'underline' }}>
-                            {l.labourName}
-                          </span>
+                        <td className="px-3 py-2.5 text-xs font-bold text-indigo-600 underline">
+                          {l.labourName}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: '#475569' }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-600">
                           {l.incharges.slice(0, 2).join(', ')}{l.incharges.length > 2 ? ` +${l.incharges.length - 2}` : ''}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: '#475569' }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-600">
                           {l.workTypes.slice(0, 2).join(', ')}{l.workTypes.length > 2 ? ` +${l.workTypes.length - 2}` : ''}
                         </td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{l.totalDays}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{l.totalQty || '-'}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{l.totalDays}</td>
+                        <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{l.totalQty || '-'}</td>
+                        <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                           ₹{Number(l.totalAmount).toLocaleString('en-IN')}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#64748B' }}>{l.workEntries}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <span className="btn btn-secondary btn-sm" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>
+                        <td className="px-3 py-2.5 text-xs text-slate-500 text-right">{l.workEntries}</td>
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="inline-flex items-center gap-1 bg-white border border-slate-200 text-slate-600 rounded-md text-[11px] font-semibold px-2 py-1">
                             Details
                           </span>
                         </td>
@@ -1557,12 +1331,12 @@ export function InchargeWiseReportPage() {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                      <td colSpan={4}>Grand Total ({labourSummary.length} Unique Workers)</td>
-                      <td style={{ textAlign: 'right' }}>-</td>
-                      <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
-                      <td style={{ textAlign: 'right' }}>{filteredRecords.length}</td>
+                    <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                      <td className="px-3 py-2.5 text-xs" colSpan={4}>Grand Total ({labourSummary.length} Unique Workers)</td>
+                      <td className="px-3 py-2.5 text-xs text-right">-</td>
+                      <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                      <td className="px-3 py-2.5 text-xs text-right">{filteredRecords.length}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1572,71 +1346,57 @@ export function InchargeWiseReportPage() {
 
             {/* VIEW 3: WORK ACTIVITY & PRODUCTION OUTPUT TABLE */}
             {reportMode === 'workType' && (
-              <table className="data-table">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr>
-                    <th style={{ width: 45 }}>#</th>
-                    <th onClick={() => handleSort('workType')} style={{ cursor: 'pointer' }}>
-                      Work Activity <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th>Rate Basis</th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
-                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('labourCount')}>
-                      Labour Headcount <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
-                      Production Output (Tons/Units) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('avgAmountPerLabour')}>
-                      Per Person Avg (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
-                      Total Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'center', width: 90 }}>Action</th>
+                  <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                    <Th width={45}>#</Th>
+                    <Th field="workType">Work Activity</Th>
+                    <Th>Rate Basis</Th>
+                    <Th field="workEntries" align="right">Work Orders</Th>
+                    <Th field="labourCount" align="right">Labour Headcount</Th>
+                    <Th field="qtyMade" align="right">Production Output (Tons/Units)</Th>
+                    <Th field="avgAmountPerLabour" align="right">Per Person Avg (₹)</Th>
+                    <Th field="totalAmount" align="right">Total Amount (₹)</Th>
+                    <Th align="center" width={100}>Action</Th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((w, idx) => (
-                    <tr key={w.workType}>
-                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                    <tr key={w.workType} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                         {(currentPage - 1) * pageSize + idx + 1}
                       </td>
-                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                      <td className="px-3 py-2.5 text-xs font-bold text-slate-900">
                         {w.workType}
                       </td>
-                      <td>
-                        <span className="badge" style={{
-                          background: w.isTon ? '#ECFDF5' : '#EFF6FF',
-                          color: w.isTon ? '#065F46' : '#1D4ED8',
-                          fontSize: '0.72rem',
-                          fontWeight: 700
-                        }}>
-                          {w.isTon ? '⚖️ Per Ton' : '👤 Per Person'}
-                        </span>
+                      <td className="px-3 py-2.5">
+                        {w.isTon ? (
+                          <span className={badgeEmerald}><Scale size={11} /> Per Ton</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                            <User size={11} /> Per Person
+                          </span>
+                        )}
                       </td>
-                      <td style={{ textAlign: 'right', color: '#64748B', fontWeight: 600 }}>{w.workEntries}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{w.labourCount}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#0F172A' }}>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{w.workEntries}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{w.labourCount}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-900 text-right font-bold">
                         {w.qtyMade ? w.qtyMade.toLocaleString('en-IN') : '-'}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      <td className="px-3 py-2.5 text-xs text-right font-semibold text-slate-600">
                         ₹{Number(w.avgAmountPerLabour).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                      <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                         ₹{Number(w.totalAmount).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="px-3 py-2.5 text-center">
                         <button
                           onClick={() => {
                             setWorkTypeFilter(w.workType);
                             setReportMode('detailed');
                           }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.72rem', padding: '2px 8px' }}
                           title={`View detailed entries for ${w.workType}`}
+                          className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-md text-[11px] font-semibold px-2 py-1 transition-colors"
                         >
                           View Ledger
                         </button>
@@ -1645,13 +1405,13 @@ export function InchargeWiseReportPage() {
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                    <td colSpan={3}>Grand Total ({workTypeAnalysis.length} Work Activities)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                  <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td className="px-3 py-2.5 text-xs" colSpan={3}>Grand Total ({workTypeAnalysis.length} Work Activities)</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalWorkEntries}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.uniqueLabourers}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1660,65 +1420,51 @@ export function InchargeWiseReportPage() {
 
             {/* VIEW 4: DATE & SHIFT DEPLOYMENT MATRIX */}
             {reportMode === 'dateShift' && (
-              <table className="data-table">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr>
-                    <th style={{ width: 45 }}>#</th>
-                    <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
-                      Date <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th onClick={() => handleSort('shift')} style={{ cursor: 'pointer' }}>
-                      Shift <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('workEntries')}>
-                      Work Orders <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('uniqueLabourers')}>
-                      Labourers Deployed <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('qtyMade')}>
-                      Production Output <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th style={{ textAlign: 'right' }}>Per Person Avg (₹)</th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('totalAmount')}>
-                      Daily Payout (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
+                  <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                    <Th width={45}>#</Th>
+                    <Th field="date">Date</Th>
+                    <Th field="shift">Shift</Th>
+                    <Th field="workEntries" align="right">Work Orders</Th>
+                    <Th field="uniqueLabourers" align="right">Labourers Deployed</Th>
+                    <Th field="qtyMade" align="right">Production Output</Th>
+                    <Th align="right">Per Person Avg (₹)</Th>
+                    <Th field="totalAmount" align="right">Daily Payout (₹)</Th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((d, idx) => (
-                    <tr key={`${d.date}_${d.shift}`}>
-                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                    <tr key={`${d.date}_${d.shift}`} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                         {(currentPage - 1) * pageSize + idx + 1}
                       </td>
-                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                      <td className="px-3 py-2.5 text-xs font-bold text-slate-900 whitespace-nowrap">
                         {formatDate(d.date)}
                       </td>
-                      <td>
-                        <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.74rem' }}>
-                          {d.shift}
-                        </span>
+                      <td className="px-3 py-2.5">
+                        <span className={badgeSlate}>{d.shift}</span>
                       </td>
-                      <td style={{ textAlign: 'right', color: '#64748B' }}>{d.workEntries}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.uniqueLabourers}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{d.qtyMade || '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      <td className="px-3 py-2.5 text-xs text-slate-500 text-right">{d.workEntries}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{d.uniqueLabourers}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{d.qtyMade || '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-right font-semibold text-slate-600">
                         ₹{Number(d.avgPerLabour).toLocaleString('en-IN')}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                      <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                         ₹{Number(d.totalAmount).toLocaleString('en-IN')}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                    <td colSpan={3}>Grand Total ({dateWiseSummary.length} Shift Deployments)</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalWorkEntries}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.uniqueLabourers}</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right' }}>₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                  <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td className="px-3 py-2.5 text-xs" colSpan={3}>Grand Total ({dateWiseSummary.length} Shift Deployments)</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalWorkEntries}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.uniqueLabourers}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right">₹{summaryKPI.avgPerLabour.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -1726,96 +1472,70 @@ export function InchargeWiseReportPage() {
 
             {/* VIEW 5: MASTER DETAILED TRANSACTION LEDGER */}
             {reportMode === 'detailed' && (
-              <table className="data-table">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr>
-                    <th style={{ width: 45 }}>#</th>
-                    <th onClick={() => handleSort('workId')} style={{ cursor: 'pointer' }}>
-                      Work ID <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th onClick={() => handleSort('date')} style={{ cursor: 'pointer' }}>
-                      Date <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th>Shift</th>
-                    <th>Firm</th>
-                    <th onClick={() => handleSort('incharge')} style={{ cursor: 'pointer' }}>
-                      Incharge <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th onClick={() => handleSort('work')} style={{ cursor: 'pointer' }}>
-                      Work Activity <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th onClick={() => handleSort('labourName')} style={{ cursor: 'pointer' }}>
-                      Labour Name <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th>Remark</th>
-                    <th style={{ textAlign: 'right' }}>Days</th>
-                    <th style={{ textAlign: 'right' }}>Output</th>
-                    <th style={{ textAlign: 'right' }} onClick={() => handleSort('amount')}>
-                      Amount (₹) <ArrowUpDown size={11} style={{ display: 'inline', marginLeft: 4 }} />
-                    </th>
-                    <th>Status</th>
+                  <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                    <Th width={45}>#</Th>
+                    <Th field="workId">Work ID</Th>
+                    <Th field="date">Date</Th>
+                    <Th>Shift</Th>
+                    <Th>Firm</Th>
+                    <Th field="incharge">Incharge</Th>
+                    <Th field="work">Work Activity</Th>
+                    <Th field="labourName">Labour Name</Th>
+                    <Th>Remark</Th>
+                    <Th align="right">Days</Th>
+                    <Th align="right">Output</Th>
+                    <Th field="amount" align="right">Amount (₹)</Th>
+                    <Th>Status</Th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   {paginatedData.map((r, idx) => (
-                    <tr key={`${r.workId}_${idx}`}>
-                      <td style={{ color: '#64748B', fontWeight: 600 }}>
+                    <tr key={`${r.workId}_${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5 text-xs text-slate-500 font-semibold">
                         {(currentPage - 1) * pageSize + idx + 1}
                       </td>
-                      <td style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0F172A', fontSize: '0.78rem' }}>
-                        {r.workId}
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{r.workId}</span>
                       </td>
-                      <td style={{ fontWeight: 600 }}>{formatDate(r.date)}</td>
-                      <td>{r.shift}</td>
-                      <td>
-                        <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontSize: '0.72rem' }}>
-                          {r.firmName}
-                        </span>
+                      <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">{formatDate(r.date)}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{r.shift}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={badgeSlate}>{r.firmName}</span>
                       </td>
-                      <td style={{ fontWeight: 600, color: '#065F46' }}>{r.incharge}</td>
-                      <td>
-                        <div>
-                          <span className="badge" style={{ background: '#ECFDF5', color: '#065F46', fontSize: '0.72rem', fontWeight: 700 }}>
-                            {r.work}
-                          </span>
-                        </div>
+                      <td className="px-3 py-2.5 text-xs font-semibold text-slate-700 whitespace-nowrap">{r.incharge}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={badgeEmerald}>{r.work}</span>
                       </td>
-                      <td style={{ fontWeight: 700, color: '#0F172A' }}>
+                      <td className="px-3 py-2.5 text-xs font-bold text-slate-900">
                         {r.labourName}
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         <div
-                          style={{
-                            maxWidth: 140,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            color: r.workRemark ? '#334155' : '#94A3B8',
-                            fontStyle: r.workRemark ? 'normal' : 'italic',
-                            fontSize: '0.78rem'
-                          }}
+                          className={`max-w-[140px] whitespace-nowrap overflow-hidden text-ellipsis text-xs ${r.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
                           title={r.workRemark || 'No remark'}
                         >
                           {r.workRemark || '—'}
                         </div>
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.days}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>{r.qtyMade || '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#059669' }}>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{r.days}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right font-semibold">{r.qtyMade || '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-right font-extrabold text-emerald-600">
                         ₹{Number(r.amount).toLocaleString('en-IN')}
                       </td>
-                      <td>
+                      <td className="px-3 py-2.5">
                         <StatusBadge status={r.status} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr style={{ background: '#F8FAFC', fontWeight: 800 }}>
-                    <td colSpan={9}>Grand Total ({filteredRecords.length} Detailed Records)</td>
-                    <td style={{ textAlign: 'right' }}>-</td>
-                    <td style={{ textAlign: 'right' }}>{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', color: '#059669' }}>₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
+                  <tr className="bg-slate-50 font-bold text-slate-900 border-t-2 border-slate-300">
+                    <td className="px-3 py-2.5 text-xs" colSpan={9}>Grand Total ({filteredRecords.length} Detailed Records)</td>
+                    <td className="px-3 py-2.5 text-xs text-right">-</td>
+                    <td className="px-3 py-2.5 text-xs text-right">{summaryKPI.totalProductionQty.toLocaleString('en-IN')}</td>
+                    <td className="px-3 py-2.5 text-xs text-right text-emerald-600">₹{summaryKPI.totalAmount.toLocaleString('en-IN')}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -1825,37 +1545,26 @@ export function InchargeWiseReportPage() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: 16,
-              paddingTop: 14,
-              borderTop: '1px solid #E2E8F0',
-              flexWrap: 'wrap',
-              gap: 10
-            }}>
-              <div style={{ fontSize: '0.8rem', color: '#64748B', fontWeight: 600 }}>
+            <div className="flex items-center justify-between flex-wrap gap-2.5 px-4 py-3 border-t border-slate-200 shrink-0">
+              <div className="text-xs text-slate-500 font-semibold">
                 Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, currentViewData.length)} of {currentViewData.length} records
               </div>
 
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div className="flex gap-1.5 items-center">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  className={secondaryBtn}
                 >
                   Previous
                 </button>
-                <span style={{ fontSize: '0.82rem', fontWeight: 700, padding: '0 8px', color: '#0F172A' }}>
+                <span className="text-xs font-bold px-2 text-slate-800">
                   Page {currentPage} of {totalPages}
                 </span>
                 <button
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
-                  className="btn btn-secondary btn-sm"
-                  style={{ fontSize: '0.8rem', padding: '4px 10px' }}
+                  className={secondaryBtn}
                 >
                   Next
                 </button>

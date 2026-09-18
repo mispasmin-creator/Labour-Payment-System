@@ -186,8 +186,8 @@ export function SearchableSelect({
     <div
       ref={containerRef}
       id={id}
-      className={`searchable-select-wrapper ${className} ${disabled ? 'disabled' : ''} ${error ? 'has-error' : ''}`}
-      style={{ position: 'relative', width: '100%', ...style }}
+      className={`relative w-full ${className}`}
+      style={style}
       onKeyDown={handleKeyDown}
     >
       {/* Trigger Button */}
@@ -197,67 +197,33 @@ export function SearchableSelect({
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         onClick={handleToggle}
-        className={`searchable-select-trigger ${compact ? 'compact' : ''} ${isOpen ? 'open' : ''} ${error ? 'error' : ''}`}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          width: '100%',
-          padding: compact ? '7px 10px' : '10px 14px',
-          background: disabled ? '#F8FAFC' : '#FFFFFF',
-          border: error ? '1px solid #EF4444' : isOpen ? '1px solid #10B981' : '1px solid #CBD5E1',
-          borderRadius: compact ? 8 : 10,
-          color: displayText ? '#0F172A' : '#94A3B8',
-          fontSize: compact ? '0.88rem' : '0.95rem',
-          fontWeight: displayText ? 500 : 400,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          outline: 'none',
-          boxShadow: isOpen ? '0 0 0 3px rgba(16, 185, 129, 0.15)' : 'none',
-          transition: 'all 0.15s ease',
-          userSelect: 'none'
-        }}
+        className={`flex items-center justify-between gap-2 w-full select-none outline-none transition-all ${
+          compact ? 'px-2.5 py-[7px] rounded-lg text-sm' : 'px-3.5 py-2.5 rounded-lg text-sm'
+        } ${disabled ? 'bg-slate-50 cursor-not-allowed' : 'bg-white cursor-pointer'} ${
+          error
+            ? 'border border-rose-500'
+            : isOpen
+            ? 'border border-indigo-500 ring-2 ring-indigo-500/15'
+            : 'border border-slate-200'
+        } ${displayText ? 'text-slate-900 font-medium' : 'text-slate-400'}`}
       >
-        <span
-          style={{
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-            textAlign: 'left'
-          }}
-        >
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap flex-1 text-left">
           {displayText || placeholder}
         </span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+        <div className="flex items-center gap-1 shrink-0">
           {allowClear && displayText && !disabled && (
             <span
               onClick={handleClear}
               title="Clear selection"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                background: '#E2E8F0',
-                color: '#475569',
-                cursor: 'pointer',
-                fontSize: 12
-              }}
+              className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-slate-200 text-slate-600 cursor-pointer"
             >
               <X size={12} />
             </span>
           )}
           <ChevronDown
             size={compact ? 15 : 18}
-            style={{
-              color: isOpen ? '#059669' : '#64748B',
-              transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
-              transition: 'transform 0.2s ease'
-            }}
+            className={`transition-transform ${isOpen ? 'text-indigo-600 rotate-180' : 'text-slate-500 rotate-0'}`}
           />
         </div>
       </div>
@@ -265,36 +231,16 @@ export function SearchableSelect({
       {/* Dropdown Popover */}
       {isOpen && (
         <div
-          className="searchable-select-dropdown"
-          style={{
-            position: 'absolute',
-            ...(dropUp
-              ? { bottom: 'calc(100% + 4px)', top: 'auto' }
-              : { top: 'calc(100% + 4px)', bottom: 'auto' }),
-            left: 0,
-            right: 0,
-            background: '#FFFFFF',
-            borderRadius: 10,
-            border: '1px solid #CBD5E1',
-            boxShadow: '0 12px 28px -6px rgba(0, 0, 0, 0.15), 0 4px 8px -2px rgba(0, 0, 0, 0.05)',
-            zIndex: 9999,
-            overflow: 'hidden',
-            animation: 'dropdownFadeIn 0.15s ease-out'
-          }}
+          className={`absolute left-0 right-0 bg-white rounded-lg border border-slate-200 shadow-2xl z-[9999] overflow-hidden animate-dropdown-in ${
+            dropUp ? 'bottom-[calc(100%+4px)] top-auto' : 'top-[calc(100%+4px)] bottom-auto'
+          }`}
         >
           {/* Search Input Box */}
           <div
-            style={{
-              padding: '8px 10px',
-              borderBottom: '1px solid #E2E8F0',
-              background: '#F8FAFC',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}
+            className="px-2.5 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-2"
             onClick={e => e.stopPropagation()}
           >
-            <Search size={15} color="#059669" style={{ flexShrink: 0 }} />
+            <Search size={15} className="text-indigo-600 shrink-0" />
             <input
               ref={inputRef}
               type="text"
@@ -304,29 +250,13 @@ export function SearchableSelect({
                 setHighlightedIndex(0);
               }}
               placeholder={searchPlaceholder}
-              style={{
-                width: '100%',
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                fontSize: '0.86rem',
-                color: '#0F172A',
-                fontWeight: 500
-              }}
+              className="w-full border-none bg-transparent outline-none text-sm text-slate-900 font-medium placeholder-slate-400"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#94A3B8',
-                  cursor: 'pointer',
-                  padding: 2,
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
+                className="bg-transparent border-none text-slate-400 hover:text-slate-600 p-0.5 flex items-center"
               >
                 <X size={14} />
               </button>
@@ -334,15 +264,7 @@ export function SearchableSelect({
           </div>
 
           {/* Options List */}
-          <div
-            ref={listRef}
-            role="listbox"
-            style={{
-              maxHeight: 220,
-              overflowY: 'auto',
-              padding: '4px'
-            }}
-          >
+          <div ref={listRef} role="listbox" className="max-h-[220px] overflow-y-auto p-1">
             {/* Optional "None / Empty" Option if placeholder was selected */}
             {placeholder && !searchQuery && (
               <div
@@ -350,30 +272,16 @@ export function SearchableSelect({
                 aria-selected={!value}
                 onClick={() => handleSelect('')}
                 onMouseEnter={() => setHighlightedIndex(-1)}
-                style={{
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  fontSize: '0.85rem',
-                  color: '#94A3B8',
-                  fontStyle: 'italic',
-                  cursor: 'pointer',
-                  background: !value ? '#F1F5F9' : 'transparent',
-                  transition: 'background 0.1s'
-                }}
+                className={`px-3 py-2 rounded-md text-sm italic cursor-pointer text-slate-400 mb-0.5 ${
+                  !value ? 'bg-slate-100' : ''
+                }`}
               >
                 {placeholder}
               </div>
             )}
 
             {filteredOptions.length === 0 ? (
-              <div
-                style={{
-                  padding: '16px 12px',
-                  textAlign: 'center',
-                  fontSize: '0.85rem',
-                  color: '#64748B'
-                }}
-              >
+              <div className="px-3 py-4 text-center text-sm text-slate-500">
                 No matching options found
               </div>
             ) : (
@@ -388,29 +296,16 @@ export function SearchableSelect({
                     aria-selected={isSelected}
                     onClick={() => handleSelect(opt.value)}
                     onMouseEnter={() => setHighlightedIndex(idx)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      fontSize: '0.88rem',
-                      fontWeight: isSelected ? 600 : 400,
-                      color: isSelected ? '#065F46' : '#1E293B',
-                      background: isSelected
-                        ? '#ECFDF5'
+                    className={`flex items-center justify-between px-3 py-2 rounded-md text-sm mb-0.5 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-50 text-indigo-700 font-semibold'
                         : isHighlighted
-                        ? '#F1F5F9'
-                        : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'background 0.1s ease',
-                      marginBottom: 2
-                    }}
+                        ? 'bg-slate-100 text-slate-800'
+                        : 'text-slate-800'
+                    }`}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {opt.label}
-                    </span>
-                    {isSelected && <Check size={16} color="#059669" style={{ flexShrink: 0 }} />}
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">{opt.label}</span>
+                    {isSelected && <Check size={16} className="text-indigo-600 shrink-0" />}
                   </div>
                 );
               })

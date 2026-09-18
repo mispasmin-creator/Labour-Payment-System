@@ -4,25 +4,63 @@ import {
   LayoutDashboard,
   PlusCircle,
   ShieldCheck,
-  CheckCircle2,
-  CreditCard,
-  FileCheck2,
   TableProperties,
-  Database,
-  FileSpreadsheet,
-  Sparkles,
-  Layers,
   Shield,
   User,
   LogOut,
   Users,
   ReceiptText,
-  Factory
+  Factory,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
+function NavItem({ to, end, icon: Icon, label, badge, isCollapsed, onClick }) {
+  return (
+    <NavLink to={to} end={end} title={label} onClick={onClick} className="block">
+      {({ isActive }) => (
+        <span
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} gap-2 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors ${
+            isActive
+              ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-200'
+              : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+          }`}
+        >
+          <span className="flex items-center gap-2.5 min-w-0">
+            <span
+              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+              }`}
+            >
+              <Icon size={15} />
+            </span>
+            {!isCollapsed && <span className="truncate">{label}</span>}
+          </span>
+          {!isCollapsed && badge}
+        </span>
+      )}
+    </NavLink>
+  );
+}
+
+function NavGroup({ label, isCollapsed, children }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {!isCollapsed ? (
+        <div className="px-2.5 pt-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          {label}
+        </div>
+      ) : (
+        <div className="mx-auto my-1.5 w-6 border-t border-slate-200" />
+      )}
+      {children}
+    </div>
+  );
+}
+
 export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
-  const { counts, currentUser, logout, hasPermission } = useApp();
+  const { counts, currentUser, logout, hasPermission, openNewEntry } = useApp();
 
   const handleLinkClick = () => {
     if (window.innerWidth <= 1024) {
@@ -30,203 +68,177 @@ export function Sidebar({ isOpen, onClose, isCollapsed, onToggleCollapse }) {
     }
   };
 
+  const countBadge = (value, color) => {
+    if (!value) return null;
+    const colors = {
+      slate: 'bg-slate-100 text-slate-600',
+      amber: 'bg-amber-50 text-amber-700 border border-amber-200',
+      emerald: 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+    };
+    return (
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${colors[color]}`}>
+        {value}
+      </span>
+    );
+  };
+
   return (
     <>
-      {isOpen && <div className="sidebar-overlay" onClick={onClose} />}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      <aside className={`sidebar ${isOpen ? 'open' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
-            <div className="navbar-logo-badge" style={{ width: 38, height: 38, flexShrink: 0 }}>
-              <img src="/logo.png" alt="Logo" />
+      <aside
+        className={`fixed lg:relative inset-y-0 left-0 z-50 h-screen bg-white border-r border-slate-200 flex flex-col transition-all duration-300 ${
+          isCollapsed ? 'lg:w-[72px]' : 'lg:w-72'
+        } w-64 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+      >
+        <div className={`h-16 flex items-center border-b border-slate-200 ${isCollapsed ? 'justify-center gap-1 px-2' : 'px-3.5 gap-2'}`}>
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-50 to-white border border-slate-200 shadow-2xs flex items-center justify-center overflow-hidden shrink-0 p-1">
+            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+          </div>
+          {!isCollapsed && (
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <div className="font-extrabold text-[15px] tracking-tight text-slate-900 whitespace-nowrap truncate">
+                Labour Payment <span className="text-indigo-600">System</span>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            aria-label={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            className={`hidden lg:flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0 ${
+              isCollapsed ? 'w-6 h-6' : 'w-7 h-7'
+            }`}
+          >
+            {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-1">
+          <NavGroup label="Overview" isCollapsed={isCollapsed}>
+            {hasPermission('dashboard') && (
+              <NavItem
+                to="/"
+                end
+                icon={LayoutDashboard}
+                label="Dashboard"
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+
+            {hasPermission('new_entry') && (
+              <button
+                type="button"
+                title="New Entry Form"
+                onClick={() => {
+                  openNewEntry();
+                  handleLinkClick();
+                }}
+                className={`flex items-center ${isCollapsed ? 'justify-center' : ''} gap-2.5 px-2.5 py-2 rounded-xl text-sm font-medium transition-colors text-slate-600 hover:bg-slate-100/80 hover:text-slate-900`}
+              >
+                <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-slate-100 text-slate-500">
+                  <PlusCircle size={15} />
+                </span>
+                {!isCollapsed && <span>New Entry Form</span>}
+              </button>
+            )}
+
+            {hasPermission('tracker') && (
+              <NavItem
+                to="/tracker"
+                icon={TableProperties}
+                label="All Work IDs"
+                badge={countBadge(counts.total, 'slate')}
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+          </NavGroup>
+
+          <NavGroup label="Workflow" isCollapsed={isCollapsed}>
+            {hasPermission('verification') && (
+              <NavItem
+                to="/verification"
+                icon={ShieldCheck}
+                label="Verification"
+                badge={countBadge(counts.pendingVerification, 'amber')}
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+
+            {hasPermission('payment_report') && (
+              <NavItem
+                to="/payment-report"
+                icon={ReceiptText}
+                label="Payment Report"
+                badge={countBadge(counts.verifiedCount, 'emerald')}
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+          </NavGroup>
+
+          <NavGroup label="Operations" isCollapsed={isCollapsed}>
+            {hasPermission('production') && (
+              <NavItem
+                to="/production"
+                icon={Factory}
+                label="Production"
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+
+            {hasPermission('admin') && (
+              <NavItem
+                to="/admin"
+                icon={Users}
+                label="Administration"
+                isCollapsed={isCollapsed}
+                onClick={handleLinkClick}
+              />
+            )}
+          </NavGroup>
+        </nav>
+
+        <div className={`border-t border-slate-200 bg-slate-50 flex items-center gap-2.5 ${isCollapsed ? 'justify-center py-3 px-2' : 'justify-between py-3.5 px-4'}`}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+              currentUser?.role === 'admin' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'
+            }`}>
+              {currentUser?.role === 'admin' ? <Shield size={16} /> : <User size={16} />}
             </div>
             {!isCollapsed && (
-              <div className="brand-info" style={{ minWidth: 0, flex: 1, overflow: 'hidden' }}>
-                <div style={{
-                  fontWeight: 800,
-                  fontSize: '1.05rem',
-                  letterSpacing: '-0.3px',
-                  color: '#0F172A',
-                  whiteSpace: 'nowrap'
-                }}>
-                  Labour Payment <span style={{ color: '#059669' }}>System</span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-bold text-slate-900 whitespace-nowrap overflow-hidden text-ellipsis">
+                  {currentUser?.displayName || 'User'}
+                </div>
+                <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">
+                  {currentUser?.role === 'admin' ? 'Admin' : 'Site User'}
                 </div>
               </div>
             )}
           </div>
-        </div>
 
-        <nav className="sidebar-nav">
-          {hasPermission('dashboard') && (
-            <NavLink
-              to="/"
-              end
-              title="Dashboard"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <LayoutDashboard size={18} />
-                <span>Dashboard</span>
-              </div>
-            </NavLink>
-          )}
-
-          {hasPermission('new_entry') && (
-            <NavLink
-              to="/new-entry"
-              title="New Entry Form"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <PlusCircle size={18} />
-                <span>New Entry Form</span>
-              </div>
-            </NavLink>
-          )}
-
-          {hasPermission('tracker') && (
-            <NavLink
-              to="/tracker"
-              title="All Work IDs"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <TableProperties size={18} />
-                <span>All Work IDs</span>
-              </div>
-              <span className="sidebar-badge">{counts.total}</span>
-            </NavLink>
-          )}
-
-          {/* Stage 1 */}
-          {hasPermission('verification') && (
-            <NavLink
-              to="/verification"
-              title="Verification"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <ShieldCheck size={18} />
-                <span>Verification</span>
-              </div>
-              {counts.pendingVerification > 0 && (
-                <span className="sidebar-badge amber">{counts.pendingVerification}</span>
-              )}
-            </NavLink>
-          )}
-
-          {/* Payment Report */}
-          {hasPermission('payment_report') && (
-            <NavLink
-              to="/payment-report"
-              title="Payment Report"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <ReceiptText size={18} />
-                <span>Payment Report</span>
-              </div>
-              {counts.verifiedCount > 0 && (
-                <span className="sidebar-badge green">{counts.verifiedCount}</span>
-              )}
-            </NavLink>
-          )}
-
-          {/* Production (Supabase Integration) */}
-          {hasPermission('production') && (
-            <NavLink
-              to="/production"
-              title="Production"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <Factory size={18} />
-                <span>Production</span>
-              </div>
-            </NavLink>
-          )}
-
-
-
-          {/* Administration & User Management */}
-          {hasPermission('admin') && (
-            <NavLink
-              to="/admin"
-              title="Administration"
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-              onClick={handleLinkClick}
-            >
-              <div className="sidebar-link-content">
-                <Users size={18} />
-                <span>Administration</span>
-              </div>
-            </NavLink>
-          )}
-        </nav>
-
-        {!isCollapsed && (
-          <div style={{
-            padding: '14px 16px',
-            borderTop: '1px solid #E2E8F0',
-            background: '#F8FAFC',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: currentUser?.role === 'admin' ? '#ECFDF5' : '#EFF6FF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: currentUser?.role === 'admin' ? '#059669' : '#2563EB',
-                flexShrink: 0
-              }}>
-                {currentUser?.role === 'admin' ? <Shield size={16} /> : <User size={16} />}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {currentUser?.displayName || 'User'}
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 600, textTransform: 'uppercase' }}>
-                  {currentUser?.role === 'admin' ? 'Administrator' : 'Site User'}
-                </div>
-              </div>
-            </div>
-
+          {!isCollapsed && (
             <button
               type="button"
               onClick={logout}
               title="Logout"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: '#94A3B8',
-                cursor: 'pointer',
-                padding: 6,
-                borderRadius: 6,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'color 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94A3B8'}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
             >
               <LogOut size={16} />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </aside>
     </>
   );

@@ -108,44 +108,52 @@ export function PaymentApprovalPage() {
   };
 
   return (
-    <div>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
       {/* Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            Payment Approval Center
-          </h1>
+      <div className="flex items-center justify-between flex-wrap gap-3.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <CheckCircle2 size={20} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800">Payment Approval Center</h1>
+            <p className="text-xs text-slate-500">{pendingApproval.length} entries awaiting approval</p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+        <div className="flex gap-3">
+          <div className="bg-white px-4.5 py-2.5 rounded-xl border border-slate-200 shadow-2xs text-right">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Pending Approval
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#4F46E5' }}>
-              ₹{totalAmountToApprove.toLocaleString('en-IN')} <span style={{ fontSize: '0.8rem', color: '#64748B' }}>({pendingApproval.length})</span>
+            <div className="text-xl font-extrabold text-indigo-600">
+              ₹{totalAmountToApprove.toLocaleString('en-IN')} <span className="text-xs font-semibold text-slate-500">({pendingApproval.length})</span>
             </div>
           </div>
 
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+          <div className="bg-white px-4.5 py-2.5 rounded-xl border border-slate-200 shadow-2xs text-right">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Approved History
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#059669' }}>
-              ₹{totalHistoryApproved.toLocaleString('en-IN')} <span style={{ fontSize: '0.8rem', color: '#64748B' }}>({historyApproval.length})</span>
+            <div className="text-xl font-extrabold text-emerald-600">
+              ₹{totalHistoryApproved.toLocaleString('en-IN')} <span className="text-xs font-semibold text-slate-500">({historyApproval.length})</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
+      <div className="flex gap-2.5 border-b border-slate-200 pb-2.5 shrink-0">
         <button
           onClick={() => {
             setActiveTab('pending');
             setSelectedIds([]);
           }}
-          className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold px-4 py-2 transition-colors ${
+            activeTab === 'pending'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
         >
           <ListFilter size={15} />
           <span>Pending Approval Queue ({pendingApproval.length})</span>
@@ -156,7 +164,11 @@ export function PaymentApprovalPage() {
             setActiveTab('history');
             setSelectedIds([]);
           }}
-          className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold px-4 py-2 transition-colors ${
+            activeTab === 'history'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
         >
           <History size={15} />
           <span>Approval History ({historyApproval.length})</span>
@@ -164,22 +176,21 @@ export function PaymentApprovalPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="search-input-wrap">
-          <Search size={18} />
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3 shrink-0">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            className="form-input"
+            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
             placeholder={activeTab === 'pending' ? "Search pending approvals by Work ID, Supervisor, Firm..." : "Search approval history..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-3 flex-wrap">
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 140 }}
+            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all min-w-[140px]"
             value={firmFilter}
             onChange={e => setFirmFilter(e.target.value)}
           >
@@ -190,8 +201,7 @@ export function PaymentApprovalPage() {
           </select>
 
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 160 }}
+            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all min-w-[160px]"
             value={inchargeFilter}
             onChange={e => setInchargeFilter(e.target.value)}
           >
@@ -205,7 +215,7 @@ export function PaymentApprovalPage() {
             <button
               onClick={handleBatchApprove}
               disabled={selectedIds.length === 0 || isBatchApproving}
-              className="btn btn-indigo"
+              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isBatchApproving ? (
                 <>
@@ -225,187 +235,179 @@ export function PaymentApprovalPage() {
 
       {/* List / Table */}
       {filteredEntries.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon" style={{ background: '#EEF2FF', color: '#4F46E5' }}>
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-2xs py-16">
+          <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
             <CheckCircle2 size={32} />
           </div>
-          <h3 className="empty-state-title">
+          <h3 className="text-base font-bold text-slate-800">
             {activeTab === 'pending' ? 'No Entries Pending Payment Approval' : 'No Approval History Yet'}
           </h3>
-          <p className="empty-state-desc">
+          <p className="text-sm text-slate-500 mt-1 text-center max-w-md">
             {activeTab === 'pending'
               ? 'All verified entries have been approved and moved to Stage 3.'
               : 'Approved work orders will appear here with full timestamps and approval audit trail.'}
           </p>
         </div>
       ) : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                {activeTab === 'pending' && (
-                  <th style={{ width: 40 }}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredEntries.length && filteredEntries.length > 0}
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                )}
-                <th>Work ID</th>
-                <th>Date</th>
-                <th>Shift</th>
-                <th>Firm</th>
-                <th>Supervisor</th>
-                <th>Work Activity</th>
-                <th>Work Hours</th>
-                <th>Qty / Output</th>
-                <th>Labourers</th>
-                <th>Per Person Amount</th>
-                <th>Total Amount</th>
-                <th>Work Remark</th>
-                {activeTab === 'history' && <th>Current Status</th>}
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEntries.map(entry => {
-                const count = Number(entry.labourCount) || 1;
-                const total = Number(entry.totalAmount) || 0;
-                const perPerson = count > 0 ? (total / count) : 0;
-                return (
-                  <tr key={entry.workId}>
-                    {activeTab === 'pending' && (
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(entry.workId)}
-                          onChange={() => toggleSelectOne(entry.workId)}
-                        />
+        <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                  {activeTab === 'pending' && (
+                    <th className="px-3 py-2.5 w-10">
+                      <input
+                        type="checkbox"
+                        className="accent-indigo-600"
+                        checked={selectedIds.length === filteredEntries.length && filteredEntries.length > 0}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                  )}
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work ID</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Shift</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Supervisor</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Activity</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Hours</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Qty / Output</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Labourers</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Per Person Amount</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Total Amount</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Remark</th>
+                  {activeTab === 'history' && <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Current Status</th>}
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredEntries.map(entry => {
+                  const count = Number(entry.labourCount) || 1;
+                  const total = Number(entry.totalAmount) || 0;
+                  const perPerson = count > 0 ? (total / count) : 0;
+                  return (
+                    <tr key={entry.workId} className="hover:bg-slate-50/80 transition-colors">
+                      {activeTab === 'pending' && (
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            className="accent-indigo-600"
+                            checked={selectedIds.includes(entry.workId)}
+                            onChange={() => toggleSelectOne(entry.workId)}
+                          />
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>
                       </td>
-                    )}
-                    <td>
-                      <span className="work-id-badge">{entry.workId}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                        {entry.firmName || '-'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                    </td>
-                    <td>
-                      <div style={{ maxWidth: 200 }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
-                          {entry.work}
-                        </div>
-                        <div style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
-                          marginTop: 2
-                        }}>
-                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.hours ? `${entry.hours} hrs` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Users size={14} color="#059669" />
-                        <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
-                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>
-                        ₹{total.toLocaleString('en-IN')}
-                      </div>
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          maxWidth: 160,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          color: entry.workRemark ? '#334155' : '#94A3B8',
-                          fontStyle: entry.workRemark ? 'normal' : 'italic'
-                        }}
-                        title={entry.workRemark || 'No remark'}
-                      >
-                        {entry.workRemark || '-'}
-                      </div>
-                    </td>
-                    {activeTab === 'history' && (
-                      <td>
-                        <StatusBadge status={entry.status} />
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-800 whitespace-nowrap text-xs">{formatDate(entry.date)}</div>
                       </td>
-                    )}
-                    <td>
-                      {activeTab === 'pending' ? (
-                        canApprove ? (
-                          <button
-                            onClick={() => handleSingleApprove(entry.workId)}
-                            disabled={approvingId === entry.workId}
-                            className="btn btn-indigo btn-sm"
-                          >
-                            {approvingId === entry.workId ? (
-                              <>
-                                <RefreshCw size={14} className="animate-spin" />
-                                <span>Approving...</span>
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 size={14} />
-                                <span>Approve</span>
-                              </>
-                            )}
-                          </button>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs text-slate-600 font-medium whitespace-nowrap">{entry.shift || '-'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-slate-100 text-slate-600 border-slate-200">
+                          {entry.firmName || '-'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="text-xs text-slate-600 font-medium">{entry.incharge}</div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="max-w-[200px]">
+                          <div className="font-bold text-slate-900 text-sm">
+                            {entry.work}
+                          </div>
+                          <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                            {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-600 whitespace-nowrap text-xs">
+                          {entry.hours ? `${entry.hours} hrs` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-900 whitespace-nowrap text-xs">
+                          {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="inline-flex items-center gap-1.5">
+                          <Users size={14} className="text-emerald-600" />
+                          <span className="font-bold text-xs text-slate-800">{entry.labourCount}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-bold text-emerald-600 text-xs">
+                          ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-extrabold text-emerald-600 text-sm">
+                          ₹{total.toLocaleString('en-IN')}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div
+                          className={`max-w-[160px] whitespace-nowrap overflow-hidden text-ellipsis text-xs ${entry.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
+                          title={entry.workRemark || 'No remark'}
+                        >
+                          {entry.workRemark || '-'}
+                        </div>
+                      </td>
+                      {activeTab === 'history' && (
+                        <td className="px-3 py-2.5">
+                          <StatusBadge status={entry.status} />
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5">
+                        {activeTab === 'pending' ? (
+                          canApprove ? (
+                            <button
+                              onClick={() => handleSingleApprove(entry.workId)}
+                              disabled={approvingId === entry.workId}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {approvingId === entry.workId ? (
+                                <>
+                                  <RefreshCw size={14} className="animate-spin" />
+                                  <span>Approving...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={14} />
+                                  <span>Approve</span>
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setTimelineWorkId(entry.workId)}
+                              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                            >
+                              <Eye size={14} />
+                              <span>View</span>
+                            </button>
+                          )
                         ) : (
                           <button
                             onClick={() => setTimelineWorkId(entry.workId)}
-                            className="btn btn-outline-green btn-sm"
+                            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
                           >
                             <Eye size={14} />
-                            <span>View</span>
+                            <span>Details</span>
                           </button>
-                        )
-                      ) : (
-                        <button
-                          onClick={() => setTimelineWorkId(entry.workId)}
-                          className="btn btn-outline-green btn-sm"
-                        >
-                          <Eye size={14} />
-                          <span>Details</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

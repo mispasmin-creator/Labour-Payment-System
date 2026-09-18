@@ -6,6 +6,8 @@ import {
   Search,
   Filter,
   Users,
+  User,
+  Scale,
   Eye,
   History,
   ListFilter,
@@ -121,255 +123,245 @@ export function VerificationPage() {
     }
   };
 
+  const tabBtnClass = active =>
+    `inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg transition-colors ${
+      active
+        ? 'bg-indigo-600 text-white shadow-sm'
+        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+    }`;
+
   return (
-    <div>
-      {/* Sticky Freeze Header (Title, Tabs & Filter Bar) */}
-      <div className="sticky-page-header">
-        {/* Page Title */}
-        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-              Work Verification Center
-            </h1>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={() => refreshData()}
-              className="btn btn-secondary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, height: 44, borderRadius: 10 }}
-              title="Sync latest data from Google Sheet"
-              disabled={syncing}
-            >
-              <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
-              <span>{syncing ? 'Syncing...' : 'Sync Sheet'}</span>
-            </button>
-
-            <div style={{ background: '#FFFFFF', padding: '6px 14px', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                Pending
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#D97706', lineHeight: 1.1 }}>
-                {pendingEntries.length}
-              </div>
-            </div>
-
-            <div style={{ background: '#FFFFFF', padding: '6px 14px', borderRadius: 10, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                Verified History
-              </div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
-                {historyEntries.length}
-              </div>
-            </div>
+            <h1 className="text-lg font-bold text-slate-800">Work Verification Center</h1>
+            <p className="text-xs text-slate-500">
+              {activeTab === 'pending'
+                ? `${pendingEntries.length} entr${pendingEntries.length === 1 ? 'y' : 'ies'} pending verification`
+                : `${historyEntries.length} verified record${historyEntries.length === 1 ? '' : 's'}`}
+            </p>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 12, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => setActiveTab('pending')}
-            className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+            onClick={() => refreshData()}
+            className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3.5 py-2.5 inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Sync latest data from Google Sheet"
+            disabled={syncing}
           >
-            <ListFilter size={15} />
-            <span>Pending Verification Queue ({pendingEntries.length})</span>
+            <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
+            <span>{syncing ? 'Syncing...' : 'Sync Sheet'}</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-          >
-            <History size={15} />
-            <span>Verification History ({historyEntries.length})</span>
-          </button>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-3.5 py-2 text-right">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending</div>
+            <div className="text-lg font-extrabold text-amber-600 leading-tight">{pendingEntries.length}</div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-3.5 py-2 text-right">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Verified History</div>
+            <div className="text-lg font-extrabold text-emerald-600 leading-tight">{historyEntries.length}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button onClick={() => setActiveTab('pending')} className={tabBtnClass(activeTab === 'pending')}>
+          <ListFilter size={15} />
+          <span>Pending Verification Queue ({pendingEntries.length})</span>
+        </button>
+
+        <button onClick={() => setActiveTab('history')} className={tabBtnClass(activeTab === 'history')}>
+          <History size={15} />
+          <span>Verification History ({historyEntries.length})</span>
+        </button>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+            placeholder={
+              activeTab === 'pending'
+                ? 'Search pending entries by Work ID, Supervisor, Firm...'
+                : 'Search verification history...'
+            }
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+          />
         </div>
 
-        {/* Filter Bar */}
-        <div className="filter-bar" style={{ marginBottom: 0 }}>
-          <div className="search-input-wrap">
-            <Search size={18} />
-            <input
-              type="text"
-              className="form-input"
-              placeholder={activeTab === 'pending' ? "Search pending entries by Work ID, Supervisor, Firm..." : "Search verification history..."}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
-          </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <select
+            className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all min-w-[140px]"
+            value={firmFilter}
+            onChange={e => setFirmFilter(e.target.value)}
+          >
+            <option value="">All Firms</option>
+            {uniqueFirms.map(firm => (
+              <option key={firm} value={firm}>{firm}</option>
+            ))}
+          </select>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <select
-              className="form-select"
-              style={{ width: 'auto', minWidth: 140 }}
-              value={firmFilter}
-              onChange={e => setFirmFilter(e.target.value)}
-            >
-              <option value="">All Firms</option>
-              {uniqueFirms.map(firm => (
-                <option key={firm} value={firm}>{firm}</option>
-              ))}
-            </select>
-
-            <select
-              className="form-select"
-              style={{ width: 'auto', minWidth: 160 }}
-              value={inchargeFilter}
-              onChange={e => setInchargeFilter(e.target.value)}
-            >
-              <option value="">All Supervisors</option>
-              {uniqueIncharges.map(inc => (
-                <option key={inc} value={inc}>{inc}</option>
-              ))}
-            </select>
-          </div>
+          <select
+            className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all min-w-[160px]"
+            value={inchargeFilter}
+            onChange={e => setInchargeFilter(e.target.value)}
+          >
+            <option value="">All Supervisors</option>
+            {uniqueIncharges.map(inc => (
+              <option key={inc} value={inc}>{inc}</option>
+            ))}
+          </select>
         </div>
       </div>
 
       {/* Table / Queue */}
       {filteredEntries.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon">
+        <div className="flex-1 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-2xs p-10 text-center">
+          <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
             <ShieldCheck size={32} />
           </div>
-          <h3 className="empty-state-title">
+          <h3 className="text-base font-bold text-slate-800 mb-1">
             {activeTab === 'pending' ? 'No Entries Pending Verification' : 'No Verification History Yet'}
           </h3>
-          <p className="empty-state-desc">
+          <p className="text-sm text-slate-500 max-w-sm">
             {activeTab === 'pending'
               ? 'All work entries have been verified and advanced to Stage 2.'
               : 'Completed verification records will appear here with full timestamps and audit trail.'}
           </p>
         </div>
       ) : (
-        <div className="table-container">
-          <table className="data-table" key={activeTab}>
-            <thead>
-              <tr>
-                <th>Work ID</th>
-                <th>Date</th>
-                <th>Shift</th>
-                <th>Firm</th>
-                <th>Incharge</th>
-                <th>Work Activity</th>
-                <th>Work Hours</th>
-                <th>Qty / Output</th>
-                <th>Labourers</th>
-                <th>Per Person Amount</th>
-                <th>Total Amount</th>
-                <th>Work Remark</th>
-                <th>Current Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEntries.map((entry, idx) => {
-                const count = Number(entry.labourCount) || 1;
-                const total = Number(entry.totalAmount) || 0;
-                const perPerson = count > 0 ? (total / count) : 0;
-                const verified = isEntryVerified(entry);
-                return (
-                  <tr key={`${entry.workId || 'wrk'}_${idx}_${activeTab}`}>
-                    <td>
-                      <span className="work-id-badge">{entry.workId}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                        {entry.firmName || '-'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                    </td>
-                    <td>
-                      <div style={{ maxWidth: 200 }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
-                          {entry.work}
+        <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col overflow-hidden">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
+            <table className="w-full border-collapse" key={activeTab}>
+              <thead className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                <tr>
+                  <th className="sticky left-0 bg-slate-100 z-30 border-r border-slate-200 px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                    Action
+                  </th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work ID</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Date</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Shift</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Incharge</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Activity</th>
+                  <th className="px-4 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Hours</th>
+                  <th className="px-4 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Qty / Output</th>
+                  <th className="px-4 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Labourers</th>
+                  <th className="px-4 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Per Person Amount</th>
+                  <th className="px-4 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Total Amount</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Remark</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Current Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredEntries.map((entry, idx) => {
+                  const count = Number(entry.labourCount) || 1;
+                  const total = Number(entry.totalAmount) || 0;
+                  const perPerson = count > 0 ? (total / count) : 0;
+                  const verified = isEntryVerified(entry);
+                  return (
+                    <tr key={`${entry.workId || 'wrk'}_${idx}_${activeTab}`} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="sticky left-0 bg-white z-10 border-r border-slate-200 shadow-xs px-4 py-2.5 whitespace-nowrap">
+                        {verified ? (
+                          <button
+                            onClick={() => setTimelineWorkId(entry.workId)}
+                            className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
+                          >
+                            <Eye size={14} />
+                            <span>Details</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleOpenVerifyModal(entry)}
+                            disabled={!canVerify}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                          >
+                            <ShieldCheck size={14} />
+                            <span>Verify Work</span>
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="font-semibold text-slate-800 whitespace-nowrap text-xs">{formatDate(entry.date)}</div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs text-slate-600 font-medium whitespace-nowrap">{entry.shift || '-'}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                          {entry.firmName || '-'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="text-xs text-slate-600 font-medium">{entry.incharge}</div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="max-w-[200px]">
+                          <div className="font-bold text-slate-800 text-sm">{entry.work}</div>
+                          <div className={`inline-flex items-center gap-1 text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                            {isTonBasedWork(entry.work) ? <Scale size={11} /> : <User size={11} />}
+                            <span>{isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}</span>
+                          </div>
                         </div>
-                        <div style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
-                          marginTop: 2
-                        }}>
-                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="font-semibold text-slate-700 whitespace-nowrap text-xs">
+                          {entry.hours ? `${entry.hours} hrs` : '-'}
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.hours ? `${entry.hours} hrs` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Users size={14} color="#059669" />
-                        <span style={{ fontWeight: 700 }}>{entry.labourCount}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
-                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.95rem' }}>
-                        ₹{total.toLocaleString('en-IN')}
-                      </div>
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          maxWidth: 160,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          color: entry.workRemark ? '#334155' : '#94A3B8',
-                          fontStyle: entry.workRemark ? 'normal' : 'italic'
-                        }}
-                        title={entry.workRemark || 'No remark'}
-                      >
-                        {entry.workRemark || '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <StatusBadge status={verified ? entry.status : 'Pending Verification'} />
-                    </td>
-                    <td>
-                      {verified ? (
-                        <button
-                          onClick={() => setTimelineWorkId(entry.workId)}
-                          className="btn btn-outline-green btn-sm"
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="font-bold text-slate-800 whitespace-nowrap text-xs">
+                          {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Users size={14} className="text-emerald-600" />
+                          <span className="font-bold text-xs text-slate-800">{entry.labourCount}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="font-bold text-emerald-600 text-xs">
+                          ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="font-extrabold text-slate-800 text-sm">
+                          ₹{total.toLocaleString('en-IN')}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div
+                          className={`max-w-[160px] truncate text-xs ${entry.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
+                          title={entry.workRemark || 'No remark'}
                         >
-                          <Eye size={14} />
-                          <span>Details</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleOpenVerifyModal(entry)}
-                          className="btn btn-primary btn-sm"
-                          disabled={!canVerify}
-                        >
-                          <ShieldCheck size={14} />
-                          <span>Verify Work</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          {entry.workRemark || '-'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={verified ? entry.status : 'Pending Verification'} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -382,76 +374,66 @@ export function VerificationPage() {
       >
         {selectedEntry && (
           <div>
-            <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px', border: '1px solid #E2E8F0', marginBottom: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, fontSize: '0.88rem' }}>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 mb-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span style={{ color: '#64748B' }}>Supervisor:</span>{' '}
-                  <strong style={{ color: '#0F172A' }}>{selectedEntry.incharge}</strong>
+                  <span className="text-slate-500">Supervisor:</span>{' '}
+                  <strong className="text-slate-800">{selectedEntry.incharge}</strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Firm Name:</span>{' '}
-                  <strong style={{ color: '#0F172A' }}>{selectedEntry.firmName || '-'}</strong>
+                  <span className="text-slate-500">Firm Name:</span>{' '}
+                  <strong className="text-slate-800">{selectedEntry.firmName || '-'}</strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Date:</span>{' '}
+                  <span className="text-slate-500">Date:</span>{' '}
                   <strong>{formatDate(selectedEntry.date)} ({selectedEntry.shift})</strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Work Activity:</span>{' '}
+                  <span className="text-slate-500">Work Activity:</span>{' '}
                   <strong>
                     {selectedEntry.work}{' '}
-                    <span style={{ fontSize: '0.78rem', color: isTonBasedWork(selectedEntry.work) ? '#059669' : '#2563EB', fontWeight: 700 }}>
-                      ({isTonBasedWork(selectedEntry.work) ? '⚖️ Per Ton' : '👤 Per Person'})
+                    <span className={`inline-flex items-center gap-1 text-xs font-bold ${isTonBasedWork(selectedEntry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      {isTonBasedWork(selectedEntry.work) ? <Scale size={12} /> : <User size={12} />}
+                      <span>{isTonBasedWork(selectedEntry.work) ? 'Per Ton' : 'Per Person'}</span>
                     </span>
                   </strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Labour & Rate:</span>{' '}
+                  <span className="text-slate-500">Labour & Rate:</span>{' '}
                   <strong>
                     {selectedEntry.labourCount} persons • {isTonBasedWork(selectedEntry.work) ? `₹${selectedEntry.rate}/Ton` : `₹${selectedEntry.rate}/person`}
                   </strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Hours & Qty:</span>{' '}
+                  <span className="text-slate-500">Hours & Qty:</span>{' '}
                   <strong>{selectedEntry.hours} hrs / {selectedEntry.qty} {isTonBasedWork(selectedEntry.work) ? 'Tons' : 'units'}</strong>
                 </div>
                 <div>
-                  <span style={{ color: '#64748B' }}>Total Payable:</span>{' '}
-                  <strong style={{ color: '#059669', fontSize: '1.05rem' }}>
+                  <span className="text-slate-500">Total Payable:</span>{' '}
+                  <strong className="text-emerald-600 text-base">
                     ₹{Number(selectedEntry.totalAmount).toLocaleString('en-IN')}
                   </strong>
                 </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <span style={{ color: '#64748B' }}>Work Remark:</span>{' '}
-                  <span style={{ color: selectedEntry.workRemark ? '#0F172A' : '#94A3B8', fontWeight: selectedEntry.workRemark ? 600 : 400, fontStyle: selectedEntry.workRemark ? 'normal' : 'italic' }}>
+                <div className="md:col-span-2">
+                  <span className="text-slate-500">Work Remark:</span>{' '}
+                  <span className={selectedEntry.workRemark ? 'text-slate-800 font-semibold' : 'text-slate-400 italic'}>
                     {selectedEntry.workRemark || 'No remark provided'}
                   </span>
                 </div>
               </div>
 
               {/* Labourers list */}
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #E2E8F0' }}>
-                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748B', marginBottom: 8, textTransform: 'uppercase' }}>
+              <div className="mt-3.5 pt-3 border-t border-slate-200">
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Assigned Labourers ({getModalLabourers(selectedEntry).length} Persons)
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div className="flex flex-wrap gap-2">
                   {getModalLabourers(selectedEntry).map((name, i) => (
                     <span
                       key={i}
-                      style={{
-                        background: '#ECFDF5',
-                        border: '1px solid #A7F3D0',
-                        color: '#065F46',
-                        padding: '5px 10px',
-                        borderRadius: 6,
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
+                      className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-1 rounded-md text-xs font-semibold"
                     >
-                      <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#059669', color: '#FFFFFF', fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <span className="w-[18px] h-[18px] rounded-full bg-emerald-600 text-white text-[10px] flex items-center justify-center shrink-0">
                         {i + 1}
                       </span>
                       {name}
@@ -461,22 +443,24 @@ export function VerificationPage() {
               </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Verifier Remarks (Optional)</label>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Verifier Remarks (Optional)
+              </label>
               <textarea
-                className="form-textarea"
                 rows="2"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
                 placeholder="e.g. Work inspected on site, labour headcount verified."
                 value={remarks}
                 onChange={e => setRemarks(e.target.value)}
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+            <div className="flex justify-end items-center gap-3 mt-6">
               <button
                 type="button"
                 onClick={() => setSelectedEntry(null)}
-                className="btn btn-secondary"
+                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold px-4 py-2"
               >
                 Close
               </button>
@@ -485,7 +469,7 @@ export function VerificationPage() {
                   type="button"
                   onClick={handleConfirmVerify}
                   disabled={isSubmitting}
-                  className="btn btn-primary"
+                  className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
@@ -500,8 +484,9 @@ export function VerificationPage() {
                   )}
                 </button>
               ) : (
-                <div style={{ fontSize: '0.8rem', color: '#2563EB', background: '#EFF6FF', padding: '6px 12px', borderRadius: 6, fontWeight: 600 }}>
-                  👁️ View-Only Access (Verification Action Disabled)
+                <div className="inline-flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-md font-semibold">
+                  <Eye size={14} />
+                  <span>View-Only Access (Verification Action Disabled)</span>
                 </div>
               )}
             </div>

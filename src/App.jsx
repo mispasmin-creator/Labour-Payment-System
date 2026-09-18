@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/layout/Layout';
 import { DashboardPage } from './pages/DashboardPage';
-import { NewEntryPage } from './pages/NewEntryPage';
 import { VerificationPage } from './pages/VerificationPage';
 import { PaymentReportPage } from './pages/PaymentReportPage';
 import { WorkTrackerPage } from './pages/WorkTrackerPage';
@@ -34,7 +33,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<DashboardPage />} />
-        <Route path="new-entry" element={<NewEntryPage />} />
+        <Route path="new-entry" element={<Navigate to="/" replace />} />
         <Route path="verification" element={<VerificationPage />} />
         <Route path="payment-report" element={<PaymentReportPage />} />
         <Route path="production" element={<ProductionPage />} />

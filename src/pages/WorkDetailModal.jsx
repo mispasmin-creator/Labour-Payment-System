@@ -73,29 +73,27 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
       <Modal isOpen={Boolean(workId)} onClose={onClose} title={`Work Order Details: ${entry.workId}`} maxWidth="820px">
         <div>
           {/* Top Header Row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 18, paddingBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span className="work-id-badge" style={{ fontSize: '1.1rem', padding: '6px 14px' }}>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-[18px] pb-3.5 border-b border-slate-200">
+            <div className="flex items-center gap-3">
+              <span className="font-mono font-bold text-indigo-600 text-base bg-indigo-50 border border-indigo-200 rounded-lg px-3.5 py-1.5">
                 {entry.workId}
               </span>
               <StatusBadge status={entry.status} />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setShowPreview(true)}
-                className="btn btn-teal btn-sm"
                 title="Preview printable slip"
-                style={{ fontWeight: 700 }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 text-white hover:bg-teal-700"
               >
                 <Eye size={15} />
                 <span>Preview Slip</span>
               </button>
               <button
                 onClick={() => printWorkSlip(entry)}
-                className="btn btn-outline-green btn-sm"
                 title="Print Work Slip (select Portrait / Landscape in print dialog)"
-                style={{ fontWeight: 700 }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
               >
                 <Printer size={15} />
                 <span>Print Work Slip</span>
@@ -103,168 +101,148 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
             </div>
           </div>
 
-        {/* Verification Status Card */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{
-            background: isVerified ? '#ECFDF5' : '#FFFBEB',
-            border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}`,
-            borderRadius: 8,
-            padding: '12px 16px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: 10
-          }}>
-            <div>
-              <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>Workflow Stage</div>
-              <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#0F172A', marginTop: 2 }}>Verification</div>
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 700, color: isVerified ? '#047857' : '#B45309', background: isVerified ? '#D1FAE5' : '#FEF3C7', padding: '5px 12px', borderRadius: 6, border: `1px solid ${isVerified ? '#A7F3D0' : '#FDE68A'}` }}>
-              {isVerified ? <CheckCircle2 size={15} /> : <Clock size={15} />}
-              <span>{isVerified ? 'Verified' : 'Pending Verification'}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Work Details Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-          <div className="card" style={{ padding: '14px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
-              Shift & Date
-            </div>
-            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0F172A' }}>
-              {formatDate(entry.date)}
-            </div>
-            <div style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 600 }}>
-              {entry.shift || '-'}
+          {/* Verification Status Card */}
+          <div className="mb-5">
+            <div
+              className={`rounded-xl border p-4 flex items-center justify-between flex-wrap gap-2.5 ${
+                isVerified ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'
+              }`}
+            >
+              <div>
+                <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Workflow Stage</div>
+                <div className="font-extrabold text-sm text-slate-900 mt-0.5">Verification</div>
+              </div>
+              <div
+                className={`inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg border ${
+                  isVerified
+                    ? 'text-emerald-700 bg-emerald-100 border-emerald-200'
+                    : 'text-amber-700 bg-amber-100 border-amber-200'
+                }`}
+              >
+                {isVerified ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                <span>{isVerified ? 'Verified' : 'Pending Verification'}</span>
+              </div>
             </div>
           </div>
 
-          <div className="card" style={{ padding: '14px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
-              Firm Name
-            </div>
-            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0F172A' }}>
-              {entry.firmName || '-'}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
-              Supervisor / Incharge
-            </div>
-            <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0F172A' }}>
-              {entry.incharge}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
-              Work Activity
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#0F172A' }}>
-                {entry.work}
-              </span>
-              <span style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
-                background: isTonBasedWork(entry.work) ? '#ECFDF5' : '#EFF6FF',
-                padding: '1px 6px',
-                borderRadius: 4,
-                border: `1px solid ${isTonBasedWork(entry.work) ? '#A7F3D0' : '#BFDBFE'}`
-              }}>
-                {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
-              </span>
-            </div>
-            <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: 4 }}>
-              {entry.hours} hrs • {entry.qty} {isTonBasedWork(entry.work) ? 'Tons' : 'units'}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px', background: '#F0FDF4', borderColor: '#BBF7D0' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', textTransform: 'uppercase', marginBottom: 4 }}>
-              Per Person Share
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1.35rem', color: '#059669' }}>
-              ₹{((Number(entry.totalAmount) || 0) / (labourCount || 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '14px', background: '#F0FDF4', borderColor: '#BBF7D0' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#065F46', textTransform: 'uppercase', marginBottom: 4 }}>
-              Total Payable Amount
-            </div>
-            <div style={{ fontWeight: 800, fontSize: '1.35rem', color: '#047857' }}>
-              ₹{Number(entry.totalAmount).toLocaleString('en-IN')}
-            </div>
-          </div>
-        </div>
-
-        {/* Work Remark Display */}
-        <div className="card" style={{ marginBottom: 16, padding: '14px 16px', background: '#F8FAFC', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 4 }}>
-            Work Remark / Description
-          </div>
-          <div style={{ fontSize: '0.92rem', color: entry.workRemark ? '#1E293B' : '#94A3B8', fontStyle: entry.workRemark ? 'normal' : 'italic' }}>
-            {entry.workRemark || 'No remark provided for this work order.'}
-          </div>
-        </div>
-
-        {/* Assigned Labourers List (Only shown in Verification step) */}
-        {showLabourNames && (
-          <div className="card" style={{ marginBottom: 16, padding: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#0F172A' }}>
-                <Users size={18} color="#059669" />
-                <span>Assigned Labourers ({labourCount} {labourCount === 1 ? 'Person' : 'Persons'})</span>
+          {/* Work Details Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-5">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Shift & Date
+              </div>
+              <div className="font-bold text-base text-slate-900">
+                {formatDate(entry.date)}
+              </div>
+              <div className="text-sm text-indigo-600 font-semibold">
+                {entry.shift || '-'}
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-              {labourersList.map((name, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 8,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    boxShadow: 'var(--shadow-sm)'
-                  }}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Firm Name
+              </div>
+              <div className="font-bold text-base text-slate-900">
+                {entry.firmName || '-'}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Supervisor / Incharge
+              </div>
+              <div className="font-bold text-base text-slate-900">
+                {entry.incharge}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-3.5">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Work Activity
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-sm text-slate-900">
+                  {entry.work}
+                </span>
+                <span
+                  className={`text-[11px] font-bold px-1.5 py-0.5 rounded border ${
+                    isTonBasedWork(entry.work)
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-indigo-700 bg-indigo-50 border-indigo-200'
+                  }`}
                 >
-                  <span style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    background: '#ECFDF5',
-                    color: '#065F46',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    {idx + 1}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#1E293B' }}>
-                    {name}
-                  </span>
-                </div>
-              ))}
+                  {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                </span>
+              </div>
+              <div className="text-xs text-slate-500 mt-1">
+                {entry.hours} hrs &bull; {entry.qty} {isTonBasedWork(entry.work) ? 'Tons' : 'units'}
+              </div>
+            </div>
+
+            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-3.5">
+              <div className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-1">
+                Per Person Share
+              </div>
+              <div className="font-extrabold text-2xl text-emerald-700">
+                &#8377;{((Number(entry.totalAmount) || 0) / (labourCount || 1)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+            </div>
+
+            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-3.5">
+              <div className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider mb-1">
+                Total Payable Amount
+              </div>
+              <div className="font-extrabold text-2xl text-emerald-700">
+                &#8377;{Number(entry.totalAmount).toLocaleString('en-IN')}
+              </div>
             </div>
           </div>
-        )}
+
+          {/* Work Remark Display */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-4">
+            <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Work Remark / Description
+            </div>
+            <div className={`text-sm ${entry.workRemark ? 'text-slate-800' : 'text-slate-400 italic'}`}>
+              {entry.workRemark || 'No remark provided for this work order.'}
+            </div>
+          </div>
+
+          {/* Assigned Labourers List (Only shown in Verification step) */}
+          {showLabourNames && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 font-bold text-slate-900">
+                  <Users size={18} className="text-indigo-600" />
+                  <span>Assigned Labourers ({labourCount} {labourCount === 1 ? 'Person' : 'Persons'})</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {labourersList.map((name, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 flex items-center gap-2.5"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold text-sm text-slate-800">
+                      {name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Modal Footer */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-            <button onClick={onClose} className="btn btn-secondary">
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={onClose}
+              className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5"
+            >
               Close
             </button>
           </div>

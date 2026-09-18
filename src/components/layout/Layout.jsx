@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../common/ToastContainer';
+import { NewEntryModal } from '../common/NewEntryModal';
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -19,7 +20,7 @@ export function Layout() {
   };
 
   return (
-    <div className="app-layout">
+    <div className="h-screen flex bg-slate-50 overflow-hidden">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -27,7 +28,7 @@ export function Layout() {
         onToggleCollapse={toggleCollapse}
       />
 
-      <div className={`main-wrapper ${isCollapsed ? 'collapsed' : ''}`}>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar
           onToggleSidebar={() => {
             if (window.innerWidth <= 1024) {
@@ -39,12 +40,13 @@ export function Layout() {
           isCollapsed={isCollapsed}
           onToggleCollapse={toggleCollapse}
         />
-        <main className="main-content">
+        <main className="flex-1 min-w-0 overflow-hidden flex flex-col p-3 md:p-5">
           <Outlet />
         </main>
       </div>
 
       <ToastContainer />
+      <NewEntryModal />
     </div>
   );
 }

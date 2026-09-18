@@ -87,7 +87,7 @@ export function AppProvider({ children }) {
             id: parsed.id || 'usr_admin',
             username: parsed.username || 'admin',
             role: parsed.role || 'admin',
-            displayName: parsed.displayName || parsed.name || 'Administrator',
+            displayName: parsed.displayName || parsed.name || 'Admin',
             assignedFirms: Array.isArray(parsed.assignedFirms) ? parsed.assignedFirms : ['*'],
             permissions: (Array.isArray(parsed.permissions) && parsed.permissions.length > 0)
               ? parsed.permissions
@@ -105,6 +105,10 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [toasts, setToasts] = useState([]);
+  const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
+
+  const openNewEntry = useCallback(() => setIsNewEntryOpen(true), []);
+  const closeNewEntry = useCallback(() => setIsNewEntryOpen(false), []);
 
   // Toast helper
   const showToast = useCallback((message, type = 'success') => {
@@ -797,7 +801,10 @@ export function AppProvider({ children }) {
     updateMaster,
     editWorkRemark,
     refreshData,
-    resetDemo
+    resetDemo,
+    isNewEntryOpen,
+    openNewEntry,
+    closeNewEntry
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

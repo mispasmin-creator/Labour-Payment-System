@@ -58,49 +58,50 @@ export function ReportsPage() {
   };
 
   return (
-    <div>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
       {/* Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            Reports & Data Export Center
-          </h1>
+      <div className="flex items-center justify-between flex-wrap gap-3.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <FileSpreadsheet size={20} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800">Reports & Data Export Center</h1>
+            <p className="text-xs text-slate-500">{filtered.length} records matching current filters</p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="flex gap-2 flex-wrap items-center">
           <button
             onClick={() => navigate('/reports/incharge-wise')}
-            className="btn btn-primary btn-sm"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-              boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)',
-              fontWeight: 800
-            }}
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
             title="Open Dedicated Incharge Wise Labour MIS Analytics & Report"
           >
             <Users size={16} />
-            <span>👥 Incharge Wise Report</span>
+            <span>Incharge Wise Report</span>
           </button>
 
           <button
             onClick={refreshData}
             disabled={syncing}
-            className="btn btn-outline-green btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             title="Sync Data"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
             <span>{syncing ? 'Syncing...' : 'Sync Data'}</span>
           </button>
 
-          <button onClick={handleExportEntrySheet} className="btn btn-outline-green btn-sm">
+          <button
+            onClick={handleExportEntrySheet}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+          >
             <Download size={14} />
             <span>Entry Sheet CSV</span>
           </button>
-          <button onClick={handleExportFMSSheet} className="btn btn-secondary btn-sm">
+          <button
+            onClick={handleExportFMSSheet}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+          >
             <Download size={14} />
             <span>FMS Sheet CSV</span>
           </button>
@@ -108,32 +109,32 @@ export function ReportsPage() {
       </div>
 
       {/* Filter Control Box */}
-      <div className="card" style={{ marginBottom: 24, padding: '16px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, alignItems: 'flex-end' }}>
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-4 shrink-0">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3.5 items-end">
           <div>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Date From</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Date From</label>
             <input
               type="date"
-              className="form-input"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Date To</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Date To</label>
             <input
               type="date"
-              className="form-input"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
             />
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Firm Name</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Firm Name</label>
             <select
-              className="form-select"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
               value={firmFilter}
               onChange={e => setFirmFilter(e.target.value)}
             >
@@ -145,9 +146,9 @@ export function ReportsPage() {
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Supervisor / Incharge</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Supervisor / Incharge</label>
             <select
-              className="form-select"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
               value={inchargeFilter}
               onChange={e => setInchargeFilter(e.target.value)}
             >
@@ -159,9 +160,9 @@ export function ReportsPage() {
           </div>
 
           <div>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Status / Stage</label>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Status / Stage</label>
             <select
-              className="form-select"
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
             >
@@ -177,8 +178,7 @@ export function ReportsPage() {
           <div>
             <button
               onClick={() => { setDateFrom(''); setDateTo(''); setFirmFilter(''); setInchargeFilter(''); setStatusFilter(''); }}
-              className="btn btn-secondary"
-              style={{ width: '100%' }}
+              className="w-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2.5 transition-colors"
             >
               Clear Filters
             </button>
@@ -187,136 +187,126 @@ export function ReportsPage() {
       </div>
 
       {/* Summary KPI Ribbon for filtered results */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Work Entries</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginTop: 2 }}>{filtered.length}</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4 shrink-0">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4.5 py-3.5">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Work Entries</div>
+          <div className="text-2xl font-extrabold text-slate-900 mt-0.5">{filtered.length}</div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Amount</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#059669', marginTop: 2 }}>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4.5 py-3.5">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Amount</div>
+          <div className="text-2xl font-extrabold text-emerald-600 mt-0.5">
             ₹{totalFilteredAmount.toLocaleString('en-IN')}
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Total Labourers</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#047857', marginTop: 2 }}>
-            {totalFilteredLabourers} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>persons</span>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4.5 py-3.5">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Labourers</div>
+          <div className="text-2xl font-extrabold text-emerald-700 mt-0.5">
+            {totalFilteredLabourers} <span className="text-sm font-semibold text-slate-500">persons</span>
           </div>
         </div>
 
-        <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '14px 18px', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Completed Orders</div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10B981', marginTop: 2 }}>
-            {completedCount} <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748B' }}>completed</span>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4.5 py-3.5">
+          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Completed Orders</div>
+          <div className="text-2xl font-extrabold text-emerald-500 mt-0.5">
+            {completedCount} <span className="text-sm font-semibold text-slate-500">completed</span>
           </div>
         </div>
       </div>
 
       {/* Report Table */}
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Work ID</th>
-              <th>Date</th>
-              <th>Shift</th>
-              <th>Firm</th>
-              <th>Incharge</th>
-              <th>Work Type</th>
-              <th>Work Hours</th>
-              <th>Qty / Output</th>
-              <th>Labourers</th>
-              <th>Per Person Amount</th>
-              <th>Total Amount</th>
-              <th>Work Remark</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={13} style={{ textAlign: 'center', padding: '32px', color: '#64748B' }}>
-                  No records match your filter criteria.
-                </td>
+      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work ID</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Date</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Shift</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Incharge</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Type</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Hours</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Qty / Output</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Labourers</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Per Person Amount</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Total Amount</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Remark</th>
+                <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Status</th>
               </tr>
-            ) : (
-              filtered.map(item => {
-                const count = Number(item.labourCount) || 1;
-                const total = Number(item.totalAmount) || 0;
-                const perPerson = count > 0 ? (total / count) : 0;
-                return (
-                  <tr key={item.workId}>
-                    <td>
-                      <span className="work-id-badge">{item.workId}</span>
-                    </td>
-                    <td>{formatDate(item.date)}</td>
-                    <td>{item.shift || '-'}</td>
-                    <td>
-                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                        {item.firmName || '-'}
-                      </span>
-                    </td>
-                    <td>{item.incharge}</td>
-                    <td>
-                      <div style={{ maxWidth: 200 }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
-                          {item.work}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={13} className="text-center py-8 text-slate-500 text-sm">
+                    No records match your filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map(item => {
+                  const count = Number(item.labourCount) || 1;
+                  const total = Number(item.totalAmount) || 0;
+                  const perPerson = count > 0 ? (total / count) : 0;
+                  return (
+                    <tr key={item.workId} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{item.workId}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{formatDate(item.date)}</td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{item.shift || '-'}</td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-slate-100 text-slate-600 border-slate-200">
+                          {item.firmName || '-'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap">{item.incharge}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="max-w-[200px]">
+                          <div className="font-bold text-slate-900 text-sm">
+                            {item.work}
+                          </div>
+                          <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(item.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                            {isTonBasedWork(item.work) ? 'Per Ton' : 'Per Person'}
+                          </div>
                         </div>
-                        <div style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: isTonBasedWork(item.work) ? '#059669' : '#2563EB',
-                          marginTop: 2
-                        }}>
-                          {isTonBasedWork(item.work) ? '⚖️ Per Ton' : '👤 Per Person'}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-600 whitespace-nowrap text-xs">
+                          {item.hours ? `${item.hours} hrs` : '-'}
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {item.hours ? `${item.hours} hrs` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {item.qty !== undefined && item.qty !== '' ? `${item.qty} ${isTonBasedWork(item.work) ? 'MT' : 'units'}` : '-'}
-                      </div>
-                    </td>
-                    <td>{item.labourCount}</td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#059669' }}>
-                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0F172A' }}>
-                        ₹{total.toLocaleString('en-IN')}
-                      </div>
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          maxWidth: 160,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          color: item.workRemark ? '#334155' : '#94A3B8',
-                          fontStyle: item.workRemark ? 'normal' : 'italic'
-                        }}
-                        title={item.workRemark || 'No remark'}
-                      >
-                        {item.workRemark || '-'}
-                      </div>
-                    </td>
-                    <td><StatusBadge status={item.status} /></td>
-                  </tr>
-                );
-              }))}
-          </tbody>
-        </table>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-900 whitespace-nowrap text-xs">
+                          {item.qty !== undefined && item.qty !== '' ? `${item.qty} ${isTonBasedWork(item.work) ? 'MT' : 'units'}` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 text-right">{item.labourCount}</td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-bold text-emerald-600 text-xs">
+                          ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-bold text-slate-900 text-xs">
+                          ₹{total.toLocaleString('en-IN')}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div
+                          className={`max-w-[160px] whitespace-nowrap overflow-hidden text-ellipsis text-xs ${item.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
+                          title={item.workRemark || 'No remark'}
+                        >
+                          {item.workRemark || '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5"><StatusBadge status={item.status} /></td>
+                    </tr>
+                  );
+                }))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

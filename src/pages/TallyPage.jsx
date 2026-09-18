@@ -89,41 +89,49 @@ export function TallyPage() {
   };
 
   return (
-    <div>
+    <div className="h-full flex flex-col bg-slate-50 space-y-4">
       {/* Title */}
-      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0F172A' }}>
-            Tally Entry
-          </h1>
+      <div className="flex items-center justify-between flex-wrap gap-3.5 shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+            <FileCheck2 size={20} />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-slate-800">Tally Entry</h1>
+            <p className="text-xs text-slate-500">{pendingTally.length} paid orders awaiting tally voucher</p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+        <div className="flex gap-3">
+          <div className="bg-white px-4.5 py-2.5 rounded-xl border border-slate-200 shadow-2xs text-right">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Pending Tally
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#D97706' }}>
-              ₹{totalAmountPendingTally.toLocaleString('en-IN')} <span style={{ fontSize: '0.8rem', color: '#64748B' }}>({pendingTally.length})</span>
+            <div className="text-xl font-extrabold text-amber-600">
+              ₹{totalAmountPendingTally.toLocaleString('en-IN')} <span className="text-xs font-semibold text-slate-500">({pendingTally.length})</span>
             </div>
           </div>
 
-          <div style={{ background: '#FFFFFF', padding: '10px 18px', borderRadius: 12, border: '1px solid #E2E8F0', boxShadow: 'var(--shadow-sm)', textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+          <div className="bg-white px-4.5 py-2.5 rounded-xl border border-slate-200 shadow-2xs text-right">
+            <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               Tallied History
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#059669' }}>
-              ₹{totalHistoryTallied.toLocaleString('en-IN')} <span style={{ fontSize: '0.8rem', color: '#64748B' }}>({historyTally.length})</span>
+            <div className="text-xl font-extrabold text-emerald-600">
+              ₹{totalHistoryTallied.toLocaleString('en-IN')} <span className="text-xs font-semibold text-slate-500">({historyTally.length})</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid #E2E8F0', paddingBottom: 10 }}>
+      <div className="flex gap-2.5 border-b border-slate-200 pb-2.5 shrink-0">
         <button
           onClick={() => setActiveTab('pending')}
-          className={`btn ${activeTab === 'pending' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold px-4 py-2 transition-colors ${
+            activeTab === 'pending'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
         >
           <ListFilter size={15} />
           <span>Pending Tally Posting Queue ({pendingTally.length})</span>
@@ -131,7 +139,11 @@ export function TallyPage() {
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'} btn-sm`}
+          className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold px-4 py-2 transition-colors ${
+            activeTab === 'history'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+          }`}
         >
           <History size={15} />
           <span>Tally Completed History ({historyTally.length})</span>
@@ -139,22 +151,21 @@ export function TallyPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="filter-bar">
-        <div className="search-input-wrap">
-          <Search size={18} />
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center gap-3 shrink-0">
+        <div className="relative flex-1 min-w-[220px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            className="form-input"
+            className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
             placeholder={activeTab === 'pending' ? "Search paid orders by Work ID, Supervisor, Firm..." : "Search tally history, voucher number, Firm..."}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-3 flex-wrap">
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 140 }}
+            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all min-w-[140px]"
             value={firmFilter}
             onChange={e => setFirmFilter(e.target.value)}
           >
@@ -165,8 +176,7 @@ export function TallyPage() {
           </select>
 
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: 160 }}
+            className="px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all min-w-[160px]"
             value={inchargeFilter}
             onChange={e => setInchargeFilter(e.target.value)}
           >
@@ -180,156 +190,146 @@ export function TallyPage() {
 
       {/* Table */}
       {filteredEntries.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-state-icon" style={{ background: '#ECFDF5', color: '#059669' }}>
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-2xs py-16">
+          <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
             <FileCheck2 size={32} />
           </div>
-          <h3 className="empty-state-title">
+          <h3 className="text-base font-bold text-slate-800">
             {activeTab === 'pending' ? 'No Entries Pending Tally Voucher' : 'No Tally History Yet'}
           </h3>
-          <p className="empty-state-desc">
+          <p className="text-sm text-slate-500 mt-1 text-center max-w-md">
             {activeTab === 'pending'
               ? 'All paid work orders have been tallied and accounting is 100% complete!'
               : 'Tallied vouchers will appear here.'}
           </p>
         </div>
       ) : (
-        <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Work ID</th>
-                <th>Date</th>
-                <th>Shift</th>
-                <th>Firm</th>
-                <th>Supervisor</th>
-                <th>Work Activity</th>
-                <th>Work Hours</th>
-                <th>Qty / Output</th>
-                <th>Labourers</th>
-                <th>Per Person Amount</th>
-                <th>Total Amount</th>
-                <th>Work Remark</th>
-                {activeTab === 'history' && <th>Current Status</th>}
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEntries.map(entry => {
-                const count = Number(entry.labourCount) || 1;
-                const total = Number(entry.totalAmount) || 0;
-                const perPerson = count > 0 ? (total / count) : 0;
-                return (
-                  <tr key={entry.workId}>
-                    <td>
-                      <span className="work-id-badge">{entry.workId}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>{formatDate(entry.date)}</div>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>{entry.shift || '-'}</span>
-                    </td>
-                    <td>
-                      <span className="badge" style={{ background: '#F1F5F9', color: '#334155', fontWeight: 600, fontSize: '0.78rem' }}>
-                        {entry.firmName || '-'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{entry.incharge}</div>
-                    </td>
-                    <td>
-                      <div style={{ maxWidth: 200 }}>
-                        <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.9rem' }}>
-                          {entry.work}
-                        </div>
-                        <div style={{
-                          fontSize: '0.72rem',
-                          fontWeight: 700,
-                          color: isTonBasedWork(entry.work) ? '#059669' : '#2563EB',
-                          marginTop: 2
-                        }}>
-                          {isTonBasedWork(entry.work) ? '⚖️ Per Ton' : '👤 Per Person'}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: '#334155', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.hours ? `${entry.hours} hrs` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', fontSize: '0.88rem' }}>
-                        {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
-                      </div>
-                    </td>
-                    <td>
-                      <span style={{ fontWeight: 700, color: '#059669' }}>{entry.labourCount}</span> pers
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 700, color: '#059669', fontSize: '0.92rem' }}>
-                        ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 800, color: '#059669', fontSize: '0.95rem' }}>
-                        ₹{total.toLocaleString('en-IN')}
-                      </div>
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          maxWidth: 160,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          color: entry.workRemark ? '#334155' : '#94A3B8',
-                          fontStyle: entry.workRemark ? 'normal' : 'italic'
-                        }}
-                        title={entry.workRemark || 'No remark'}
-                      >
-                        {entry.workRemark || '-'}
-                      </div>
-                    </td>
-                    {activeTab === 'history' && (
-                      <td>
-                        <StatusBadge status={entry.status} />
+        <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+          <div className="overflow-x-auto overflow-y-auto flex-1">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work ID</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Shift</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Supervisor</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Activity</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Hours</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Qty / Output</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Labourers</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Per Person Amount</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap text-right">Total Amount</th>
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work Remark</th>
+                  {activeTab === 'history' && <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Current Status</th>}
+                  <th className="px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredEntries.map(entry => {
+                  const count = Number(entry.labourCount) || 1;
+                  const total = Number(entry.totalAmount) || 0;
+                  const perPerson = count > 0 ? (total / count) : 0;
+                  return (
+                    <tr key={entry.workId} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-2.5">
+                        <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>
                       </td>
-                    )}
-                    <td>
-                      {activeTab === 'pending' ? (
-                        canTally ? (
-                          <button
-                            onClick={() => handleOpenTallyModal(entry)}
-                            className="btn btn-success btn-sm"
-                          >
-                            <BookOpen size={14} />
-                            <span>Submit Tally</span>
-                          </button>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-800 whitespace-nowrap text-xs">{formatDate(entry.date)}</div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs text-slate-600 font-medium whitespace-nowrap">{entry.shift || '-'}</span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-slate-100 text-slate-600 border-slate-200">
+                          {entry.firmName || '-'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="text-xs text-slate-600 font-medium">{entry.incharge}</div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="max-w-[200px]">
+                          <div className="font-bold text-slate-900 text-sm">
+                            {entry.work}
+                          </div>
+                          <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                            {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-slate-600 whitespace-nowrap text-xs">
+                          {entry.hours ? `${entry.hours} hrs` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-bold text-slate-900 whitespace-nowrap text-xs">
+                          {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}` : '-'}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <span className="font-bold text-emerald-600 text-xs">{entry.labourCount}</span>{' '}<span className="text-xs text-slate-500">pers</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-bold text-emerald-600 text-xs">
+                          ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="font-extrabold text-emerald-600 text-sm">
+                          ₹{total.toLocaleString('en-IN')}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div
+                          className={`max-w-[160px] whitespace-nowrap overflow-hidden text-ellipsis text-xs ${entry.workRemark ? 'text-slate-600' : 'text-slate-400 italic'}`}
+                          title={entry.workRemark || 'No remark'}
+                        >
+                          {entry.workRemark || '-'}
+                        </div>
+                      </td>
+                      {activeTab === 'history' && (
+                        <td className="px-3 py-2.5">
+                          <StatusBadge status={entry.status} />
+                        </td>
+                      )}
+                      <td className="px-3 py-2.5">
+                        {activeTab === 'pending' ? (
+                          canTally ? (
+                            <button
+                              onClick={() => handleOpenTallyModal(entry)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 hover:bg-teal-700 text-white"
+                            >
+                              <BookOpen size={14} />
+                              <span>Submit Tally</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setTimelineWorkId(entry.workId)}
+                              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                            >
+                              <Eye size={14} />
+                              <span>View</span>
+                            </button>
+                          )
                         ) : (
                           <button
                             onClick={() => setTimelineWorkId(entry.workId)}
-                            className="btn btn-outline-green btn-sm"
+                            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
                           >
                             <Eye size={14} />
-                            <span>View</span>
+                            <span>Details</span>
                           </button>
-                        )
-                      ) : (
-                        <button
-                          onClick={() => setTimelineWorkId(entry.workId)}
-                          className="btn btn-outline-green btn-sm"
-                        >
-                          <Eye size={14} />
-                          <span>Details</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -342,64 +342,64 @@ export function TallyPage() {
       >
         {selectedEntry && (
           <form onSubmit={handleConfirmTally}>
-            <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '16px', border: '1px solid #E2E8F0', marginBottom: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 mb-5">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Work ID:</span>
-                  <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedEntry.workId}</div>
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Work ID:</span>
+                  <div className="font-bold text-slate-900">{selectedEntry.workId}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Date:</span>
-                  <div style={{ fontWeight: 600 }}>{formatDate(selectedEntry.date)}</div>
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Date:</span>
+                  <div className="font-semibold text-slate-800">{formatDate(selectedEntry.date)}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Shift / Firm:</span>
-                  <div style={{ fontWeight: 600 }}>{selectedEntry.shift || '-'} • {selectedEntry.firmName || '-'}</div>
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Shift / Firm:</span>
+                  <div className="font-semibold text-slate-800">{selectedEntry.shift || '-'} • {selectedEntry.firmName || '-'}</div>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Supervisor:</span>
-                  <div style={{ fontWeight: 600 }}>{selectedEntry.incharge}</div>
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Supervisor:</span>
+                  <div className="font-semibold text-slate-800">{selectedEntry.incharge}</div>
                 </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Work Remark:</span>
-                  <div style={{ color: selectedEntry.workRemark ? '#0F172A' : '#94A3B8', fontWeight: selectedEntry.workRemark ? 600 : 400, fontStyle: selectedEntry.workRemark ? 'normal' : 'italic' }}>
+                <div className="col-span-2">
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Work Remark:</span>
+                  <div className={selectedEntry.workRemark ? 'text-slate-900 font-semibold' : 'text-slate-400 italic'}>
                     {selectedEntry.workRemark || 'No remark provided'}
                   </div>
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center">
                 <div>
-                  <span style={{ fontSize: '0.75rem', color: '#64748B', textTransform: 'uppercase', fontWeight: 700 }}>Activity & Headcount:</span>
-                  <div style={{ fontWeight: 600, color: '#1E293B' }}>
+                  <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Activity & Headcount:</span>
+                  <div className="font-semibold text-slate-800">
                     {selectedEntry.work}{' '}
-                    <span style={{ fontSize: '0.78rem', color: isTonBasedWork(selectedEntry.work) ? '#059669' : '#2563EB', fontWeight: 700 }}>
-                      ({isTonBasedWork(selectedEntry.work) ? '⚖️ Per Ton' : '👤 Per Person'})
+                    <span className={`text-xs font-bold ${isTonBasedWork(selectedEntry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                      ({isTonBasedWork(selectedEntry.work) ? 'Per Ton' : 'Per Person'})
                     </span>{' '}
                     • {selectedEntry.labourCount} persons
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#065F46', textTransform: 'uppercase', fontWeight: 700 }}>Total Amount:</span>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#047857' }}>
+                <div className="text-right">
+                  <span className="text-xs text-emerald-800 uppercase font-bold tracking-wider">Total Amount:</span>
+                  <div className="text-2xl font-extrabold text-emerald-700">
                     ₹{Number(selectedEntry.totalAmount).toLocaleString('en-IN')}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setSelectedEntry(null)}
-                className="btn btn-secondary"
+                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold px-4 py-2 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="btn btn-success"
+                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
