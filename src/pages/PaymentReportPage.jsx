@@ -485,13 +485,74 @@ export function PaymentReportPage() {
                 </div>
               </div>
             </div>
+
+            {/* View / Print Selection Tabs */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mt-3 gap-2 flex-wrap no-print">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveReportTab('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeReportTab === 'all'
+                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Layers size={13} />
+                  <span>Dono Reports (Alag Alag Page)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveReportTab('work_type')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeReportTab === 'work_type'
+                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Briefcase size={13} />
+                  <span>Sirf Work Type</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveReportTab('labour_wise')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeReportTab === 'labour_wise'
+                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Users size={13} />
+                  <span>Sirf Labour Wise</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveReportTab('date_wise')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    activeReportTab === 'date_wise'
+                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Calendar size={13} />
+                  <span>Sirf Date Wise</span>
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 font-medium">
+                {activeReportTab === 'all' && '🖨️ Print: Page 1 = Work Type, Page 2 = Labour Wise'}
+                {activeReportTab === 'work_type' && '🖨️ Print: Sirf Work Type Report print hoga'}
+                {activeReportTab === 'labour_wise' && '🖨️ Print: Sirf Labour Wise Report print hoga'}
+                {activeReportTab === 'date_wise' && '🖨️ Print: Sirf Date Wise Report print hoga'}
+              </div>
+            </div>
           </div>
 
           {/* ============================================================
               SHEET 1: WORK TYPE REPORT
               ============================================================ */}
           {showWorkType && (
-            <div className="report-sheet work-type-sheet">
+            <div className={`report-sheet work-type-sheet ${showLabourWise || showDateWise ? 'sheet-page-break-after' : ''}`}>
               {/* Print Header for Sheet 1 */}
               <div className="print-document-header hidden mb-2.5">
                 <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-2.5">
@@ -532,9 +593,23 @@ export function PaymentReportPage() {
                       Work Type Report
                     </h2>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {workTypeReport.length} Work Types
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {workTypeReport.length} Work Types
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveReportTab('work_type');
+                        setTimeout(() => window.print(), 80);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-2xs transition-colors"
+                      title="Sirf Work Type Report print karein"
+                    >
+                      <Printer size={12} />
+                      <span>Print This Page</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="table-responsive report-scroll-container overflow-x-auto overflow-y-auto max-h-[560px]">
@@ -633,7 +708,7 @@ export function PaymentReportPage() {
               SHEET 2: LABOUR WISE REPORT (FORCED PAGE BREAK IN PRINT)
               ============================================================ */}
           {showLabourWise && (
-            <div className={`report-sheet labour-sheet ${activeReportTab === 'all' ? 'sheet-page-break' : ''}`}>
+            <div className={`report-sheet labour-sheet ${showWorkType ? 'sheet-page-break' : ''}`}>
               {/* Print Header for Sheet 2 */}
               <div className="print-document-header hidden mb-2.5">
                 <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-2.5">
@@ -674,9 +749,23 @@ export function PaymentReportPage() {
                       Labour Wise Report
                     </h2>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {labourWiseReport.length} Labourers
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {labourWiseReport.length} Labourers
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveReportTab('labour_wise');
+                        setTimeout(() => window.print(), 80);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-2xs transition-colors"
+                      title="Sirf Labour Wise Report print karein"
+                    >
+                      <Printer size={12} />
+                      <span>Print This Page</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="table-responsive report-scroll-container overflow-x-auto overflow-y-auto max-h-[560px]">
@@ -767,7 +856,7 @@ export function PaymentReportPage() {
               SHEET 3: DATE WISE REPORT (FORCED PAGE BREAK IN PRINT)
               ============================================================ */}
           {showDateWise && (
-            <div className={`report-sheet date-sheet ${activeReportTab === 'all' ? 'sheet-page-break' : ''}`}>
+            <div className={`report-sheet date-sheet ${(showWorkType || showLabourWise) ? 'sheet-page-break' : ''}`}>
               {/* Print Header for Sheet 3 */}
               <div className="print-document-header hidden mb-2.5">
                 <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2 mb-2.5">
@@ -808,9 +897,23 @@ export function PaymentReportPage() {
                       Date Wise Report
                     </h2>
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {dateWiseReport.length} {dateWiseReport.length === 1 ? 'Day' : 'Days'}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {dateWiseReport.length} {dateWiseReport.length === 1 ? 'Day' : 'Days'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveReportTab('date_wise');
+                        setTimeout(() => window.print(), 80);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-slate-200 px-2 py-1 rounded-md shadow-2xs transition-colors"
+                      title="Sirf Date Wise Report print karein"
+                    >
+                      <Printer size={12} />
+                      <span>Print This Page</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="table-responsive report-scroll-container overflow-x-auto overflow-y-auto max-h-[560px]">
