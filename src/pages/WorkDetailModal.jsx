@@ -17,6 +17,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
 import { printWorkSlip } from '../utils/exportUtils';
 import { isTonBasedWork } from '../utils/workTypes';
+import { sanitizeLabourersList } from '../services/api';
 import WorkSlipPreviewModal from './WorkSlipPreviewModal';
 
 export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
@@ -60,9 +61,10 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
   // Fallback to master names if count exists
   const targetCount = Number(entry.labourCount) || (labourersList.length > 0 ? labourersList.length : 1);
   if (labourersList.length === 0 && targetCount > 0) {
-    const masterList = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
+    const rawMaster = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
       ? masterData.labourers
       : ['Dinesh Das Vaishnav', 'Durgesh Kumar', 'Dhanesh Nishad', 'Mahendra Nishad'];
+    const masterList = sanitizeLabourersList(rawMaster);
     labourersList = masterList.slice(0, targetCount);
   }
 

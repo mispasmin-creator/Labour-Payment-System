@@ -298,14 +298,16 @@ export async function fetchAllData() {
 
         const mergedEntries = reconcileRemoteWithLocal(cleanedEntries, freshLocal);
 
+        const sanitizedMaster = json.master ? sanitizeMasterData(json.master) : null;
+
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(mergedEntries));
-          if (json.master) localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(json.master));
+          if (sanitizedMaster) localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(sanitizedMaster));
           if (json.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(json.users));
         }
         return {
           entries: mergedEntries,
-          master: json.master,
+          master: sanitizedMaster,
           users: json.users
         };
       }
@@ -314,6 +316,87 @@ export async function fetchAllData() {
     console.warn('Unified getAllData fetch failed or timed out:', e.message);
   }
   return null;
+}
+
+/**
+ * Sanitize, split comma/newline-separated names, deduplicate (case-insensitive) & sort labourers list
+ * Specifically parses Master Sheet Col B data into clean individual names
+ */
+export function sanitizeLabourersList(rawLabourers) {
+  if (!rawLabourers || !Array.isArray(rawLabourers)) return [];
+  const seen = new Set();
+  const list = [];
+
+  for (const item of rawLabourers) {
+    if (!item) continue;
+    // Split entries that have multiple names separated by comma, newline, pipe or slash
+    const parts = String(item).split(/[,|\n\r/]+/);
+    for (const part of parts) {
+      const trimmed = part.trim().replace(/\s+/g, ' ');
+      if (!trimmed || trimmed.length < 2) continue;
+      const lower = trimmed.toLowerCase();
+      // Filter out generic header words
+      if (
+        lower === 'labour' ||
+        lower === 'labours' ||
+        lower === 'labourer' ||
+        lower === 'labourers' ||
+        lower === 'labour names' ||
+        lower === 'labour name' ||
+        lower === 'name' ||
+        lower === 'names'
+      ) {
+        continue;
+      }
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        list.push(trimmed);
+      }
+    }
+  }
+
+  return list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+/**
+ * Sanitize all Master Sheet data fields
+ */
+export function sanitizeMasterData(master) {
+  if (!master) return master;
+
+  // Sanitize labourers from Master Sheet Col B
+  const rawLabourers = Array.isArray(master.labourers) ? master.labourers : [];
+  const cleanLabourers = sanitizeLabourersList(rawLabourers);
+
+  // Sanitize incharges from Master Sheet Col A
+  const seenInc = new Set();
+  const cleanIncharges = [];
+  const rawIncharges = Array.isArray(master.incharges) ? master.incharges : [];
+  for (const inc of rawIncharges) {
+    const trimmed = String(inc || '').trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (lower === 'incharge' || lower === 'incharges' || lower === 'incharge names') continue;
+    if (!seenInc.has(lower)) {
+      seenInc.add(lower);
+      cleanIncharges.push(trimmed);
+    }
+  }
+
+  // Sanitize workTypes
+  const rawWorks = Array.isArray(master.workTypes) ? master.workTypes : [];
+  const validWorkTypes = rawWorks.filter(
+    w => !(typeof w === 'string' ? w : w?.name || '').toLowerCase().startsWith('shift')
+  );
+
+  return {
+    ...master,
+    incharges: cleanIncharges.length > 0 ? cleanIncharges : INITIAL_MASTER_DATA.incharges,
+    labourers: cleanLabourers.length > 0 ? cleanLabourers : INITIAL_MASTER_DATA.labourers,
+    shifts: Array.isArray(master.shifts) && master.shifts.length > 0 ? master.shifts : INITIAL_MASTER_DATA.shifts,
+    workTypes: validWorkTypes.length > 0 ? validWorkTypes : INITIAL_MASTER_DATA.workTypes,
+    firmNames: Array.isArray(master.firmNames) && master.firmNames.length > 0 ? master.firmNames : INITIAL_MASTER_DATA.firmNames
+  };
 }
 
 /**
@@ -329,20 +412,10 @@ export async function fetchMasterData() {
       if (response.ok) {
         const json = await response.json();
         if (json && (json.incharges || json.labourers)) {
-          // Sanitize workTypes so Shift 1..4 is not mistaken for work type
-          const validWorkTypes = (json.workTypes || []).filter(
-            w => !(typeof w === 'string' ? w : w.name).toLowerCase().startsWith('shift')
-          );
-
-          const sanitized = {
-            incharges: json.incharges && json.incharges.length > 0 ? json.incharges : INITIAL_MASTER_DATA.incharges,
-            labourers: json.labourers && json.labourers.length > 0 ? json.labourers : INITIAL_MASTER_DATA.labourers,
-            shifts: (json.shifts && json.shifts.length > 0) ? json.shifts : INITIAL_MASTER_DATA.shifts,
-            workTypes: validWorkTypes.length > 0 ? validWorkTypes : INITIAL_MASTER_DATA.workTypes,
-            firmNames: (json.firmNames && json.firmNames.length > 0) ? json.firmNames : INITIAL_MASTER_DATA.firmNames
-          };
-
-          localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(sanitized));
+          const sanitized = sanitizeMasterData(json);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem(STORAGE_KEYS.MASTER, JSON.stringify(sanitized));
+          }
           return sanitized;
         }
       }
@@ -351,20 +424,11 @@ export async function fetchMasterData() {
     }
   }
 
-
   // Fallback to local storage
   initLocalStorage();
-  const raw = localStorage.getItem(STORAGE_KEYS.MASTER);
+  const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.MASTER) : null;
   const parsed = raw ? JSON.parse(raw) : INITIAL_MASTER_DATA;
-  return {
-    incharges: parsed.incharges && parsed.incharges.length > 0 ? parsed.incharges : INITIAL_MASTER_DATA.incharges,
-    labourers: parsed.labourers && parsed.labourers.length > 0 ? parsed.labourers : INITIAL_MASTER_DATA.labourers,
-    shifts: parsed.shifts && parsed.shifts.length > 0 ? parsed.shifts : INITIAL_MASTER_DATA.shifts,
-    workTypes: (parsed.workTypes && parsed.workTypes.filter(w => !(typeof w === 'string' ? w : w.name).toLowerCase().startsWith('shift')).length > 0)
-      ? parsed.workTypes.filter(w => !(typeof w === 'string' ? w : w.name).toLowerCase().startsWith('shift'))
-      : INITIAL_MASTER_DATA.workTypes,
-    firmNames: parsed.firmNames && parsed.firmNames.length > 0 ? parsed.firmNames : INITIAL_MASTER_DATA.firmNames
-  };
+  return sanitizeMasterData(parsed);
 }
 
 export async function sendToAppsScript(action, data) {

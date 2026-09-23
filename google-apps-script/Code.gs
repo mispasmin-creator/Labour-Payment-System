@@ -1159,25 +1159,80 @@
       }
     }
 
+    // Column B (index 1) is strictly the Labour Names column in the Master sheet
+    const targetLabourCol = 1;
+    const targetInchargeCol = (inchargeCol !== undefined && inchargeCol >= 0) ? inchargeCol : 0;
+
+    const seenLabourers = {};
+    const seenIncharges = {};
+
     for (let i = startRow; i < values.length; i++) {
       const row = values[i];
-      if (row[inchargeCol] && String(row[inchargeCol]).trim()) incharges.push(String(row[inchargeCol]).trim());
-      if (row[labourCol] && String(row[labourCol]).trim()) labourers.push(String(row[labourCol]).trim());
-      if (row[shiftCol] && String(row[shiftCol]).trim()) shifts.push(String(row[shiftCol]).trim());
-      if (row[workCol] && String(row[workCol]).trim()) {
-        workTypes.push({
-          name: String(row[workCol]).trim(),
-          defaultRate: Number(row[rateCol]) || 450
-        });
+
+      // Incharges (Col A - index 0)
+      if (row[targetInchargeCol] && String(row[targetInchargeCol]).trim()) {
+        const inc = String(row[targetInchargeCol]).trim();
+        const incLower = inc.toLowerCase();
+        if (!incLower.includes('incharge') && !seenIncharges[incLower]) {
+          seenIncharges[incLower] = true;
+          incharges.push(inc);
+        }
       }
+
+      // Labourers - strictly fetched from Master Sheet Column B
+      const labourCell = row[targetLabourCol];
+      if (labourCell && String(labourCell).trim()) {
+        const cellStr = String(labourCell).trim();
+        // Split if multiple names are comma-separated or newline-separated in one cell
+        const parts = cellStr.split(/[,|\n\r/]+/);
+        for (let p = 0; p < parts.length; p++) {
+          const lab = parts[p].trim().replace(/\s+/g, ' ');
+          if (!lab || lab.length < 2) continue;
+          const labLower = lab.toLowerCase();
+          if (
+            labLower !== 'labour' &&
+            labLower !== 'labours' &&
+            labLower !== 'labourer' &&
+            labLower !== 'labourers' &&
+            labLower !== 'labour names' &&
+            labLower !== 'labour name' &&
+            labLower !== 'name' &&
+            labLower !== 'names' &&
+            !seenLabourers[labLower]
+          ) {
+            seenLabourers[labLower] = true;
+            labourers.push(lab);
+          }
+        }
+      }
+
+      if (row[shiftCol] && String(row[shiftCol]).trim()) {
+        const sh = String(row[shiftCol]).trim();
+        if (!shifts.includes(sh)) shifts.push(sh);
+      }
+
+      if (row[workCol] && String(row[workCol]).trim()) {
+        const wName = String(row[workCol]).trim();
+        if (!wName.toLowerCase().startsWith('shift') && !workTypes.some(w => w.name.toLowerCase() === wName.toLowerCase())) {
+          workTypes.push({
+            name: wName,
+            defaultRate: Number(row[rateCol]) || 450
+          });
+        }
+      }
+
       if (row[firmCol] && String(row[firmCol]).trim()) {
-        firmNames.push(String(row[firmCol]).trim());
+        const fName = String(row[firmCol]).trim();
+        if (!firmNames.includes(fName)) firmNames.push(fName);
       }
     }
 
+    labourers.sort(function(a, b) { return a.localeCompare(b); });
+    incharges.sort(function(a, b) { return a.localeCompare(b); });
+
     return {
-      incharges,
-      labourers,
+      incharges: incharges.length > 0 ? incharges : [],
+      labourers: labourers.length > 0 ? labourers : [],
       shifts: shifts.length > 0 ? shifts : defaultShifts,
       workTypes: workTypes.length > 0 ? workTypes : defaultWorkTypes,
       firmNames: firmNames.length > 0 ? firmNames : defaultFirms,

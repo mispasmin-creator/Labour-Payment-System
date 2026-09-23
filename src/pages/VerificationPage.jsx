@@ -20,6 +20,7 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
 import { isTonBasedWork } from '../utils/workTypes';
+import { sanitizeLabourersList } from '../services/api';
 
 export const isEntryVerified = entry => {
   if (!entry) return false;
@@ -66,7 +67,7 @@ export function VerificationPage() {
 
     const count = Number(entry.labourCount) || (list.length > 0 ? list.length : 1);
     if (list.length === 0 && count > 0) {
-      const masterList = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
+      const rawMaster = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
         ? masterData.labourers
         : [
             'Dinesh Das Vaishnav',
@@ -80,6 +81,7 @@ export function VerificationPage() {
             'Girdhar Kumar Nishad',
             'Hitesh Kumar Nishad'
           ];
+      const masterList = sanitizeLabourersList(rawMaster);
       list = masterList.slice(0, count);
     }
     return list;

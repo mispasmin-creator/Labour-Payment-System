@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   PlusCircle,
   Trash2,
@@ -11,6 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { INITIAL_MASTER_DATA } from '../../utils/mockData';
 import { SearchableSelect } from './SearchableSelect';
 import { isTonBasedWork, DEFAULT_WORK_TYPES_LIST } from '../../utils/workTypes';
+import { sanitizeLabourersList } from '../../services/api';
 import { Modal } from './Modal';
 
 const DEFAULT_SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
@@ -33,8 +34,17 @@ function buildInitialFormData(activeFirms, inchargesList, activeWorks) {
 }
 
 export function NewEntryModal() {
-  const { isNewEntryOpen, closeNewEntry, masterData, createEntry, hasFirmAccess, canPerformAction } = useApp();
+  const { isNewEntryOpen, closeNewEntry, masterData, createEntry, hasFirmAccess, canPerformAction, refreshData } = useApp();
   const canCreate = canPerformAction('new_entry');
+
+  // If modal is opened and masterData has no labourers, fetch fresh data from sheet
+  useEffect(() => {
+    if (isNewEntryOpen && (!masterData?.labourers || masterData.labourers.length === 0)) {
+      if (typeof refreshData === 'function') {
+        refreshData();
+      }
+    }
+  }, [isNewEntryOpen, masterData?.labourers, refreshData]);
 
   // Safe parsed lists from masterData
   const inchargesList = Array.isArray(masterData?.incharges) && masterData.incharges.length > 0
@@ -60,9 +70,13 @@ export function NewEntryModal() {
     .filter(w => Boolean(w) && !w.toLowerCase().startsWith('shift'));
   const activeWorks = worksList.length > 0 ? worksList : DEFAULT_WORK_TYPES_LIST;
 
-  const availableLabourers = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
-    ? masterData.labourers.map(String).filter(Boolean)
-    : INITIAL_MASTER_DATA.labourers;
+  // Available Labourers fetched directly from Master Sheet Col B (sanitized, individual & deduplicated)
+  const availableLabourers = useMemo(() => {
+    const rawList = Array.isArray(masterData?.labourers) && masterData.labourers.length > 0
+      ? masterData.labourers
+      : INITIAL_MASTER_DATA.labourers;
+    return sanitizeLabourersList(rawList);
+  }, [masterData?.labourers]);
 
   const [formData, setFormData] = useState(() => buildInitialFormData(activeFirms, inchargesList, activeWorks));
   const [errors, setErrors] = useState({});
@@ -469,6 +483,7 @@ export function NewEntryModal() {
                         onChange={val => handleLabourNameChange(index, val)}
                         placeholder="-- Choose Labourer --"
                         searchPlaceholder="Search labourer..."
+                        allowCustom={true}
                         className="flex-1"
                       />
 

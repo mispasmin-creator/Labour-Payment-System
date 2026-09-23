@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search, X, Check } from 'lucide-react';
+import { ChevronDown, Search, X, Check, Plus } from 'lucide-react';
 
 /**
  * Modern, accessible, searchable select/combobox component
@@ -15,6 +15,7 @@ import { ChevronDown, Search, X, Check } from 'lucide-react';
  * @param {string} className - Additional CSS class name
  * @param {object} style - Inline styles for outer wrapper
  * @param {boolean} allowClear - Allow resetting the selection
+ * @param {boolean} allowCustom - Allow typing and selecting a custom value
  * @param {string} id - HTML ID
  */
 export function SearchableSelect({
@@ -29,6 +30,7 @@ export function SearchableSelect({
   className = '',
   style = {},
   allowClear = false,
+  allowCustom = false,
   id
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -166,6 +168,8 @@ export function SearchableSelect({
         e.preventDefault();
         if (highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
           handleSelect(filteredOptions[highlightedIndex].value);
+        } else if (allowCustom && searchQuery.trim()) {
+          handleSelect(searchQuery.trim());
         }
         break;
       case 'Escape':
@@ -265,6 +269,18 @@ export function SearchableSelect({
 
           {/* Options List */}
           <div ref={listRef} role="listbox" className="max-h-[220px] overflow-y-auto p-1">
+            {/* Custom Option if allowCustom is enabled */}
+            {allowCustom && searchQuery.trim() && !normalizedOptions.some(opt => opt.value.toLowerCase() === searchQuery.trim().toLowerCase()) && (
+              <div
+                role="option"
+                onClick={() => handleSelect(searchQuery.trim())}
+                className="flex items-center gap-2 px-3 py-2 rounded-md text-sm mb-1 cursor-pointer bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 font-semibold border border-indigo-200/60 transition-colors"
+              >
+                <Plus size={15} className="text-indigo-600 shrink-0" />
+                <span className="truncate">Add &ldquo;{searchQuery.trim()}&rdquo;</span>
+              </div>
+            )}
+
             {/* Optional "None / Empty" Option if placeholder was selected */}
             {placeholder && !searchQuery && (
               <div
@@ -280,7 +296,7 @@ export function SearchableSelect({
               </div>
             )}
 
-            {filteredOptions.length === 0 ? (
+            {filteredOptions.length === 0 && (!allowCustom || !searchQuery.trim()) ? (
               <div className="px-3 py-4 text-center text-sm text-slate-500">
                 No matching options found
               </div>
