@@ -12,12 +12,22 @@ import {
   Briefcase,
   Search,
   ReceiptText,
-  Layers
+  Layers,
+  Clock,
+  Eye,
+  RefreshCw,
+  CheckCheck,
+  Building2,
+  Check,
+  ListFilter,
+  History
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatINR, formatDate, parseDate } from '../utils/dateUtils';
+import { formatINR, formatDate, parseDate, formatDateTime } from '../utils/dateUtils';
 import { exportToCSV } from '../utils/exportUtils';
 import { getWorkTypeUnit, isTonBasedWork } from '../utils/workTypes';
+import { StatusBadge } from '../components/common/StatusBadge';
+import { WorkDetailModal } from './WorkDetailModal';
 
 // Date Helpers for Week Range
 function getMondayOfDate(d) {
@@ -43,10 +53,47 @@ function toISODate(d) {
   return `${year}-${month}-${day}`;
 }
 
-export function PaymentReportPage() {
-  const { entries, currentUser } = useApp();
+// Verification & Payment Checkers
+export const isEntryVerified = (e) => {
+  if (!e) return false;
+  const actual = String(e.verificationActual || '').trim();
+  const hasActual = Boolean(
+    actual &&
+    actual !== '-' &&
+    actual !== 'null' &&
+    actual !== 'undefined'
+  );
+  const statusLower = String(e.status || '').toLowerCase();
+  return hasActual || ['verified', 'approved', 'paid', 'tally'].some(s => statusLower.includes(s));
+};
 
-  // Default to Current Week (Monday to Sunday)
+export const isEntryPaid = (e) => {
+  if (!e) return false;
+  const actual = String(e.paymentActual || '').trim();
+  return Boolean(
+    actual &&
+    actual !== '-' &&
+    actual !== 'null' &&
+    actual !== 'undefined'
+  );
+};
+
+export function PaymentReportPage() {
+  const { entries, payEntry, syncing, refreshData, currentUser } = useApp();
+
+  // Primary Tab: 'pending' (Verification Queue waiting for mark done) vs 'report' (Payment Report)
+  const [mainTab, setMainTab] = useState('pending');
+  const [processingId, setProcessingId] = useState(null);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [timelineWorkId, setTimelineWorkId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  // Filters for Pending Tab
+  const [pendingSearch, setPendingSearch] = useState('');
+  const [pendingFirm, setPendingFirm] = useState('');
+  const [pendingIncharge, setPendingIncharge] = useState('');
+
+  // Default to Current Week (Monday to Sunday) for Report
   const initialMonday = useMemo(() => getMondayOfDate(new Date()), []);
   const initialSunday = useMemo(() => getSundayOfDate(initialMonday), [initialMonday]);
 
@@ -54,7 +101,7 @@ export function PaymentReportPage() {
   const [dateTo, setDateTo] = useState(toISODate(initialSunday));
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPreset, setSelectedPreset] = useState('This Week');
-  const [activeReportTab, setActiveReportTab] = useState('all'); // 'all' | 'work_type' | 'labour_wise'
+  const [activeReportTab, setActiveReportTab] = useState('all'); // 'all' | 'work_type' | 'labour_wise' | 'date_wise'
 
   // Navigate Weeks (Previous / Next)
   const handleShiftWeek = (offsetWeeks) => {
@@ -96,22 +143,130 @@ export function PaymentReportPage() {
     }
   };
 
-  // Check if entry is verified (must have recorded verification timestamp)
-  const isEntryVerified = (e) => {
-    if (!e) return false;
-    return Boolean(
-      e.verificationActual &&
-      e.verificationActual !== '-' &&
-      e.verificationActual !== 'null' &&
-      String(e.verificationActual).trim() !== ''
+  // 1. Pending Verification Data (Waiting for Payment Mark Done)
+  const pendingPaymentEntries = useMemo(() => {
+    return (entries || []).filter(e => isEntryVerified(e) && !isEntryPaid(e));
+  }, [entries]);
+
+  // 2. Completed / Marked Done Payments
+  const completedPaymentEntries = useMemo(() => {
+    return (entries || []).filter(e => isEntryVerified(e) && isEntryPaid(e));
+  }, [entries]);
+
+  // Total amounts for header stats
+  const totalPendingAllAmount = useMemo(() => {
+    return pendingPaymentEntries.reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0);
+  }, [pendingPaymentEntries]);
+
+  const totalCompletedAllAmount = useMemo(() => {
+    return completedPaymentEntries.reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0);
+  }, [completedPaymentEntries]);
+
+  // Unique filters for Pending
+  const uniquePendingFirms = useMemo(() => {
+    return Array.from(new Set(pendingPaymentEntries.map(e => e.firmName).filter(Boolean)));
+  }, [pendingPaymentEntries]);
+
+  const uniquePendingIncharges = useMemo(() => {
+    return Array.from(new Set(pendingPaymentEntries.map(e => e.incharge).filter(Boolean)));
+  }, [pendingPaymentEntries]);
+
+  // Filtered Pending Entries
+  const filteredPendingEntries = useMemo(() => {
+    return pendingPaymentEntries.filter(item => {
+      const q = (pendingSearch || '').toLowerCase();
+      const matchesSearch = !q ||
+        (item.workId || '').toLowerCase().includes(q) ||
+        (item.work || '').toLowerCase().includes(q) ||
+        (item.incharge || '').toLowerCase().includes(q) ||
+        (item.firmName || '').toLowerCase().includes(q) ||
+        (Array.isArray(item.labourNames)
+          ? item.labourNames.some(n => String(n).toLowerCase().includes(q))
+          : String(item.labourNames || '').toLowerCase().includes(q));
+
+      const matchesFirm = !pendingFirm || item.firmName === pendingFirm;
+      const matchesIncharge = !pendingIncharge || item.incharge === pendingIncharge;
+
+      return matchesSearch && matchesFirm && matchesIncharge;
+    });
+  }, [pendingPaymentEntries, pendingSearch, pendingFirm, pendingIncharge]);
+
+  const pendingTotalAmount = useMemo(() => {
+    return filteredPendingEntries.reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0);
+  }, [filteredPendingEntries]);
+
+  const pendingTotalLabour = useMemo(() => {
+    return filteredPendingEntries.reduce((sum, e) => sum + (Number(e.labourCount) || 1), 0);
+  }, [filteredPendingEntries]);
+
+  // Checkbox Selection Helpers
+  const toggleSelect = (workId) => {
+    setSelectedIds(prev =>
+      prev.includes(workId) ? prev.filter(id => id !== workId) : [...prev, workId]
     );
   };
 
-  // Filtered Verified Entries according to Week Range and Search
-  const verifiedEntries = useMemo(() => {
-    return (entries || []).filter(entry => {
-      if (!isEntryVerified(entry)) return false;
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredPendingEntries.length && filteredPendingEntries.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredPendingEntries.map(e => e.workId));
+    }
+  };
 
+  // Mark Done Action for Single Item
+  const handleMarkDone = async (workId) => {
+    if (!workId) return;
+    setProcessingId(workId);
+    try {
+      await payEntry(workId, 'Direct Payment', '');
+      setSelectedIds(prev => prev.filter(id => id !== workId));
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Bulk / Selected Mark Done Action
+  const handleBatchMarkDone = async () => {
+    if (selectedIds.length === 0) return;
+    const ok = window.confirm(
+      `Kya aap selected ${selectedIds.length} entries ko 'Payment Done' mark karna chahte hain?\n\nYe turant Payment Report me add ho jayengi.`
+    );
+    if (!ok) return;
+
+    setIsBulkProcessing(true);
+    try {
+      for (const id of selectedIds) {
+        await payEntry(id, 'Direct Payment', '');
+      }
+      setSelectedIds([]);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  // Bulk Mark All Done Action (all filtered items)
+  const handleMarkAllDone = async () => {
+    if (filteredPendingEntries.length === 0) return;
+    const ok = window.confirm(
+      `Kya aap sabhi ${filteredPendingEntries.length} verified entries ko 'Payment Done' mark karna chahte hain?\n\nYe turant Payment Report me add ho jayengi.`
+    );
+    if (!ok) return;
+
+    setIsBulkProcessing(true);
+    try {
+      for (const item of filteredPendingEntries) {
+        await payEntry(item.workId, 'Direct Payment', '');
+      }
+      setSelectedIds([]);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  // Filtered Completed Entries for Payment Report (Week Range and Search)
+  const verifiedEntries = useMemo(() => {
+    return completedPaymentEntries.filter(entry => {
       // Date Range Filter
       if (dateFrom || dateTo) {
         const entryDateStr = entry.date;
@@ -126,7 +281,7 @@ export function PaymentReportPage() {
         const matchesIncharge = (entry.incharge || '').toLowerCase().includes(q);
         const matchesWorkId = (entry.workId || '').toLowerCase().includes(q);
         const matchesLabour = Array.isArray(entry.labourNames)
-          ? entry.labourNames.some(n => n.toLowerCase().includes(q))
+          ? entry.labourNames.some(n => String(n).toLowerCase().includes(q))
           : String(entry.labourNames || '').toLowerCase().includes(q);
         if (!matchesWork && !matchesIncharge && !matchesWorkId && !matchesLabour) {
           return false;
@@ -135,7 +290,7 @@ export function PaymentReportPage() {
 
       return true;
     });
-  }, [entries, dateFrom, dateTo, searchTerm]);
+  }, [completedPaymentEntries, dateFrom, dateTo, searchTerm]);
 
   // 1. Table 1: Work Type Aggregated Report
   const workTypeReport = useMemo(() => {
@@ -365,193 +520,580 @@ export function PaymentReportPage() {
   return (
     <div className="payment-report-container h-full flex flex-col bg-slate-50">
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[1200px] mx-auto px-1 pb-10 space-y-5">
+        <div className="w-full max-w-[1440px] mx-auto px-4 pb-10 space-y-4">
           {/* ============================================================
-              CLEAN SCREEN HEADER (Title + Actions)
+              HEADER (Matching Verification & Payment Pages Theme)
               ============================================================ */}
-          <div className="no-print">
+          <div className="no-print space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center p-1.5 shrink-0">
-                  <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <ReceiptText className="w-5 h-5" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold text-slate-800">Payment Report</h1>
-                  <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                    <CheckCircle2 size={14} className="text-emerald-600" />
-                    <span>Verified Data &bull; {formattedPeriod} &bull; {verifiedEntries.length} Records</span>
-                  </div>
+                  <p className="text-xs text-slate-500">
+                    {mainTab === 'pending'
+                      ? `${pendingPaymentEntries.length} verified order${pendingPaymentEntries.length === 1 ? '' : 's'} pending payment`
+                      : `${completedPaymentEntries.length} verified &amp; paid record${completedPaymentEntries.length === 1 ? '' : 's'} (${formattedPeriod})`}
+                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 flex-wrap">
                 <button
                   type="button"
-                  onClick={handleExportCSV}
-                  title="Export as CSV"
-                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                  onClick={() => refreshData()}
+                  className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3.5 py-2.5 inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  title="Sync latest data from Google Sheet"
+                  disabled={syncing}
                 >
-                  <Download size={14} />
-                  <span>Export CSV</span>
+                  <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
+                  <span>{syncing ? 'Syncing...' : 'Sync Sheet'}</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handlePrint}
-                  title="Print or Save PDF"
-                  className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm px-4 py-1.5 transition-colors"
-                >
-                  <Printer size={14} />
-                  <span>Print / PDF</span>
-                </button>
+                <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4 py-2 text-right">
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Pending Payment</div>
+                  <div className="text-lg font-extrabold text-amber-600 leading-tight">
+                    ₹{totalPendingAllAmount.toLocaleString('en-IN')}{' '}
+                    <span className="text-xs font-medium text-slate-500">({pendingPaymentEntries.length})</span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4 py-2 text-right">
+                  <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Completed Report</div>
+                  <div className="text-lg font-extrabold text-emerald-600 leading-tight">
+                    ₹{totalCompletedAllAmount.toLocaleString('en-IN')}{' '}
+                    <span className="text-xs font-medium text-slate-500">({completedPaymentEntries.length})</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* ============================================================
-                COMPACT & SLEEK FILTER TOOLBAR
+                PRIMARY TABS (Matching Verification / Payment Pages)
                 ============================================================ */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 mt-3.5">
-              {/* Week Presets & Navigation */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => handleShiftWeek(-1)}
-                    title="Previous Week"
-                    className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2.5 py-1.5 text-slate-500 flex items-center transition-colors"
-                  >
-                    <ChevronLeft size={15} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleShiftWeek(1)}
-                    title="Next Week"
-                    className="bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 text-slate-500 flex items-center transition-colors"
-                  >
-                    <ChevronRight size={15} />
-                  </button>
-                </div>
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setMainTab('pending');
+                  setSelectedIds([]);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold px-3.5 py-2 transition-colors ${
+                  mainTab === 'pending'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <ListFilter size={15} />
+                <span>Pending Verification Queue ({pendingPaymentEntries.length})</span>
+              </button>
 
-                {['This Week', 'Last Week', 'This Month', 'All Time'].map(preset => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => handleSetPreset(preset)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                      selectedPreset === preset
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-
-              {/* Date Pickers & Quick Search */}
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <div className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
-                  <span className="font-semibold">From:</span>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={e => {
-                      setDateFrom(e.target.value);
-                      setSelectedPreset('');
-                    }}
-                    className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <span className="font-semibold">To:</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={e => {
-                      setDateTo(e.target.value);
-                      setSelectedPreset('');
-                    }}
-                    className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-
-                <div className="relative flex items-center">
-                  <Search size={14} className="absolute left-2.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-[140px] pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMainTab('report');
+                  setSelectedIds([]);
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold px-3.5 py-2 transition-colors ${
+                  mainTab === 'report'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <History size={15} />
+                <span>Payment Report ({completedPaymentEntries.length})</span>
+              </button>
             </div>
 
-            {/* View / Print Selection Tabs */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2 mt-3 gap-2 flex-wrap no-print">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setActiveReportTab('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeReportTab === 'all'
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Layers size={13} />
-                  <span>Dono Reports (Alag Alag Page)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveReportTab('work_type')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeReportTab === 'work_type'
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Briefcase size={13} />
-                  <span>Sirf Work Type</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveReportTab('labour_wise')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeReportTab === 'labour_wise'
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Users size={13} />
-                  <span>Sirf Labour Wise</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveReportTab('date_wise')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                    activeReportTab === 'date_wise'
-                      ? 'bg-white text-indigo-700 shadow-xs border border-slate-200 font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar size={13} />
-                  <span>Sirf Date Wise</span>
-                </button>
-              </div>
+            {/* ============================================================
+                PENDING TAB CONTENT (Verification History waiting for Mark Done)
+                ============================================================ */}
+            {mainTab === 'pending' && (
+              <div className="space-y-4">
+                {/* Pending Filter Toolbar */}
+                <div className="bg-white rounded-xl border border-slate-200 p-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs">
+                  <div className="relative flex-1 min-w-[240px] max-w-md">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                      placeholder="Search pending entries by Work ID, Supervisor, Firm, Labour..."
+                      value={pendingSearch}
+                      onChange={e => setPendingSearch(e.target.value)}
+                    />
+                  </div>
 
-              <div className="text-[11px] text-slate-500 font-medium">
-                {activeReportTab === 'all' && '🖨️ Print: Page 1 = Work Type, Page 2 = Labour Wise'}
-                {activeReportTab === 'work_type' && '🖨️ Print: Sirf Work Type Report print hoga'}
-                {activeReportTab === 'labour_wise' && '🖨️ Print: Sirf Labour Wise Report print hoga'}
-                {activeReportTab === 'date_wise' && '🖨️ Print: Sirf Date Wise Report print hoga'}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <select
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all min-w-[140px]"
+                      value={pendingFirm}
+                      onChange={e => setPendingFirm(e.target.value)}
+                    >
+                      <option value="">All Firms</option>
+                      {uniquePendingFirms.map(f => (
+                        <option key={f} value={f}>{f}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all min-w-[160px]"
+                      value={pendingIncharge}
+                      onChange={e => setPendingIncharge(e.target.value)}
+                    >
+                      <option value="">All Supervisors</option>
+                      {uniquePendingIncharges.map(inc => (
+                        <option key={inc} value={inc}>{inc}</option>
+                      ))}
+                    </select>
+
+                    {/* Batch Mark Done Action Button */}
+                    {selectedIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleBatchMarkDone}
+                        disabled={isBulkProcessing}
+                        className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm px-4 py-2 transition-colors disabled:opacity-60 cursor-pointer"
+                      >
+                        {isBulkProcessing ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            <span>Marking Done ({selectedIds.length})...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCheck size={15} />
+                            <span>Mark Done Selected ({selectedIds.length})</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {/* Select All Toggle Button */}
+                    {selectedIds.length === 0 && filteredPendingEntries.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAll}
+                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold text-xs rounded-lg px-3.5 py-2 transition-colors cursor-pointer"
+                      >
+                        <CheckCheck size={14} />
+                        <span>Select All ({filteredPendingEntries.length})</span>
+                      </button>
+                    )}
+
+                    {(pendingSearch || pendingFirm || pendingIncharge) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingSearch('');
+                          setPendingFirm('');
+                          setPendingIncharge('');
+                        }}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1"
+                      >
+                        Reset Filters
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pending Table */}
+                {filteredPendingEntries.length === 0 ? (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-12 text-center flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                      <CheckCircle2 size={32} />
+                    </div>
+                    <h3 className="text-base font-bold text-slate-800 mb-1">
+                      {pendingPaymentEntries.length === 0
+                        ? 'No Entries Pending Payment'
+                        : 'No Pending Entries Match Filter'}
+                    </h3>
+                    <p className="text-sm text-slate-500 max-w-sm mb-4">
+                      {pendingPaymentEntries.length === 0
+                        ? 'All verified entries have been marked as done and moved to the Payment Report.'
+                        : 'Please clear or adjust your search filter.'}
+                    </p>
+                    {pendingPaymentEntries.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setMainTab('report')}
+                        className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg shadow-sm transition-colors cursor-pointer"
+                      >
+                        <History size={15} />
+                        <span>View Payment Report ({completedPaymentEntries.length})</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col">
+                    <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
+                      <table className="w-full border-collapse text-left">
+                        <thead className="sticky top-0 bg-slate-100 z-20 shadow-xs border-b border-slate-300">
+                          <tr>
+                            {/* Checkbox Column Header */}
+                            <th className="px-3 py-2.5 w-10 text-center sticky left-0 bg-slate-100 z-30 border-r border-slate-200">
+                              <div className="flex items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
+                                  checked={selectedIds.length === filteredPendingEntries.length && filteredPendingEntries.length > 0}
+                                  onChange={toggleSelectAll}
+                                  title={selectedIds.length === filteredPendingEntries.length ? 'Deselect All' : 'Select All'}
+                                />
+                              </div>
+                            </th>
+                            <th className="px-3 py-2.5 text-center font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap w-12">
+                              S.No.
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Action
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Work ID
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Date
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Shift
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Firm
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Supervisor
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Work Activity
+                            </th>
+                            <th className="px-3.5 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Work Hours
+                            </th>
+                            <th className="px-3.5 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Qty / Output
+                            </th>
+                            <th className="px-3.5 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Labourers
+                            </th>
+                            <th className="px-3.5 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Per Person Amount
+                            </th>
+                            <th className="px-3.5 py-2.5 text-right font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Total Amount
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Work Remark
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Current Status
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredPendingEntries.map((entry, idx) => {
+                            const count = Number(entry.labourCount) || 1;
+                            const total = Number(entry.totalAmount) || 0;
+                            const perPerson = count > 0 ? total / count : 0;
+                            const isTon = isTonBasedWork(entry.work);
+                            const isSelected = selectedIds.includes(entry.workId);
+
+                            let labourNames = [];
+                            if (Array.isArray(entry.labourNames)) {
+                              labourNames = entry.labourNames.filter(Boolean);
+                            } else if (typeof entry.labourNames === 'string' && entry.labourNames.trim()) {
+                              labourNames = entry.labourNames.split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+                            }
+
+                            return (
+                              <tr
+                                key={entry.workId || `pending_${idx}`}
+                                className={`${isSelected ? 'bg-indigo-50/70' : 'hover:bg-slate-50/80'} transition-colors`}
+                              >
+                                {/* Checkbox Column */}
+                                <td className="px-3 py-2.5 text-center sticky left-0 bg-white z-10 border-r border-slate-200">
+                                  <div className="flex items-center justify-center">
+                                    <input
+                                      type="checkbox"
+                                      className="w-4 h-4 rounded text-indigo-600 accent-indigo-600 cursor-pointer"
+                                      checked={isSelected}
+                                      onChange={() => toggleSelect(entry.workId)}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="px-3 py-2.5 text-center text-xs font-semibold text-slate-500">
+                                  {idx + 1}
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMarkDone(entry.workId)}
+                                      disabled={processingId === entry.workId || isBulkProcessing}
+                                      className="inline-flex items-center gap-1 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                      title="Mark Done &amp; Add to Payment Report"
+                                    >
+                                      {processingId === entry.workId ? (
+                                        <RefreshCw size={13} className="animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 size={13} />
+                                      )}
+                                      <span>Mark Done</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTimelineWorkId(entry.workId)}
+                                      className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold p-1.5 inline-flex items-center cursor-pointer transition-colors"
+                                      title="View Details"
+                                    >
+                                      <Eye size={13} />
+                                    </button>
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTimelineWorkId(entry.workId)}
+                                    className="font-mono font-bold text-indigo-600 hover:underline text-xs"
+                                  >
+                                    {entry.workId}
+                                  </button>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <div className="font-semibold text-slate-800 text-xs">{formatDate(entry.date)}</div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <span className="text-xs text-slate-600 font-medium">{entry.shift || '-'}</span>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                                    {entry.firmName || '-'}
+                                  </span>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <div className="text-xs text-slate-600 font-medium">{entry.incharge}</div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5">
+                                  <div className="max-w-[200px]">
+                                    <div className="font-bold text-slate-800 text-xs">{entry.work}</div>
+                                    <div
+                                      className={`inline-flex items-center gap-1 text-[11px] font-bold mt-0.5 ${
+                                        isTon ? 'text-emerald-600' : 'text-indigo-600'
+                                      }`}
+                                    >
+                                      {isTon ? <Scale size={11} /> : <User size={11} />}
+                                      <span>{isTon ? 'Per Ton' : 'Per Person'}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                                  <div className="font-semibold text-slate-700 text-xs">
+                                    {entry.hours ? `${entry.hours} hrs` : '-'}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                                  <div className="font-bold text-slate-800 text-xs">
+                                    {entry.qty !== undefined && entry.qty !== '' ? `${entry.qty} ${isTon ? 'MT' : 'units'}` : '-'}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                                  <div className="flex items-center justify-end gap-1.5 font-bold text-xs text-slate-800">
+                                    <Users size={14} className="text-emerald-600" />
+                                    <span>{entry.labourCount}</span>
+                                  </div>
+                                  {labourNames.length > 0 && (
+                                    <div
+                                      className="text-[10px] text-slate-500 truncate max-w-[130px] text-right"
+                                      title={labourNames.join(', ')}
+                                    >
+                                      {labourNames.slice(0, 2).join(', ')}
+                                      {labourNames.length > 2 ? ` +${labourNames.length - 2}` : ''}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                                  <div className="font-bold text-emerald-600 text-xs">
+                                    ₹{perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
+                                  <div className="font-extrabold text-slate-800 text-sm">
+                                    ₹{total.toLocaleString('en-IN')}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5">
+                                  <div
+                                    className="max-w-[150px] truncate text-xs text-slate-600"
+                                    title={entry.workRemark || '-'}
+                                  >
+                                    {entry.workRemark || '-'}
+                                  </div>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <StatusBadge status="Verified" />
+                                  {entry.verificationActual && (
+                                    <div className="text-[10px] text-slate-400 mt-0.5">
+                                      {formatDate(entry.verificationActual)}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="sticky bottom-0 bg-slate-100 z-20 border-t-2 border-slate-300 font-bold text-xs">
+                          <tr>
+                            <td colSpan={2} className="px-3.5 py-2.5 text-center text-slate-500">
+                              Total
+                            </td>
+                            <td colSpan={9} className="px-3.5 py-2.5 text-slate-800">
+                              {selectedIds.length > 0
+                                ? `${selectedIds.length} of ${filteredPendingEntries.length} Records Selected`
+                                : `${filteredPendingEntries.length} Pending Records`}
+                            </td>
+                            <td className="px-3.5 py-2.5 text-right text-slate-800">
+                              {pendingTotalLabour}
+                            </td>
+                            <td></td>
+                            <td className="px-3.5 py-2.5 text-right font-extrabold text-emerald-700 text-sm">
+                              ₹{pendingTotalAmount.toLocaleString('en-IN')}
+                            </td>
+                            <td colSpan={2}></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
+
+            {/* ============================================================
+                REPORT TAB TOOLBAR & PRESETS (Active only in Report Mode)
+                ============================================================ */}
+            {mainTab === 'report' && (
+              <>
+                <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                  {/* Week Presets & Navigation */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => handleShiftWeek(-1)}
+                        title="Previous Week"
+                        className="bg-slate-50 hover:bg-slate-100 border-r border-slate-200 px-2.5 py-1.5 text-slate-500 flex items-center transition-colors"
+                      >
+                        <ChevronLeft size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleShiftWeek(1)}
+                        title="Next Week"
+                        className="bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 text-slate-500 flex items-center transition-colors"
+                      >
+                        <ChevronRight size={15} />
+                      </button>
+                    </div>
+
+                    {['This Week', 'Last Week', 'This Month', 'All Time'].map(preset => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => handleSetPreset(preset)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                          selectedPreset === preset
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Date Pickers & Quick Search */}
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
+                      <span className="font-semibold">From:</span>
+                      <input
+                        type="date"
+                        value={dateFrom}
+                        onChange={e => {
+                          setDateFrom(e.target.value);
+                          setSelectedPreset('');
+                        }}
+                        className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                      <span className="font-semibold">To:</span>
+                      <input
+                        type="date"
+                        value={dateTo}
+                        onChange={e => {
+                          setDateTo(e.target.value);
+                          setSelectedPreset('');
+                        }}
+                        className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+
+                    <div className="relative flex items-center">
+                      <Search size={14} className="absolute left-2.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-[140px] pl-8 pr-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+
+                    {/* Actions: Export CSV and Print */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleExportCSV}
+                        title="Export as CSV"
+                        className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                      >
+                        <Download size={14} />
+                        <span>Export CSV</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handlePrint}
+                        title="Print or Save PDF"
+                        className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-lg shadow-sm px-4 py-1.5 transition-colors cursor-pointer"
+                      >
+                        <Printer size={14} />
+                        <span>Print / PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ============================================================
-              SHEET 1: WORK TYPE REPORT
+              SHEET 1: WORK TYPE REPORT (Report Mode or Printing)
               ============================================================ */}
-          {showWorkType && (
+          {(mainTab === 'report' || typeof window === 'undefined') && showWorkType && (
             <div className={`report-sheet work-type-sheet ${showLabourWise || showDateWise ? 'sheet-page-break-after' : ''}`}>
               {/* Print Header for Sheet 1 */}
               <div className="print-document-header hidden mb-2.5">
@@ -707,7 +1249,7 @@ export function PaymentReportPage() {
           {/* ============================================================
               SHEET 2: LABOUR WISE REPORT (FORCED PAGE BREAK IN PRINT)
               ============================================================ */}
-          {showLabourWise && (
+          {(mainTab === 'report' || typeof window === 'undefined') && showLabourWise && (
             <div className={`report-sheet labour-sheet ${showWorkType ? 'sheet-page-break' : ''}`}>
               {/* Print Header for Sheet 2 */}
               <div className="print-document-header hidden mb-2.5">
@@ -855,7 +1397,7 @@ export function PaymentReportPage() {
           {/* ============================================================
               SHEET 3: DATE WISE REPORT (FORCED PAGE BREAK IN PRINT)
               ============================================================ */}
-          {showDateWise && (
+          {(mainTab === 'report' || typeof window === 'undefined') && showDateWise && (
             <div className={`report-sheet date-sheet ${(showWorkType || showLabourWise) ? 'sheet-page-break' : ''}`}>
               {/* Print Header for Sheet 3 */}
               <div className="print-document-header hidden mb-2.5">
@@ -1012,6 +1554,14 @@ export function PaymentReportPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Work Detail Modal for Timeline / Details */}
+          {timelineWorkId && (
+            <WorkDetailModal
+              workId={timelineWorkId}
+              onClose={() => setTimelineWorkId(null)}
+            />
           )}
         </div>
       </div>

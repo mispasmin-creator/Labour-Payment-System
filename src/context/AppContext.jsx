@@ -338,14 +338,14 @@ export function AppProvider({ children }) {
   }, []);
 
   // Load initial data including Live Users from "Login Page" sheet
-  const loadData = useCallback(async (silent = false) => {
+  const loadData = useCallback(async (silent = false, forceRemote = false) => {
     setSyncing(true);
     if (!silent) {
       setLoading(true);
     }
     try {
       // 1. Try unified single-request fetch first for 10x faster loading
-      const unified = await fetchAllData();
+      const unified = await fetchAllData(forceRemote);
       if (unified && unified.entries) {
         setEntries(unified.entries);
         if (unified.master) setMasterData(unified.master);
@@ -358,7 +358,7 @@ export function AppProvider({ children }) {
 
       // 2. Fallback to parallel fetch
       const [fetchedEntries, fetchedMaster, fetchedUsers] = await Promise.all([
-        fetchEntries(),
+        fetchEntries(forceRemote),
         fetchMasterData(),
         fetchUsers()
       ]);
@@ -384,7 +384,7 @@ export function AppProvider({ children }) {
   }, [showToast]);
 
   const refreshData = useCallback(() => {
-    return loadData(false);
+    return loadData(false, true); // forceRemote = true when user clicks Sync Sheet
   }, [loadData]);
 
   // Initial load + Live background auto-polling every 35 seconds (when tab active) + Tab visibility change
@@ -616,6 +616,7 @@ export function AppProvider({ children }) {
   // Stage 3: Record Payment (Instant 0ms UI update)
   const payEntry = useCallback(async (workId, paymentMethod = 'Direct Payment', paymentRef = '') => {
     const now = getNowTimestamp();
+    const optimisticTimestamp = Date.now();
     let updatedItem = null;
 
     setEntries(prev => {
@@ -629,7 +630,8 @@ export function AppProvider({ children }) {
             paymentDelay: delayInfo.formatted,
             paymentMethod: paymentMethod || 'Direct Payment',
             paymentRef: paymentRef || '',
-            tallyPlanned: now
+            tallyPlanned: now,
+            _optimisticAt: optimisticTimestamp
           };
           return updatedItem;
         }

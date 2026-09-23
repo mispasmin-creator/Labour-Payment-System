@@ -42,7 +42,7 @@ export function isValidEntry(item) {
 }
 
 export function cleanTimestamp(val) {
-  if (!val || val === 'null' || val === 'undefined' || val === '-') return null;
+  if (!val || val === 'null' || val === 'undefined' || val === '-' || String(val).trim() === '') return null;
   return String(val).trim();
 }
 
@@ -57,10 +57,18 @@ export function normalizeStatus(status, entry = {}) {
     return 'Pending Verification';
   }
 
+  // Tally completed
+  if (tActual) return 'Tally Complete';
+
+  // Payment completed: ONLY if payment actual timestamp is present!
+  if (pActual) return 'Paid (Pending Tally)';
+
+  // Approval completed: if approval actual timestamp is present
+  if (aActual) return 'Approved (Pending Payment)';
+
   const s = String(status || '').toLowerCase().trim();
-  if (s.includes('tally') || tActual) return 'Tally Complete';
-  if (s.includes('paid') || pActual) return 'Paid (Pending Tally)';
-  if (s.includes('approved') || aActual) return 'Approved (Pending Payment)';
+  if (s.includes('approved')) return 'Approved (Pending Payment)';
+
   return 'Verified (Pending Approval)';
 }
 
@@ -220,10 +228,13 @@ export const STAGE_RANKS = {
   'Tally Complete': 5
 };
 
-export function reconcileRemoteWithLocal(remoteCleaned, localEntries = []) {
+export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], forceRemote = false) {
   if (!Array.isArray(remoteCleaned)) return [];
   if (remoteCleaned.length === 0) return [];
-  if (!Array.isArray(localEntries) || localEntries.length === 0) return remoteCleaned;
+  if (forceRemote || !Array.isArray(localEntries) || localEntries.length === 0) return remoteCleaned;
+
+  const now = Date.now();
+  const OPTIMISTIC_WINDOW_MS = 25000; // 25 seconds window for pending async writes to reach Google Apps Script
 
   return remoteCleaned.map(remote => {
     // Robust match: Check timestamp or workId+work first to avoid duplicate workId collisions (e.g. multiple WRK-0019 in Sheet)
@@ -234,48 +245,36 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = []) {
 
     if (!local) return remote;
 
-    const isLocalVerified = Boolean(local.verificationActual && local.verificationActual !== '-' && local.verificationActual !== 'null');
-    const isRemoteVerified = Boolean(remote.verificationActual && remote.verificationActual !== '-' && remote.verificationActual !== 'null');
+    // Check if this entry was optimistically updated in this browser session very recently
+    const isRecentLocalAction = local._optimisticAt && (now - local._optimisticAt < OPTIMISTIC_WINDOW_MS);
 
-    const rRank = STAGE_RANKS[remote.status] || (isRemoteVerified ? 2 : 1);
-    const lRank = STAGE_RANKS[local.status] || (isLocalVerified ? 2 : 1);
-
-    // If local was verified, NEVER downgrade back to Pending even if remote is still pending sync
-    if (lRank > rRank || (isLocalVerified && !isRemoteVerified)) {
+    if (isRecentLocalAction) {
+      // Keep optimistic values until GAS write completes
       return {
         ...remote,
-        status: local.status || (isLocalVerified ? 'Verified (Pending Approval)' : remote.status),
-        verificationActual: local.verificationActual || remote.verificationActual,
-        approvalActual: local.approvalActual || remote.approvalActual,
-        paymentActual: local.paymentActual || remote.paymentActual,
-        tallyActual: local.tallyActual || remote.tallyActual,
+        status: local.status || remote.status,
+        verificationActual: local.verificationActual ?? remote.verificationActual,
+        approvalActual: local.approvalActual ?? remote.approvalActual,
+        paymentActual: local.paymentActual ?? remote.paymentActual,
+        tallyActual: local.tallyActual ?? remote.tallyActual,
         paymentMethod: local.paymentMethod || remote.paymentMethod,
         paymentRef: local.paymentRef || remote.paymentRef,
         tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
         tallyLedger: local.tallyLedger || remote.tallyLedger,
-        labourNames: (local.labourNames && local.labourNames.length > 0) ? local.labourNames : (remote.labourNames || []),
-        firmName: local.firmName || remote.firmName || '',
-        workRemark: local.workRemark || remote.workRemark || ''
+        _optimisticAt: local._optimisticAt
       };
     }
 
-    return {
-      ...remote,
-      verificationActual: remote.verificationActual || local.verificationActual || null,
-      approvalActual: remote.approvalActual || local.approvalActual || null,
-      paymentActual: remote.paymentActual || local.paymentActual || null,
-      tallyActual: remote.tallyActual || local.tallyActual || null,
-      labourNames: (remote.labourNames && remote.labourNames.length > 0) ? remote.labourNames : (local.labourNames || []),
-      firmName: remote.firmName || local.firmName || '',
-      workRemark: remote.workRemark || local.workRemark || ''
-    };
+    // Google Sheet is the authoritative source of truth!
+    // Whatever is in Google Sheet (including cleared/deleted cells) takes precedence!
+    return remote;
   });
 }
 
 /**
  * Fetch All Data (Entries + Master + Users) in a single unified roundtrip
  */
-export async function fetchAllData() {
+export async function fetchAllData(forceRemote = false) {
   const url = getScriptUrl();
   if (!url) return null;
 
@@ -296,7 +295,7 @@ export async function fetchAllData() {
           freshLocal = [];
         }
 
-        const mergedEntries = reconcileRemoteWithLocal(cleanedEntries, freshLocal);
+        const mergedEntries = reconcileRemoteWithLocal(cleanedEntries, freshLocal, forceRemote);
 
         const sanitizedMaster = json.master ? sanitizeMasterData(json.master) : null;
 
@@ -517,7 +516,7 @@ export async function saveUsersToRemote(users) {
 /**
  * Fetch All Entries with 4-Stage Workflow state & smart reconciliation
  */
-export async function fetchEntries() {
+export async function fetchEntries(forceRemote = false) {
   const url = getScriptUrl();
 
   let localEntries = [];
@@ -555,7 +554,7 @@ export async function fetchEntries() {
             freshLocal = [];
           }
 
-          const merged = reconcileRemoteWithLocal(remoteCleaned, freshLocal);
+          const merged = reconcileRemoteWithLocal(remoteCleaned, freshLocal, forceRemote);
 
           if (typeof localStorage !== 'undefined') {
             localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(merged));

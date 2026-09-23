@@ -1384,6 +1384,20 @@
           if (!existing.workRemark && row[fmsRemarkCol]) {
             existing.workRemark = String(row[fmsRemarkCol]).trim();
           }
+
+          // Dynamic milestone-based status synchronization:
+          // If an actual timestamp was removed or cleared in the sheet, dynamically align status!
+          if (existing.tallyActual) {
+            existing.status = 'Tally Complete';
+          } else if (existing.paymentActual) {
+            existing.status = 'Paid (Pending Tally)';
+          } else if (existing.approvalActual) {
+            existing.status = 'Approved (Pending Payment)';
+          } else if (existing.verificationActual) {
+            existing.status = 'Verified (Pending Approval)';
+          } else {
+            existing.status = 'Pending Verification';
+          }
         }
       }
     }
