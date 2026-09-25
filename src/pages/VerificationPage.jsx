@@ -253,6 +253,7 @@ export function VerificationPage() {
                     Action
                   </th>
                   <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Work ID</th>
+                  <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Planned Date</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Date</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Shift</th>
                   <th className="px-4 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">Firm</th>
@@ -297,6 +298,9 @@ export function VerificationPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <div className="font-semibold text-slate-800 text-xs">{formatDate(entry.verificationPlanned)}</div>
                       </td>
                       <td className="px-4 py-2.5">
                         <div className="font-semibold text-slate-800 whitespace-nowrap text-xs">{formatDate(entry.date)}</div>

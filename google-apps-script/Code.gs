@@ -1344,7 +1344,7 @@
       const fmsHeaders = fmsData[fmsHeaderRow - 1] || [];
 
       // Zero-overhead in-memory column resolution
-      const p1Col = findColInHeaders(fmsHeaders, ['planned timestamp', 'planned 1'], 14);
+      const p1Col = findColInHeaders(fmsHeaders, ['planned timestamp', 'planned 1', 'planned date', 'planned date 1', 'planned', 'verification planned', 'plan date'], 14);
       const a1Col = findColInHeaders(fmsHeaders, ['actual timestamp', 'actual 1'], 15);
       const d1Col = findColInHeaders(fmsHeaders, ['delay', 'delay 1'], 16);
 
@@ -1352,7 +1352,7 @@
       const a2Col = findColInHeaders(fmsHeaders, ['actual 2'], 18);
       const d2Col = findColInHeaders(fmsHeaders, ['delay 2'], 19);
 
-      const p3Col = findColInHeaders(fmsHeaders, ['planned 3'], 20);
+      const p3Col = findColInHeaders(fmsHeaders, ['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 20);
       const a3Col = findColInHeaders(fmsHeaders, ['actual 3'], 21);
       const d3Col = findColInHeaders(fmsHeaders, ['delay 3'], 22);
 
@@ -1369,17 +1369,17 @@
         const workId = String(row[1] || row[0] || '').trim();
         const existing = workMap[workId];
         if (existing) {
-          existing.verificationPlanned = row[p1Col] || null;
-          existing.verificationActual = row[a1Col] || null;
+          existing.verificationPlanned = row[p1Col] ? (row[p1Col] instanceof Date ? row[p1Col].toISOString() : String(row[p1Col]).trim()) : null;
+          existing.verificationActual = row[a1Col] ? (row[a1Col] instanceof Date ? row[a1Col].toISOString() : String(row[a1Col]).trim()) : null;
           existing.verificationDelay = formatSheetDelay(row[d1Col]);
-          existing.approvalPlanned = row[p2Col] || null;
-          existing.approvalActual = row[a2Col] || null;
+          existing.approvalPlanned = row[p2Col] ? (row[p2Col] instanceof Date ? row[p2Col].toISOString() : String(row[p2Col]).trim()) : null;
+          existing.approvalActual = row[a2Col] ? (row[a2Col] instanceof Date ? row[a2Col].toISOString() : String(row[a2Col]).trim()) : null;
           existing.approvalDelay = formatSheetDelay(row[d2Col]);
-          existing.paymentPlanned = row[p3Col] || null;
-          existing.paymentActual = row[a3Col] || null;
+          existing.paymentPlanned = row[p3Col] ? (row[p3Col] instanceof Date ? row[p3Col].toISOString() : String(row[p3Col]).trim()) : null;
+          existing.paymentActual = row[a3Col] ? (row[a3Col] instanceof Date ? row[a3Col].toISOString() : String(row[a3Col]).trim()) : null;
           existing.paymentDelay = formatSheetDelay(row[d3Col]);
-          existing.tallyPlanned = row[p4Col] || null;
-          existing.tallyActual = row[a4Col] || null;
+          existing.tallyPlanned = row[p4Col] ? (row[p4Col] instanceof Date ? row[p4Col].toISOString() : String(row[p4Col]).trim()) : null;
+          existing.tallyActual = row[a4Col] ? (row[a4Col] instanceof Date ? row[a4Col].toISOString() : String(row[a4Col]).trim()) : null;
           existing.tallyDelay = formatSheetDelay(row[d4Col]);
           if (!existing.workRemark && row[fmsRemarkCol]) {
             existing.workRemark = String(row[fmsRemarkCol]).trim();

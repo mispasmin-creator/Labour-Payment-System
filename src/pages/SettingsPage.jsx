@@ -1307,7 +1307,7 @@ function getEntriesData(ss) {
     const fmsData = fmsSheet.getDataRange().getValues();
     const fmsHeaderRow = getHeaderRowIndex(fmsSheet);
 
-    const p1Col = findColIndex(fmsSheet, ['planned timestamp', 'planned 1'], 14) - 1;
+    const p1Col = findColIndex(fmsSheet, ['planned timestamp', 'planned 1', 'planned date', 'planned date 1', 'planned', 'verification planned', 'plan date'], 14) - 1;
     const a1Col = findColIndex(fmsSheet, ['actual timestamp', 'actual 1'], 15) - 1;
     const d1Col = findColIndex(fmsSheet, ['delay', 'delay 1'], 16) - 1;
 
@@ -1315,7 +1315,7 @@ function getEntriesData(ss) {
     const a2Col = findColIndex(fmsSheet, ['actual 2'], 18) - 1;
     const d2Col = findColIndex(fmsSheet, ['delay 2'], 19) - 1;
 
-    const p3Col = findColIndex(fmsSheet, ['planned 3'], 20) - 1;
+    const p3Col = findColIndex(fmsSheet, ['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 20) - 1;
     const a3Col = findColIndex(fmsSheet, ['actual 3'], 21) - 1;
     const d3Col = findColIndex(fmsSheet, ['delay 3'], 22) - 1;
 
@@ -1332,17 +1332,17 @@ function getEntriesData(ss) {
       const workId = String(row[1] || row[0] || '').trim();
       const existing = workMap[workId];
       if (existing) {
-        existing.verificationPlanned = row[p1Col] || null;
-        existing.verificationActual = row[a1Col] || null;
+        existing.verificationPlanned = row[p1Col] ? (row[p1Col] instanceof Date ? row[p1Col].toISOString() : String(row[p1Col]).trim()) : null;
+        existing.verificationActual = row[a1Col] ? (row[a1Col] instanceof Date ? row[a1Col].toISOString() : String(row[a1Col]).trim()) : null;
         existing.verificationDelay = row[d1Col] || '-';
-        existing.approvalPlanned = row[p2Col] || null;
-        existing.approvalActual = row[a2Col] || null;
+        existing.approvalPlanned = row[p2Col] ? (row[p2Col] instanceof Date ? row[p2Col].toISOString() : String(row[p2Col]).trim()) : null;
+        existing.approvalActual = row[a2Col] ? (row[a2Col] instanceof Date ? row[a2Col].toISOString() : String(row[a2Col]).trim()) : null;
         existing.approvalDelay = row[d2Col] || '-';
-        existing.paymentPlanned = row[p3Col] || null;
-        existing.paymentActual = row[a3Col] || null;
+        existing.paymentPlanned = row[p3Col] ? (row[p3Col] instanceof Date ? row[p3Col].toISOString() : String(row[p3Col]).trim()) : null;
+        existing.paymentActual = row[a3Col] ? (row[a3Col] instanceof Date ? row[a3Col].toISOString() : String(row[a3Col]).trim()) : null;
         existing.paymentDelay = row[d3Col] || '-';
-        existing.tallyPlanned = row[p4Col] || null;
-        existing.tallyActual = row[a4Col] || null;
+        existing.tallyPlanned = row[p4Col] ? (row[p4Col] instanceof Date ? row[p4Col].toISOString() : String(row[p4Col]).trim()) : null;
+        existing.tallyActual = row[a4Col] ? (row[a4Col] instanceof Date ? row[a4Col].toISOString() : String(row[a4Col]).trim()) : null;
         existing.tallyDelay = row[d4Col] || '-';
         if (!existing.workRemark && row[fmsRemarkCol]) {
           existing.workRemark = String(row[fmsRemarkCol]).trim();

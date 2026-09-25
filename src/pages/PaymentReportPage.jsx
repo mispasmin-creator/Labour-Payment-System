@@ -753,6 +753,9 @@ export function PaymentReportPage() {
                               Work ID
                             </th>
                             <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
+                              Planned Date
+                            </th>
+                            <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
                               Date
                             </th>
                             <th className="px-3.5 py-2.5 text-left font-semibold text-slate-700 uppercase tracking-wider text-[11px] whitespace-nowrap">
@@ -861,6 +864,10 @@ export function PaymentReportPage() {
                                   >
                                     {entry.workId}
                                   </button>
+                                </td>
+
+                                <td className="px-3.5 py-2.5 whitespace-nowrap">
+                                  <div className="font-semibold text-slate-800 text-xs">{formatDate(entry.paymentPlanned)}</div>
                                 </td>
 
                                 <td className="px-3.5 py-2.5 whitespace-nowrap">

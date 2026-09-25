@@ -158,6 +158,7 @@ export function WorkTrackerPage() {
                 <tr>
                   <th className={`${thClass} sticky left-0 bg-slate-100 z-30 border-r border-slate-200 shadow-xs text-left`}>Action</th>
                   <th className={`${thClass} text-left`}>Work ID</th>
+                  <th className={`${thClass} text-left`}>Planned Date</th>
                   <th className={`${thClass} text-left`}>Date</th>
                   <th className={`${thClass} text-left`}>Shift</th>
                   <th className={`${thClass} text-left`}>Firm</th>
@@ -191,6 +192,9 @@ export function WorkTrackerPage() {
                       </td>
                       <td className={`${tdClass} font-mono font-bold text-indigo-600 whitespace-nowrap`}>
                         {entry.workId}
+                      </td>
+                      <td className={`${tdClass} font-semibold text-slate-800 whitespace-nowrap`}>
+                        {formatDate(entry.verificationPlanned)}
                       </td>
                       <td className={`${tdClass} font-semibold text-slate-800 whitespace-nowrap`}>
                         {formatDate(entry.date)}

@@ -10,24 +10,45 @@ export function parseDate(dateInput) {
   if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
   
   const str = String(dateInput).trim();
-  if (!str || str === '-' || str.toLowerCase() === 'what' || str.toLowerCase() === 'who') return null;
+  if (!str || str === '-' || str.toLowerCase() === 'what' || str.toLowerCase() === 'who' || str.toLowerCase() === 'null' || str.toLowerCase() === 'undefined') return null;
 
-  // Try direct date constructor
-  const d = new Date(str);
-  if (!isNaN(d.getTime())) return d;
+  // Try direct date constructor for ISO and standard string dates (if not slash/dash ambiguous)
+  if (!str.includes('/') && !/^\d{1,2}-\d{1,2}-\d{4}/.test(str)) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+  }
 
-  // Handle M/d/yyyy H:m:s or M/d/yyyy, H:m:s
+  // Handle DD/MM/YYYY or MM/DD/YYYY with optional time
   const match = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
   if (match) {
-    const month = parseInt(match[1], 10) - 1;
-    const day = parseInt(match[2], 10);
+    const num1 = parseInt(match[1], 10);
+    const num2 = parseInt(match[2], 10);
     const year = parseInt(match[3], 10);
     const hour = match[4] ? parseInt(match[4], 10) : 0;
     const minute = match[5] ? parseInt(match[5], 10) : 0;
     const second = match[6] ? parseInt(match[6], 10) : 0;
+
+    let day, month;
+    if (num1 > 12) {
+      // Definitely DD/MM/YYYY
+      day = num1;
+      month = num2 - 1;
+    } else if (num2 > 12) {
+      // Definitely MM/DD/YYYY
+      month = num1 - 1;
+      day = num2;
+    } else {
+      // Default to DD/MM/YYYY (Indian standard)
+      day = num1;
+      month = num2 - 1;
+    }
+
     const parsed = new Date(year, month, day, hour, minute, second);
     if (!isNaN(parsed.getTime())) return parsed;
   }
+
+  const fallback = new Date(str);
+  if (!isNaN(fallback.getTime())) return fallback;
 
   return null;
 }
