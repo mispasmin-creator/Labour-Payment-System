@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Calendar,
   ChevronLeft,
@@ -28,6 +28,22 @@ import { exportToCSV } from '../utils/exportUtils';
 import { getWorkTypeUnit, isTonBasedWork } from '../utils/workTypes';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { WorkDetailModal } from './WorkDetailModal';
+import {
+  fetchSemiActualEntries,
+  fetchCrushingActualEntries
+} from '../services/supabaseClient';
+
+export const isGrindingWork = (work) => {
+  if (!work) return false;
+  const s = String(work).trim().toLowerCase();
+  return s === 'grinding' || s.includes('grind');
+};
+
+export const isCrushingWork = (work) => {
+  if (!work) return false;
+  const s = String(work).trim().toLowerCase();
+  return s === 'crushing' || s === 'crusing' || s.includes('crush');
+};
 
 // Date Helpers for Week Range
 function getMondayOfDate(d) {
@@ -80,6 +96,36 @@ export const isEntryPaid = (e) => {
 
 export function PaymentReportPage() {
   const { entries, payEntry, syncing, refreshData, currentUser } = useApp();
+
+  // Supabase Production Datasets for Grinding & Crushing Qty calculation
+  const [semiActuals, setSemiActuals] = useState([]);
+  const [crushingActuals, setCrushingActuals] = useState([]);
+  const [loadingProduction, setLoadingProduction] = useState(false);
+
+  const loadProductionData = async () => {
+    try {
+      setLoadingProduction(true);
+      const [semi, crushing] = await Promise.all([
+        fetchSemiActualEntries().catch(() => []),
+        fetchCrushingActualEntries().catch(() => [])
+      ]);
+      setSemiActuals(semi);
+      setCrushingActuals(crushing);
+    } catch (err) {
+      console.error('Error fetching production data for Payment Report:', err);
+    } finally {
+      setLoadingProduction(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProductionData();
+  }, []);
+
+  const handleRefreshAll = () => {
+    refreshData();
+    loadProductionData();
+  };
 
   // Primary Tab: 'pending' (Verification Queue waiting for mark done) vs 'report' (Payment Report)
   const [mainTab, setMainTab] = useState('pending');
@@ -292,11 +338,55 @@ export function PaymentReportPage() {
     });
   }, [completedPaymentEntries, dateFrom, dateTo, searchTerm]);
 
+  // Filter Production Grinding (Actual Production Entry - Test History) by Date Range
+  const productionGrindingQty = useMemo(() => {
+    const filtered = semiActuals.filter((item) => {
+      const sNo = String(item['S No.'] || '').trim().toUpperCase();
+      if (sNo.startsWith('CR-')) return false;
+
+      const recordDate = item['Date Of Production'] || item.Timestamp;
+      if (dateFrom || dateTo) {
+        if (!recordDate) return false;
+        const parsed = parseDate(recordDate);
+        if (!parsed) return false;
+        const iso = toISODate(parsed);
+        if (dateFrom && iso < dateFrom) return false;
+        if (dateTo && iso > dateTo) return false;
+      }
+      return true;
+    });
+
+    return filtered.reduce((sum, item) => {
+      return sum + (Number(item['Qty Of Semi Finished Good']) || 0);
+    }, 0);
+  }, [semiActuals, dateFrom, dateTo]);
+
+  // Filter Production Crushing (Crushing Department) by Date Range
+  const productionCrushingQty = useMemo(() => {
+    const filtered = crushingActuals.filter((item) => {
+      const recordDate = item['Date Of Production'] || item.Timestamp;
+      if (dateFrom || dateTo) {
+        if (!recordDate) return false;
+        const parsed = parseDate(recordDate);
+        if (!parsed) return false;
+        const iso = toISODate(parsed);
+        if (dateFrom && iso < dateFrom) return false;
+        if (dateTo && iso > dateTo) return false;
+      }
+      return true;
+    });
+
+    return filtered.reduce((sum, item) => {
+      return sum + (Number(item['Qty Of Crushing Product']) || 0);
+    }, 0);
+  }, [crushingActuals, dateFrom, dateTo]);
+
   // 1. Table 1: Work Type Aggregated Report
   const workTypeReport = useMemo(() => {
     const map = {};
 
-    verifiedEntries.forEach(entry => {
+    // First pass: aggregate verified labour entries
+    verifiedEntries.forEach((entry) => {
       const workType = (entry.work || 'General Work').trim();
       if (!map[workType]) {
         map[workType] = {
@@ -304,20 +394,79 @@ export function PaymentReportPage() {
           totalQty: 0,
           totalAmount: 0,
           count: 0,
-          unit: getWorkTypeUnit(workType)
+          unit: getWorkTypeUnit(workType),
+          isProductionLinked: isGrindingWork(workType) || isCrushingWork(workType),
+          sourceLabel: isGrindingWork(workType)
+            ? 'Production (Actual Entry)'
+            : isCrushingWork(workType)
+            ? 'Production (Crushing Dept)'
+            : 'Labour Entry'
         };
       }
 
-      const qty = Number(entry.qty) || Number(entry.qtyMade) || 0;
       const amount = Number(entry.totalAmount) || 0;
-
-      map[workType].totalQty += qty;
       map[workType].totalAmount += amount;
       map[workType].count += 1;
+
+      // For all works OTHER than Grinding & Crushing, sum labour qty as normal
+      if (!isGrindingWork(workType) && !isCrushingWork(workType)) {
+        const qty = Number(entry.qty) || Number(entry.qtyMade) || 0;
+        map[workType].totalQty += qty;
+      }
     });
 
-    return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [verifiedEntries]);
+    // Assign Production Grinding Qty to Grinding work type
+    let foundGrinding = false;
+    Object.keys(map).forEach((key) => {
+      if (isGrindingWork(key)) {
+        foundGrinding = true;
+        map[key].totalQty = productionGrindingQty;
+        map[key].unit = 'Tons';
+        map[key].isProductionLinked = true;
+        map[key].sourceLabel = 'Production (Actual Entry)';
+      }
+    });
+
+    // If Grinding has production qty in date range but no labour entries, show it
+    if (!foundGrinding && productionGrindingQty > 0) {
+      map['Grinding'] = {
+        workType: 'Grinding',
+        totalQty: productionGrindingQty,
+        totalAmount: 0,
+        count: 0,
+        unit: 'Tons',
+        isProductionLinked: true,
+        sourceLabel: 'Production (Actual Entry)'
+      };
+    }
+
+    // Assign Production Crushing Qty to Crushing work type
+    let foundCrushing = false;
+    Object.keys(map).forEach((key) => {
+      if (isCrushingWork(key)) {
+        foundCrushing = true;
+        map[key].totalQty = productionCrushingQty;
+        map[key].unit = 'Tons';
+        map[key].isProductionLinked = true;
+        map[key].sourceLabel = 'Production (Crushing Dept)';
+      }
+    });
+
+    // If Crushing has production qty in date range but no labour entries, show it
+    if (!foundCrushing && productionCrushingQty > 0) {
+      map['Crushing'] = {
+        workType: 'Crushing',
+        totalQty: productionCrushingQty,
+        totalAmount: 0,
+        count: 0,
+        unit: 'Tons',
+        isProductionLinked: true,
+        sourceLabel: 'Production (Crushing Dept)'
+      };
+    }
+
+    return Object.values(map).sort((a, b) => b.totalAmount - a.totalAmount || b.totalQty - a.totalQty);
+  }, [verifiedEntries, productionGrindingQty, productionCrushingQty]);
 
   // Work Type Totals
   const workTypeTotals = useMemo(() => {
@@ -543,13 +692,13 @@ export function PaymentReportPage() {
               <div className="flex items-center gap-3 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => refreshData()}
+                  onClick={handleRefreshAll}
                   className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3.5 py-2.5 inline-flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                  title="Sync latest data from Google Sheet"
-                  disabled={syncing}
+                  title="Sync latest data from Google Sheet & Production Supabase"
+                  disabled={syncing || loadingProduction}
                 >
-                  <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} />
-                  <span>{syncing ? 'Syncing...' : 'Sync Sheet'}</span>
+                  <RefreshCw size={15} className={syncing || loadingProduction ? 'animate-spin' : ''} />
+                  <span>{syncing || loadingProduction ? 'Syncing...' : 'Sync Sheet & Prod'}</span>
                 </button>
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4 py-2 text-right">
@@ -567,6 +716,18 @@ export function PaymentReportPage() {
                     <span className="text-xs font-medium text-slate-500">({completedPaymentEntries.length})</span>
                   </div>
                 </div>
+
+                {mainTab === 'report' && (
+                  <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4 py-2 text-right">
+                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Quantity</div>
+                    <div className="text-lg font-extrabold text-indigo-600 leading-tight">
+                      {workTypeTotals.totalQty > 0
+                        ? Number(workTypeTotals.totalQty.toFixed(3)).toLocaleString('en-IN')
+                        : '0'}{' '}
+                      <span className="text-xs font-medium text-slate-500">Tons</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1190,15 +1351,27 @@ export function PaymentReportPage() {
                               </td>
                               <td className="px-4 py-2.5">
                                 <div className="font-semibold text-slate-800 text-xs">{row.workType}</div>
-                                <div className={`inline-flex items-center gap-1 text-[10px] font-bold mt-0.5 ${isTon ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                                  {isTon ? <Scale size={10} /> : <User size={10} />}
-                                  <span>{isTon ? 'Per Ton' : 'Per Person'}</span>
+                                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                  <div
+                                    className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+                                      isTon ? 'text-emerald-600' : 'text-indigo-600'
+                                    }`}
+                                  >
+                                    {isTon ? <Scale size={10} /> : <User size={10} />}
+                                    <span>{isTon ? 'Per Ton' : 'Per Person'}</span>
+                                  </div>
+                                  {row.isProductionLinked && (
+                                    <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-semibold text-[9px]">
+                                      {row.sourceLabel}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="text-right px-3.5 py-2.5 text-xs">
                                 {row.totalQty > 0 ? (
                                   <span className="font-semibold text-slate-700 tabular-nums">
-                                    {row.totalQty.toLocaleString('en-IN')} <span className="text-[11px] font-normal text-slate-500">{row.unit}</span>
+                                    {Number(row.totalQty.toFixed(3)).toLocaleString('en-IN')}{' '}
+                                    <span className="text-[11px] font-normal text-slate-500">{row.unit}</span>
                                   </span>
                                 ) : (
                                   <span className="text-slate-400">-</span>
@@ -1222,7 +1395,9 @@ export function PaymentReportPage() {
                           Grand Total
                         </td>
                         <td className="text-right px-3.5 py-3 font-bold text-slate-900 tabular-nums text-sm">
-                          {workTypeTotals.totalQty > 0 ? workTypeTotals.totalQty.toLocaleString('en-IN') : '-'}
+                          {workTypeTotals.totalQty > 0
+                            ? Number(workTypeTotals.totalQty.toFixed(3)).toLocaleString('en-IN')
+                            : '-'}
                         </td>
                         <td className="text-right px-4 py-3 font-extrabold text-emerald-700 tabular-nums text-base">
                           {formatINR(workTypeTotals.totalAmount)}

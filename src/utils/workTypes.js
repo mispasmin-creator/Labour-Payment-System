@@ -7,7 +7,10 @@ export const TON_BASED_WORK_KEYWORDS = [
   'loading jumbo',
   'unloading',
   'unloading jumbo',
-  'production'
+  'production',
+  'grinding',
+  'crushing',
+  'crusing'
 ];
 
 /**

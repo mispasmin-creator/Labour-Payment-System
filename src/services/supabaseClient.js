@@ -44,3 +44,16 @@ export async function fetchCrushingActualEntries() {
   return data || [];
 }
 
+/**
+ * Fetch Semi Production Master Records (table: semi_production)
+ */
+export async function fetchSemiProduction() {
+  const { data, error } = await supabase
+    .from('semi_production')
+    .select('*')
+    .range(0, 9999)
+    .order('id', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
