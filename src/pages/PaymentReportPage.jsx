@@ -30,8 +30,10 @@ import { StatusBadge } from '../components/common/StatusBadge';
 import { WorkDetailModal } from './WorkDetailModal';
 import {
   fetchSemiActualEntries,
-  fetchCrushingActualEntries
+  fetchCrushingActualEntries,
+  fetchSemiProduction
 } from '../services/supabaseClient';
+import { DASHBOARD_FIRM, getFirmProductionSummary } from '../utils/productionUtils';
 
 export const isGrindingWork = (work) => {
   if (!work) return false;
@@ -100,17 +102,20 @@ export function PaymentReportPage() {
   // Supabase Production Datasets for Grinding & Crushing Qty calculation
   const [semiActuals, setSemiActuals] = useState([]);
   const [crushingActuals, setCrushingActuals] = useState([]);
+  const [semiProductions, setSemiProductions] = useState([]);
   const [loadingProduction, setLoadingProduction] = useState(false);
 
   const loadProductionData = async () => {
     try {
       setLoadingProduction(true);
-      const [semi, crushing] = await Promise.all([
+      const [semi, crushing, prod] = await Promise.all([
         fetchSemiActualEntries().catch(() => []),
-        fetchCrushingActualEntries().catch(() => [])
+        fetchCrushingActualEntries().catch(() => []),
+        fetchSemiProduction().catch(() => [])
       ]);
       setSemiActuals(semi);
       setCrushingActuals(crushing);
+      setSemiProductions(prod);
     } catch (err) {
       console.error('Error fetching production data for Payment Report:', err);
     } finally {
@@ -338,48 +343,13 @@ export function PaymentReportPage() {
     });
   }, [completedPaymentEntries, dateFrom, dateTo, searchTerm]);
 
-  // Filter Production Grinding (Actual Production Entry - Test History) by Date Range
-  const productionGrindingQty = useMemo(() => {
-    const filtered = semiActuals.filter((item) => {
-      const sNo = String(item['S No.'] || '').trim().toUpperCase();
-      if (sNo.startsWith('CR-')) return false;
-
-      const recordDate = item['Date Of Production'] || item.Timestamp;
-      if (dateFrom || dateTo) {
-        if (!recordDate) return false;
-        const parsed = parseDate(recordDate);
-        if (!parsed) return false;
-        const iso = toISODate(parsed);
-        if (dateFrom && iso < dateFrom) return false;
-        if (dateTo && iso > dateTo) return false;
-      }
-      return true;
-    });
-
-    return filtered.reduce((sum, item) => {
-      return sum + (Number(item['Qty Of Semi Finished Good']) || 0);
-    }, 0);
-  }, [semiActuals, dateFrom, dateTo]);
-
-  // Filter Production Crushing (Crushing Department) by Date Range
-  const productionCrushingQty = useMemo(() => {
-    const filtered = crushingActuals.filter((item) => {
-      const recordDate = item['Date Of Production'] || item.Timestamp;
-      if (dateFrom || dateTo) {
-        if (!recordDate) return false;
-        const parsed = parseDate(recordDate);
-        if (!parsed) return false;
-        const iso = toISODate(parsed);
-        if (dateFrom && iso < dateFrom) return false;
-        if (dateTo && iso > dateTo) return false;
-      }
-      return true;
-    });
-
-    return filtered.reduce((sum, item) => {
-      return sum + (Number(item['Qty Of Crushing Product']) || 0);
-    }, 0);
-  }, [crushingActuals, dateFrom, dateTo]);
+  // PMMPL-only Grinding (Actual Production Entry) & Crushing (Crushing Department) qty by date range
+  const productionSummary = useMemo(
+    () => getFirmProductionSummary({ semiActuals, crushingActuals, semiProductions, dateFrom, dateTo }),
+    [semiActuals, crushingActuals, semiProductions, dateFrom, dateTo]
+  );
+  const productionGrindingQty = productionSummary.grinding.qty;
+  const productionCrushingQty = productionSummary.crushing.qty;
 
   // 1. Table 1: Work Type Aggregated Report
   const workTypeReport = useMemo(() => {
@@ -397,9 +367,9 @@ export function PaymentReportPage() {
           unit: getWorkTypeUnit(workType),
           isProductionLinked: isGrindingWork(workType) || isCrushingWork(workType),
           sourceLabel: isGrindingWork(workType)
-            ? 'Production (Actual Entry)'
+            ? `Production (Actual Entry) • ${DASHBOARD_FIRM.toUpperCase()}`
             : isCrushingWork(workType)
-            ? 'Production (Crushing Dept)'
+            ? `Production (Crushing Dept) • ${DASHBOARD_FIRM.toUpperCase()}`
             : 'Labour Entry'
         };
       }
@@ -423,7 +393,7 @@ export function PaymentReportPage() {
         map[key].totalQty = productionGrindingQty;
         map[key].unit = 'Tons';
         map[key].isProductionLinked = true;
-        map[key].sourceLabel = 'Production (Actual Entry)';
+        map[key].sourceLabel = `Production (Actual Entry) • ${DASHBOARD_FIRM.toUpperCase()}`;
       }
     });
 
@@ -436,7 +406,7 @@ export function PaymentReportPage() {
         count: 0,
         unit: 'Tons',
         isProductionLinked: true,
-        sourceLabel: 'Production (Actual Entry)'
+        sourceLabel: `Production (Actual Entry) • ${DASHBOARD_FIRM.toUpperCase()}`
       };
     }
 
@@ -448,7 +418,7 @@ export function PaymentReportPage() {
         map[key].totalQty = productionCrushingQty;
         map[key].unit = 'Tons';
         map[key].isProductionLinked = true;
-        map[key].sourceLabel = 'Production (Crushing Dept)';
+        map[key].sourceLabel = `Production (Crushing Dept) • ${DASHBOARD_FIRM.toUpperCase()}`;
       }
     });
 
@@ -461,7 +431,7 @@ export function PaymentReportPage() {
         count: 0,
         unit: 'Tons',
         isProductionLinked: true,
-        sourceLabel: 'Production (Crushing Dept)'
+        sourceLabel: `Production (Crushing Dept) • ${DASHBOARD_FIRM.toUpperCase()}`
       };
     }
 
@@ -684,7 +654,7 @@ export function PaymentReportPage() {
                   <p className="text-xs text-slate-500">
                     {mainTab === 'pending'
                       ? `${pendingPaymentEntries.length} verified order${pendingPaymentEntries.length === 1 ? '' : 's'} pending payment`
-                      : `${completedPaymentEntries.length} verified &amp; paid record${completedPaymentEntries.length === 1 ? '' : 's'} (${formattedPeriod})`}
+                      : `${completedPaymentEntries.length} verified & paid record${completedPaymentEntries.length === 1 ? '' : 's'} (${formattedPeriod})`}
                   </p>
                 </div>
               </div>
@@ -1058,7 +1028,7 @@ export function PaymentReportPage() {
                                       }`}
                                     >
                                       {isTon ? <Scale size={11} /> : <User size={11} />}
-                                      <span>{isTon ? 'Per Ton' : 'Per Person'}</span>
+                                      <span>{isTon ? 'Qty in Tons' : 'Per Person'}</span>
                                     </div>
                                   </div>
                                 </td>
@@ -1358,7 +1328,7 @@ export function PaymentReportPage() {
                                     }`}
                                   >
                                     {isTon ? <Scale size={10} /> : <User size={10} />}
-                                    <span>{isTon ? 'Per Ton' : 'Per Person'}</span>
+                                    <span>{isTon ? 'Qty in Tons' : 'Per Person'}</span>
                                   </div>
                                   {row.isProductionLinked && (
                                     <span className="px-1.5 py-0.2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded font-semibold text-[9px]">

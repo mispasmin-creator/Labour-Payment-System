@@ -23,6 +23,7 @@ import {
 } from '../services/supabaseClient';
 import { formatDate, formatINR, parseDate } from '../utils/dateUtils';
 import { exportToCSV } from '../utils/exportUtils';
+import { buildSemiFirmResolver } from '../utils/productionUtils';
 import { Modal } from '../components/common/Modal';
 
 function formatQty(val) {
@@ -113,17 +114,8 @@ export function ProductionPage() {
     loadSupabaseData();
   }, []);
 
-  // Map SF-No to Firm Name from semi_production
-  const sfFirmMap = useMemo(() => {
-    const map = {};
-    semiProductions.forEach((r) => {
-      const k = String(r['SF-Sr No.'] || '').trim().toUpperCase();
-      if (k) {
-        map[k] = r['Firm name'] || r['Firm Name'] || '';
-      }
-    });
-    return map;
-  }, [semiProductions]);
+  // Resolve Firm Name from semi_production (SF-No + product + date; SF-Nos repeat across firms)
+  const resolveSemiFirm = useMemo(() => buildSemiFirmResolver(semiProductions), [semiProductions]);
 
   // Enrich semiActuals with Firm Name
   const enrichedSemiActuals = useMemo(() => {
@@ -133,23 +125,27 @@ export function ProductionPage() {
         return !sNo.startsWith('CR-'); // Crushing records are separated to Crushing tab
       })
       .map((item) => {
-        const sfNoKey = String(item['Semi Finished Production No.'] || '').trim().toUpperCase();
-        const mappedFirm = item['Firm Name'] || sfFirmMap[sfNoKey] || '';
         return {
           ...item,
-          firmName: mappedFirm || 'Pmmpl'
+          firmName: resolveSemiFirm(item)
         };
       });
-  }, [semiActuals, sfFirmMap]);
+  }, [semiActuals, resolveSemiFirm]);
 
-  // Distinct Firms for Filter Dropdown
+  // Distinct Firms for Filter Dropdown (per department)
   const firmOptions = useMemo(() => {
     const set = new Set();
-    enrichedSemiActuals.forEach((r) => {
-      if (r.firmName) set.add(r.firmName);
-    });
+    if (department === 'semi_actual') {
+      enrichedSemiActuals.forEach((r) => {
+        if (r.firmName) set.add(r.firmName);
+      });
+    } else {
+      crushingActuals.forEach((r) => {
+        if (r['Firm Name']) set.add(r['Firm Name']);
+      });
+    }
     return Array.from(set).sort();
-  }, [enrichedSemiActuals]);
+  }, [department, enrichedSemiActuals, crushingActuals]);
 
   // Distinct Products for Filter Dropdown
   const productOptions = useMemo(() => {
@@ -236,6 +232,11 @@ export function ProductionPage() {
     return crushingActuals.filter((item) => {
       if (!item) return false;
 
+      // Firm Filter
+      if (selectedFirm !== 'ALL' && String(item['Firm Name'] || '').toLowerCase() !== selectedFirm.toLowerCase()) {
+        return false;
+      }
+
       // Date Filtering
       const recordDate = item['Date Of Production'] || item.Timestamp;
       if (dateFrom || dateTo) {
@@ -262,7 +263,7 @@ export function ProductionPage() {
       if (timeB !== timeA) return timeB - timeA;
       return (b.id || 0) - (a.id || 0);
     });
-  }, [crushingActuals, dateFrom, dateTo, searchTerm]);
+  }, [crushingActuals, selectedFirm, dateFrom, dateTo, searchTerm]);
 
   // Active dataset according to Department
   const activeDataset = department === 'semi_actual' ? filteredSemiActual : filteredCrushing;
@@ -492,25 +493,23 @@ export function ProductionPage() {
       {!(department === 'semi_actual' && semiTab === 'summary') && (
         <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Firm Dropdown (only for Semi Actual) */}
-            {department === 'semi_actual' && (
-              <div className="relative flex items-center">
-                <Building2 size={14} className="absolute left-2.5 text-slate-400 pointer-events-none" />
-                <select
-                  value={selectedFirm}
-                  onChange={(e) => setSelectedFirm(e.target.value)}
-                  className="pl-8 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors cursor-pointer appearance-none"
-                >
-                  <option value="ALL">All Firms</option>
-                  {firmOptions.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute right-2 text-slate-400 pointer-events-none text-[10px]">&#9662;</div>
-              </div>
-            )}
+            {/* Firm Dropdown (Semi Actual & Crushing) */}
+            <div className="relative flex items-center">
+              <Building2 size={14} className="absolute left-2.5 text-slate-400 pointer-events-none" />
+              <select
+                value={selectedFirm}
+                onChange={(e) => setSelectedFirm(e.target.value)}
+                className="pl-8 pr-7 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors cursor-pointer appearance-none"
+              >
+                <option value="ALL">All Firms</option>
+                {firmOptions.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-2 text-slate-400 pointer-events-none text-[10px]">&#9662;</div>
+            </div>
 
             {/* Product Dropdown (only for Semi Actual) */}
             {department === 'semi_actual' && (

@@ -37,18 +37,12 @@ export function getWorkTypeUnit(workType) {
 }
 
 /**
- * Compute total amount based on activity type:
- * - Ton-based: Qty (Tons) * Rate per Ton
- * - Person/Daily-based: Labour Count * Rate per Person
+ * Total amount = Amount per person (sheet Col K) x Labour count, for every work type.
+ * Qty (Tons) is recorded for ton-based work but does not drive the amount.
  */
 export function calculateTotalAmount(workType, qty, rate, labourCount) {
-  const q = Number(qty) || 0;
   const r = Number(rate) || 0;
   const count = Number(labourCount) || 1;
-
-  if (isTonBasedWork(workType)) {
-    return q * r;
-  }
   return count * r;
 }
 
@@ -62,13 +56,24 @@ export function getEntryTotalAmount(entry) {
   const rate = Number(entry.rate) || 0;
   const count = Number(entry.labourCount) || (entry.labourNames ? entry.labourNames.length : 1);
 
-  if (isTon && qty > 0 && rate > 0) {
-    return qty * rate;
-  }
-  if (!isTon && count > 0 && rate > 0) {
-    return count * rate;
-  }
-  return Number(entry.totalAmount) || (isTon ? qty * rate : count * rate);
+  if (Number(entry.totalAmount) > 0) return Number(entry.totalAmount);
+  return count * rate;
+}
+
+/**
+ * Amount per person (sheet Col K): stored rate, else Total / Labour count.
+ */
+export function getEntryPerPersonAmount(entry) {
+  if (!entry) return 0;
+  const rate = Number(entry.rate) || 0;
+  if (rate > 0) return rate;
+  const count = Number(entry.labourCount) || (entry.labourNames ? entry.labourNames.length : 1);
+  return count > 0 ? getEntryTotalAmount(entry) / count : 0;
+}
+
+export function formatEntryRate(entry) {
+  const amount = getEntryPerPersonAmount(entry);
+  return `₹${amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}/person`;
 }
 
 export const DEFAULT_WORK_TYPES_LIST = [

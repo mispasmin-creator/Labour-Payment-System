@@ -216,7 +216,7 @@ export function WorkTrackerPage() {
                             {entry.work}
                           </div>
                           <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                            {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                            {isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'}
                           </div>
                         </div>
                       </td>

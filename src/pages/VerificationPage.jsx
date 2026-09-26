@@ -19,7 +19,7 @@ import { DelayBadge } from '../components/common/DelayBadge';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Modal } from '../components/common/Modal';
 import { WorkDetailModal } from './WorkDetailModal';
-import { isTonBasedWork } from '../utils/workTypes';
+import { isTonBasedWork, formatEntryRate } from '../utils/workTypes';
 import { sanitizeLabourersList } from '../services/api';
 
 export const isEntryVerified = entry => {
@@ -321,7 +321,7 @@ export function VerificationPage() {
                           <div className="font-bold text-slate-800 text-sm">{entry.work}</div>
                           <div className={`inline-flex items-center gap-1 text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
                             {isTonBasedWork(entry.work) ? <Scale size={11} /> : <User size={11} />}
-                            <span>{isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}</span>
+                            <span>{isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'}</span>
                           </div>
                         </div>
                       </td>
@@ -400,14 +400,14 @@ export function VerificationPage() {
                     {selectedEntry.work}{' '}
                     <span className={`inline-flex items-center gap-1 text-xs font-bold ${isTonBasedWork(selectedEntry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
                       {isTonBasedWork(selectedEntry.work) ? <Scale size={12} /> : <User size={12} />}
-                      <span>{isTonBasedWork(selectedEntry.work) ? 'Per Ton' : 'Per Person'}</span>
+                      <span>{isTonBasedWork(selectedEntry.work) ? 'Qty in Tons' : 'Per Person'}</span>
                     </span>
                   </strong>
                 </div>
                 <div>
                   <span className="text-slate-500">Labour & Rate:</span>{' '}
                   <strong>
-                    {selectedEntry.labourCount} persons • {isTonBasedWork(selectedEntry.work) ? `₹${selectedEntry.rate}/Ton` : `₹${selectedEntry.rate}/person`}
+                    {selectedEntry.labourCount} persons • {formatEntryRate(selectedEntry)}
                   </strong>
                 </div>
                 <div>

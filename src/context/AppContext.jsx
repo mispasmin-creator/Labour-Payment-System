@@ -420,7 +420,7 @@ export function AppProvider({ children }) {
     const timestamp = getNowTimestamp();
     const labourCount = Number(entryData.labourCount) || (entryData.labourNames ? entryData.labourNames.length : 1);
     const rate = Number(entryData.rate) || 0;
-    const totalAmount = labourCount * rate;
+    const totalAmount = Number(entryData.totalAmount) > 0 ? Number(entryData.totalAmount) : labourCount * rate;
 
     let newEntry = null;
 

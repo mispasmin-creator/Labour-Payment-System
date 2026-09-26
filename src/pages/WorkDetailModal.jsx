@@ -174,7 +174,7 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
                       : 'text-indigo-700 bg-indigo-50 border-indigo-200'
                   }`}
                 >
-                  {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                  {isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'}
                 </span>
               </div>
               <div className="text-xs text-slate-500 mt-1">

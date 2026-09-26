@@ -267,7 +267,7 @@ export function ReportsPage() {
                             {item.work}
                           </div>
                           <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(item.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                            {isTonBasedWork(item.work) ? 'Per Ton' : 'Per Person'}
+                            {isTonBasedWork(item.work) ? 'Qty in Tons' : 'Per Person'}
                           </div>
                         </div>
                       </td>

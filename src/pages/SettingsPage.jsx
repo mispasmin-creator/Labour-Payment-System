@@ -610,7 +610,7 @@ function handleCreateEntry(ss, data) {
   });
   const totalAmount = data.totalAmount !== undefined && !isNaN(Number(data.totalAmount)) && Number(data.totalAmount) > 0
     ? Number(data.totalAmount)
-    : (isTon ? (qty * rate) : (labourCount * rate));
+    : labourCount * rate; // Amount per person x Labour count
   const status = 'Pending Verification';
   const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
   const firmName = data.firmName ? String(data.firmName).trim() : (data.firm ? String(data.firm).trim() : 'PMMPL');
@@ -1259,14 +1259,9 @@ function getEntriesData(ss) {
         return w === t || (t.indexOf(' ') !== -1 && w.indexOf(t) !== -1) || w.indexOf(t) === 0;
       });
       
-      let totalAmount = 0;
-      if (isTon && qty > 0 && rate > 0) {
-        totalAmount = qty * rate;
-      } else if (!isTon && labourCount > 0 && rate > 0) {
-        totalAmount = labourCount * rate;
-      } else {
-        totalAmount = Number(row[totalCol]) || (isTon ? qty * rate : labourCount * rate);
-      }
+      // Sheet "Total Amount" is the source of truth; only compute when it is missing
+      const sheetTotal = Number(row[totalCol]) || 0;
+      const totalAmount = sheetTotal > 0 ? sheetTotal : labourCount * rate; // Amount per person x Labour count
 
       const entryObj = {
         timestamp: row[0],

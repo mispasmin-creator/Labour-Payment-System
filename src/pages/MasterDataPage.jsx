@@ -11,7 +11,6 @@ import {
   Layers
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { isTonBasedWork } from '../utils/workTypes';
 
 export function MasterDataPage() {
   const { masterData, updateMaster, syncing } = useApp();
@@ -353,7 +352,7 @@ export function MasterDataPage() {
                       {item.name}
                     </div>
                     <div className="text-xs text-emerald-600 font-semibold">
-                      Default Rate: ₹{item.defaultRate} / {isTonBasedWork(item.name) ? 'ton' : 'person'}
+                      Default Rate: ₹{item.defaultRate} / person
                     </div>
                   </div>
                   <button type="button" onClick={() => removeWorkType(idx)} className={removeBtnClass} title="Delete">

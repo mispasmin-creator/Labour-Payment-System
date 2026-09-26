@@ -1,4 +1,4 @@
-import { isTonBasedWork } from './workTypes';
+import { isTonBasedWork, formatEntryRate } from './workTypes';
 
 /**
  * Export data to CSV and trigger browser download
@@ -303,9 +303,9 @@ export function printWorkSlip(entry) {
           <div class="card"><div class="label">Firm Name</div><div class="val">${entry.firmName || '-'}</div></div>
 
           <div class="card"><div class="label">Supervisor / Incharge</div><div class="val">${entry.incharge}</div></div>
-          <div class="card"><div class="label">Work Description</div><div class="val">${entry.work} (${isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'})</div></div>
+          <div class="card"><div class="label">Work Description</div><div class="val">${entry.work} (${isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'})</div></div>
           <div class="card"><div class="label">Hours & Quantity</div><div class="val">${entry.hours || 0} hrs • ${entry.qty || 0} ${isTonBasedWork(entry.work) ? 'MT' : 'units'}</div></div>
-          <div class="card"><div class="label">Rate</div><div class="val">₹${entry.rate} ${isTonBasedWork(entry.work) ? '/ Ton' : '/ person'}</div></div>
+          <div class="card"><div class="label">Rate</div><div class="val">${formatEntryRate(entry)}</div></div>
 
           <div class="card"><div class="label">Deployed Labourers</div><div class="val">${entry.labourCount} Persons</div></div>
           <div class="card"><div class="label">Per Person Share</div><div class="val" style="color: #059669;">₹${perPerson.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div></div>
@@ -726,7 +726,7 @@ export function printInchargeWiseReport({
                 <tr>
                   <td>${idx + 1}</td>
                   <td class="bold">${w.workType}</td>
-                  <td>${w.isTon ? 'Per Ton' : 'Per Person'}</td>
+                  <td>Per Person</td>
                   <td class="num">${w.labourCount}</td>
                   <td class="num">${w.totalDays}</td>
                   <td class="num">${w.qtyMade ? w.qtyMade.toLocaleString('en-IN') : '-'}</td>

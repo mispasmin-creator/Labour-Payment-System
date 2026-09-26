@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PlusCircle,
@@ -18,7 +18,11 @@ import {
   Users,
   User,
   Scale,
-  TrendingUp
+  TrendingUp,
+  Factory,
+  Cog,
+  Hammer,
+  ShieldCheck
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -26,6 +30,12 @@ import { MetricCard } from '../components/common/MetricCard';
 import { isTonBasedWork } from '../utils/workTypes';
 import { formatDate, formatINR, parseDate } from '../utils/dateUtils';
 import { WorkDetailModal } from './WorkDetailModal';
+import {
+  fetchSemiActualEntries,
+  fetchCrushingActualEntries,
+  fetchSemiProduction
+} from '../services/supabaseClient';
+import { DASHBOARD_FIRM, getFirmProductionSummary } from '../utils/productionUtils';
 
 // Date Helpers for Week Navigation
 function getMondayOfDate(d) {
@@ -51,6 +61,65 @@ function toISODate(d) {
   return `${year}-${month}-${day}`;
 }
 
+const formatQty = (n) =>
+  (Number(n) || 0).toLocaleString('en-IN', { maximumFractionDigits: 3 });
+
+const ACCENTS = {
+  indigo: { icon: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-500', track: 'bg-indigo-100' },
+  amber: { icon: 'bg-amber-50 text-amber-600', bar: 'bg-amber-500', track: 'bg-amber-100' }
+};
+
+function ProductionStat({ title, source, icon: Icon, accent, data, share, loading }) {
+  const a = ACCENTS[accent] || ACCENTS.indigo;
+  const topMax = Math.max(1, ...data.topProducts.map(p => p.qty));
+
+  return (
+    <div className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${a.icon}`}>
+            <Icon size={20} />
+          </span>
+          <div>
+            <div className="text-sm font-bold text-slate-800">{title}</div>
+            <div className="text-[11px] text-slate-500">{source}</div>
+          </div>
+        </div>
+        <span className="text-[11px] font-semibold text-slate-500 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+          {loading ? '…' : `${data.count} ${data.count === 1 ? 'entry' : 'entries'}`}
+        </span>
+      </div>
+
+      <div className="mt-4 flex items-baseline gap-1.5">
+        <span className="text-3xl font-extrabold text-slate-900 tabular-nums">
+          {loading ? '—' : formatQty(data.qty)}
+        </span>
+        <span className="text-sm font-semibold text-slate-500">MT</span>
+      </div>
+      <div className="text-[11px] text-slate-500 mt-0.5">
+        Total quantity • {Math.round(share * 100)}% of combined output
+      </div>
+
+      <div className="mt-4 space-y-2">
+        {!loading && data.topProducts.length === 0 && (
+          <div className="text-xs text-slate-400 italic">No production recorded in this period</div>
+        )}
+        {!loading && data.topProducts.map(p => (
+          <div key={p.name}>
+            <div className="flex items-center justify-between text-[11px] mb-1">
+              <span className="font-medium text-slate-600 truncate pr-2">{p.name}</span>
+              <span className="font-bold text-slate-800 tabular-nums">{formatQty(p.qty)} MT</span>
+            </div>
+            <div className={`h-1.5 rounded-full overflow-hidden ${a.track}`}>
+              <div className={`h-full rounded-full ${a.bar}`} style={{ width: `${(p.qty / topMax) * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const navigate = useNavigate();
   const { entries, counts, refreshData, syncing, openNewEntry } = useApp();
@@ -63,6 +132,44 @@ export function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const safeEntries = Array.isArray(entries) ? entries.filter(Boolean) : [];
+
+  // Production data (Supabase) for PMMPL Grinding & Crushing output
+  const [semiActuals, setSemiActuals] = useState([]);
+  const [crushingActuals, setCrushingActuals] = useState([]);
+  const [semiProductions, setSemiProductions] = useState([]);
+  const [loadingProduction, setLoadingProduction] = useState(false);
+  const [productionError, setProductionError] = useState(null);
+
+  const loadProductionData = async () => {
+    try {
+      setLoadingProduction(true);
+      setProductionError(null);
+      const [semi, crushing, prod] = await Promise.all([
+        fetchSemiActualEntries(),
+        fetchCrushingActualEntries(),
+        fetchSemiProduction().catch(() => [])
+      ]);
+      setSemiActuals(semi);
+      setCrushingActuals(crushing);
+      setSemiProductions(prod);
+    } catch (err) {
+      console.error('Error fetching production data for Dashboard:', err);
+      setProductionError(err.message || 'Failed to connect to Supabase');
+    } finally {
+      setLoadingProduction(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProductionData();
+  }, []);
+
+  const handleRefreshAll = () => {
+    refreshData();
+    loadProductionData();
+  };
+
+  const isSyncing = syncing || loadingProduction;
 
   // Navigate Weeks (Previous / Next)
   const handleShiftWeek = (offsetWeeks) => {
@@ -195,51 +302,166 @@ export function DashboardPage() {
       }));
   }, [filteredEntries]);
 
+  const productionSummary = useMemo(
+    () => getFirmProductionSummary({ semiActuals, crushingActuals, semiProductions, dateFrom, dateTo }),
+    [semiActuals, crushingActuals, semiProductions, dateFrom, dateTo]
+  );
+
   const maxChartAmount = useMemo(
     () => Math.max(1, ...chartData.map(d => d.amount)),
     [chartData]
   );
 
+  const verifiedPct = filteredEntries.length > 0 ? Math.round((filteredVerifiedOrders.length / filteredEntries.length) * 100) : 0;
+  const pendingPct = filteredEntries.length > 0 ? 100 - verifiedPct : 0;
+  const combinedProductionQty = productionSummary.grinding.qty + productionSummary.crushing.qty;
+
   return (
     <div className="h-full flex flex-col bg-slate-50 space-y-4">
-      {/* Sticky Page Header */}
-      <div className="shrink-0 flex items-center justify-between gap-4 flex-wrap bg-white rounded-xl border border-slate-200 shadow-2xs px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <LayoutDashboard size={20} />
+      {/* Page Header + Filters */}
+      <div className="shrink-0 bg-white rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center justify-between gap-4 flex-wrap px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <LayoutDashboard size={20} />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Operations Dashboard</h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Labour work, payments &amp; production overview
+                <span className="mx-1.5 text-slate-300">•</span>
+                <span className="font-semibold text-slate-700">{activeRangeLabel}</span>
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">Labour Payment System</h1>
-            <p className="text-xs text-slate-500">Dashboard overview of work entries and payment workflow</p>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleRefreshAll}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Sync labour entries (Google Sheet) & production data (Supabase)"
+            >
+              <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
+              <span>{isSyncing ? 'Syncing...' : 'Sync Data'}</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/reports')}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2 transition-colors"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export Reports</span>
+            </button>
+
+            <button
+              onClick={openNewEntry}
+              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
+            >
+              <PlusCircle size={16} />
+              <span>New Work Entry</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={refreshData}
-            disabled={syncing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Sync & Refresh Data from Google Sheets"
-          >
-            <RefreshCw size={14} className={syncing ? 'animate-spin' : ''} />
-            <span>{syncing ? 'Syncing...' : 'Sync Live Data'}</span>
-          </button>
+        {/* Date Range & Week Filter Toolbar */}
+        <div className="border-t border-slate-100 px-5 py-3 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Calendar size={15} className="text-slate-400" />
 
-          <button
-            onClick={openNewEntry}
-            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
-          >
-            <PlusCircle size={16} />
-            <span>New Work Entry</span>
-          </button>
+            <div className="inline-flex items-center border border-slate-200 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleShiftWeek(-1)}
+                title="Previous Week"
+                className="bg-white border-r border-slate-200 px-2 py-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors flex items-center"
+              >
+                <ChevronLeft size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleShiftWeek(1)}
+                title="Next Week"
+                className="bg-white px-2 py-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors flex items-center"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
 
-          <button
-            onClick={() => navigate('/reports')}
-            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2 transition-colors"
-          >
-            <FileSpreadsheet size={14} />
-            <span>Export Reports</span>
-          </button>
+            <div className="inline-flex items-center bg-slate-100 rounded-lg p-0.5">
+              {['This Week', 'Last Week', 'This Month', 'All Time'].map(preset => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => handleSetPreset(preset)}
+                  className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                    selectedPreset === preset
+                      ? 'bg-white text-indigo-700 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={e => {
+                  setDateFrom(e.target.value);
+                  setSelectedPreset('');
+                }}
+                className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                aria-label="From date"
+              />
+              <span className="font-semibold">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={e => {
+                  setDateTo(e.target.value);
+                  setSelectedPreset('');
+                }}
+                className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                aria-label="To date"
+              />
+            </div>
+
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search work, incharge, labour..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 text-xs bg-white w-[210px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {(dateFrom || dateTo || searchTerm || selectedPreset !== 'All Time') && (
+              <button
+                type="button"
+                onClick={() => handleSetPreset('All Time')}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                title="Reset all filters to All Time"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -248,17 +470,18 @@ export function DashboardPage() {
       {/* Top-Level KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Total Work Orders"
+          title="Work Orders"
           value={filteredEntries.length}
-          subtitle={activeRangeLabel}
+          subtitle={`${pendingVerificationCount} pending verification`}
           icon={Layers}
           theme="indigo"
+          onClick={() => navigate('/tracker')}
         />
         <MetricCard
-          title="Pending Verification"
-          value={pendingVerificationCount}
-          subtitle="Awaiting site check"
-          icon={Clock}
+          title="Total Work Value"
+          value={formatINR(totalFilteredAmount)}
+          subtitle={`Across ${filteredEntries.length} work orders`}
+          icon={TrendingUp}
           theme="amber"
         />
         <MetricCard
@@ -267,296 +490,190 @@ export function DashboardPage() {
           subtitle={`${filteredVerifiedOrders.length} orders verified`}
           icon={IndianRupee}
           theme="emerald"
+          onClick={() => navigate('/payment-report')}
         />
         <MetricCard
           title="Labourers Deployed"
-          value={totalLabourCount}
+          value={totalLabourCount.toLocaleString('en-IN')}
           subtitle="Across selected orders"
           icon={Users}
           theme="teal"
         />
       </div>
 
-      {/* ============================================================
-          DATE RANGE & WEEK FILTER TOOLBAR
-          ============================================================ */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-        {/* Left Side: Week Navigation & Preset Chips */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 mr-1">
-            <Calendar size={16} className="text-emerald-600" />
-            <span className="text-sm font-bold text-slate-900">Date Filter:</span>
-          </div>
-
-          {/* Week Shift Controls */}
-          <div className="inline-flex items-center border border-slate-200 rounded-lg overflow-hidden">
-            <button
-              type="button"
-              onClick={() => handleShiftWeek(-1)}
-              title="Previous Week"
-              className="bg-slate-50 border-r border-slate-200 px-2.5 py-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleShiftWeek(1)}
-              title="Next Week"
-              className="bg-slate-50 px-2.5 py-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors flex items-center"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-
-          {/* Preset Chips */}
-          {['This Week', 'Last Week', 'This Month', 'All Time'].map(preset => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() => handleSetPreset(preset)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                selectedPreset === preset
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {preset}
-            </button>
-          ))}
-        </div>
-
-        {/* Right Side: Custom Date Pickers, Search & Reset */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-            <span className="font-semibold">From:</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => {
-                setDateFrom(e.target.value);
-                setSelectedPreset('');
-              }}
-              className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            <span className="font-semibold ml-0.5">To:</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => {
-                setDateTo(e.target.value);
-                setSelectedPreset('');
-              }}
-              className="px-2 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-          </div>
-
-          {/* Quick Search */}
-          <div className="relative flex items-center">
-            <Search size={14} className="absolute left-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search activity, incharge..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 text-xs bg-white w-[170px] focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2 text-slate-400 hover:text-slate-600 p-0.5"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-
-          {(dateFrom || dateTo || searchTerm || selectedPreset !== 'All Time') && (
-            <button
-              type="button"
-              onClick={() => handleSetPreset('All Time')}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-colors"
-              title="Reset all filters to All Time"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Workflow Stage Cards: Verification & Payment Report */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Step 1: Verification */}
-        <div
-          className="relative overflow-hidden bg-white rounded-xl border border-slate-200 shadow-2xs p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
-          onClick={() => navigate('/verification')}
-        >
-          <span className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
-          <div className="flex items-start justify-between">
+      {/* Production Output — PMMPL only */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center justify-between flex-wrap gap-3 px-5 py-4 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-100 text-slate-700">
+              <Factory size={16} />
+            </div>
             <div>
-              <span className="text-sm font-extrabold text-slate-800">1. Work Verification</span>
-              <div className="text-xs text-slate-500 mt-0.5">Site Supervisor / Ops Verification</div>
-            </div>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-amber-50 text-amber-600 shrink-0">
-              <Clock size={20} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-3 bg-slate-50 px-3.5 py-2.5 rounded-lg border border-slate-200">
-            <div>
-              <div className="text-[11px] font-bold text-amber-600 uppercase tracking-wide">Pending Verify</div>
-              <div className="text-2xl font-extrabold text-amber-700">{pendingVerificationCount}</div>
-            </div>
-            <div className="border-l border-slate-200 pl-3">
-              <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide">Verified</div>
-              <div className="text-2xl font-extrabold text-emerald-700">{filteredVerifiedOrders.length}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Step 2: Payment Report */}
-        <div
-          className="relative overflow-hidden bg-gradient-to-b from-white to-emerald-50/40 rounded-xl border border-emerald-200 shadow-2xs p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
-          onClick={() => navigate('/payment-report')}
-        >
-          <span className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-          <div className="flex items-start justify-between">
-            <div>
-              <span className="text-sm font-extrabold text-emerald-950">2. Payment Report</span>
-              <div className="text-xs text-emerald-600 mt-0.5 font-semibold">Weekly Work Type &amp; Labour Wise Report</div>
-            </div>
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600 shrink-0">
-              <ReceiptText size={20} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2.5 mt-3 bg-white px-3.5 py-2.5 rounded-lg border border-emerald-200">
-            <div>
-              <div className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide">Verified Orders</div>
-              <div className="text-2xl font-extrabold text-emerald-950">{filteredVerifiedOrders.length}</div>
-            </div>
-            <div className="border-l border-slate-200 pl-3">
-              <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-wide">Payable Amount</div>
-              <div className="text-2xl font-extrabold text-indigo-700">{formatINR(totalVerifiedAmount)}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Financial Overview & Work Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Total Financials */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <div className="flex items-center gap-2.5 font-bold text-slate-800">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600">
-                <IndianRupee size={16} />
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-800">Production Output</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                  Firm: {DASHBOARD_FIRM.toUpperCase()}
+                </span>
               </div>
-              <span>Financial Overview</span>
-            </div>
-            <span className="text-xs font-semibold text-slate-500">{activeRangeLabel}</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
-              <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">Verified Payable Amount</div>
-              <div className="text-xl font-extrabold text-emerald-700 mt-1">{formatINR(totalVerifiedAmount)}</div>
-              <div className="text-xs text-emerald-600 mt-1">{filteredVerifiedOrders.length} orders verified</div>
-            </div>
-
-            <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-              <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wide">Total Work Value</div>
-              <div className="text-xl font-extrabold text-amber-700 mt-1">{formatINR(totalFilteredAmount)}</div>
-              <div className="text-xs text-amber-600 mt-1">{filteredEntries.length} total work orders</div>
+              <div className="text-xs text-slate-500 mt-0.5">From Production page • {activeRangeLabel}</div>
             </div>
           </div>
-        </div>
 
-        {/* Verification Status Distribution */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5 font-bold text-slate-800">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-600">
-                <Layers size={16} />
-              </div>
-              <span>Verification Status Ratio</span>
-            </div>
-            <span className="text-xs font-bold text-emerald-600">{filteredEntries.length} Total Orders</span>
-          </div>
-
-          <div className="flex h-4 rounded-lg overflow-hidden bg-slate-100 mb-3.5">
-            <div
-              className="bg-emerald-500"
-              style={{ width: `${filteredEntries.length > 0 ? (filteredVerifiedOrders.length / filteredEntries.length) * 100 : 0}%` }}
-              title="Verified"
-            />
-            <div
-              className="bg-amber-500"
-              style={{ width: `${filteredEntries.length > 0 ? (pendingVerificationCount / filteredEntries.length) * 100 : 0}%` }}
-              title="Pending Verification"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-              <div>
-                <div className="font-bold text-emerald-800 text-xs">Verified ({filteredVerifiedOrders.length})</div>
-                <div className="text-[11px] text-emerald-600">
-                  {filteredEntries.length > 0 ? Math.round((filteredVerifiedOrders.length / filteredEntries.length) * 100) : 0}% of selected
-                </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Combined Output</div>
+              <div className="text-lg font-extrabold text-slate-900 leading-tight">
+                {loadingProduction ? '…' : `${formatQty(combinedProductionQty)} MT`}
               </div>
             </div>
-
-            <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
-              <div>
-                <div className="font-bold text-amber-800 text-xs">Pending Verify ({pendingVerificationCount})</div>
-                <div className="text-[11px] text-amber-600">
-                  {filteredEntries.length > 0 ? Math.round((pendingVerificationCount / filteredEntries.length) * 100) : 0}% of selected
-                </div>
-              </div>
-            </div>
+            <button
+              onClick={() => navigate('/production')}
+              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+            >
+              <span>View Production</span>
+              <ArrowRight size={14} />
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Daily Work Value Trend */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-          <div className="flex items-center gap-2.5 font-bold text-slate-800">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-600">
-              <TrendingUp size={16} />
-            </div>
-            <span>Work Value Trend</span>
-          </div>
-          <span className="text-xs font-semibold text-slate-500">
-            {chartData.length > 0 ? `Last ${chartData.length} active day${chartData.length === 1 ? '' : 's'}` : activeRangeLabel}
-          </span>
-        </div>
-
-        {chartData.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400">
-            <TrendingUp size={28} />
-            <span className="text-xs font-semibold">No work value data for {activeRangeLabel}</span>
+        {productionError ? (
+          <div className="px-5 py-6 text-xs font-semibold text-rose-600">
+            Could not load production data: {productionError}
           </div>
         ) : (
-          <div className="flex items-end gap-2 h-40 px-1">
-            {chartData.map(d => {
-              const heightPct = Math.max(4, (d.amount / maxChartAmount) * 100);
-              return (
-                <div key={d.iso} className="relative flex-1 flex flex-col items-center justify-end h-full group">
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900 text-white text-[11px] font-semibold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    {formatINR(d.amount)}
-                  </div>
-                  <div
-                    className="w-full max-w-[28px] rounded-t-md bg-indigo-500 group-hover:bg-indigo-600 transition-colors"
-                    style={{ height: `${heightPct}%` }}
-                  />
-                  <span className="text-[10px] font-semibold text-slate-500 mt-1.5 whitespace-nowrap">{d.label}</span>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+            <ProductionStat
+              title="Grinding"
+              source="Actual Production Entry"
+              icon={Cog}
+              accent="indigo"
+              data={productionSummary.grinding}
+              share={combinedProductionQty > 0 ? productionSummary.grinding.qty / combinedProductionQty : 0}
+              loading={loadingProduction}
+            />
+            <ProductionStat
+              title="Crushing"
+              source="Crushing Department"
+              icon={Hammer}
+              accent="amber"
+              data={productionSummary.crushing}
+              share={combinedProductionQty > 0 ? productionSummary.crushing.qty / combinedProductionQty : 0}
+              loading={loadingProduction}
+            />
           </div>
         )}
+      </div>
+
+      {/* Workflow Pipeline & Work Value Trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-5 flex flex-col">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5 font-bold text-slate-800">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-emerald-50 text-emerald-600">
+                <ShieldCheck size={16} />
+              </div>
+              <span>Payment Workflow</span>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">{filteredEntries.length} orders</span>
+          </div>
+
+          <div className="flex items-baseline justify-between mb-1.5">
+            <span className="text-xs font-semibold text-slate-600">Verification progress</span>
+            <span className="text-xs font-bold text-slate-900">{verifiedPct}%</span>
+          </div>
+          <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 mb-4">
+            <div className="bg-emerald-500" style={{ width: `${verifiedPct}%` }} title="Verified" />
+            <div className="bg-amber-400" style={{ width: `${pendingPct}%` }} title="Pending Verification" />
+          </div>
+
+          <div className="space-y-2.5 mt-auto">
+            <button
+              type="button"
+              onClick={() => navigate('/verification')}
+              className="w-full flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3.5 py-3 text-left hover:border-amber-300 hover:bg-amber-50/40 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Clock size={16} />
+                </span>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">1. Work Verification</div>
+                  <div className="text-[11px] text-slate-500">{pendingPct}% awaiting site check</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-extrabold text-amber-600">{pendingVerificationCount}</span>
+                <ArrowRight size={14} className="text-slate-300 group-hover:text-slate-500" />
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/payment-report')}
+              className="w-full flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3.5 py-3 text-left hover:border-emerald-300 hover:bg-emerald-50/40 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <ReceiptText size={16} />
+                </span>
+                <div>
+                  <div className="text-sm font-bold text-slate-800">2. Payment Report</div>
+                  <div className="text-[11px] text-slate-500">{formatINR(totalVerifiedAmount)} payable</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-extrabold text-emerald-600">{filteredVerifiedOrders.length}</span>
+                <ArrowRight size={14} className="text-slate-300 group-hover:text-slate-500" />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Daily Work Value Trend */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-2xs p-5">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <div className="flex items-center gap-2.5 font-bold text-slate-800">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-50 text-indigo-600">
+                <TrendingUp size={16} />
+              </div>
+              <span>Work Value Trend</span>
+            </div>
+            <span className="text-xs font-semibold text-slate-500">
+              {chartData.length > 0 ? `Last ${chartData.length} active day${chartData.length === 1 ? '' : 's'}` : activeRangeLabel}
+            </span>
+          </div>
+
+          {chartData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-slate-400">
+              <TrendingUp size={28} />
+              <span className="text-xs font-semibold">No work value data for {activeRangeLabel}</span>
+            </div>
+          ) : (
+            <div className="flex items-end gap-2 h-44 px-1 pt-8 border-b border-slate-100">
+              {chartData.map(d => {
+                const heightPct = Math.max(4, (d.amount / maxChartAmount) * 100);
+                return (
+                  <div key={d.iso} className="relative flex-1 flex flex-col items-center justify-end h-full group">
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-900 text-white text-[11px] font-semibold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      {formatINR(d.amount)}
+                    </div>
+                    <div
+                      className="w-full max-w-[28px] rounded-t bg-indigo-500 group-hover:bg-indigo-600 transition-colors"
+                      style={{ height: `${heightPct}%` }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {chartData.length > 0 && (
+            <div className="flex gap-2 px-1 mt-1.5">
+              {chartData.map(d => (
+                <span key={d.iso} className="flex-1 text-center text-[10px] font-semibold text-slate-500 whitespace-nowrap">{d.label}</span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Work Entries Table */}
@@ -654,7 +771,7 @@ export function DashboardPage() {
                           </div>
                           <div className={`inline-flex items-center gap-1 text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
                             {isTonBasedWork(entry.work) ? <Scale size={11} /> : <User size={11} />}
-                            <span>{isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}</span>
+                            <span>{isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'}</span>
                           </div>
                         </div>
                       </td>

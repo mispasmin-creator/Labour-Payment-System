@@ -255,7 +255,7 @@ export function TallyPage() {
                             {entry.work}
                           </div>
                           <div className={`text-[11px] font-bold mt-0.5 ${isTonBasedWork(entry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                            {isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'}
+                            {isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'}
                           </div>
                         </div>
                       </td>
@@ -374,7 +374,7 @@ export function TallyPage() {
                   <div className="font-semibold text-slate-800">
                     {selectedEntry.work}{' '}
                     <span className={`text-xs font-bold ${isTonBasedWork(selectedEntry.work) ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                      ({isTonBasedWork(selectedEntry.work) ? 'Per Ton' : 'Per Person'})
+                      ({isTonBasedWork(selectedEntry.work) ? 'Qty in Tons' : 'Per Person'})
                     </span>{' '}
                     • {selectedEntry.labourCount} persons
                   </div>

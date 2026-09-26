@@ -205,8 +205,8 @@ export function NewEntryModal() {
       const count = validNames.length > 0 ? validNames.length : 1;
       const rate = Number(formData.rate) || 0;
       const qty = Number(formData.qty) || 0;
-      const isTonRate = isTonBasedWork(formData.work);
-      const computedTotal = isTonRate ? (qty * rate) : (count * rate);
+      // Amount per person x Labour count (same as sheet Col K x Col H)
+      const computedTotal = count * rate;
 
       const payload = {
         date: formData.date,
@@ -397,16 +397,14 @@ export function NewEntryModal() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    {isTon ? 'Rate per Ton' : 'Rate per Person'} <span className="text-rose-600">*</span>
-                    <span className={`ml-1.5 font-semibold normal-case ${isTon ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                      ({isTon ? '₹ / Ton' : '₹ / Person'})
-                    </span>
+                    Amount per Person <span className="text-rose-600">*</span>
+                    <span className="ml-1.5 font-semibold normal-case text-indigo-600">(₹ / Person)</span>
                   </label>
                   <input
                     type="number"
                     min="0.01"
                     step="any"
-                    placeholder={isTon ? "Rate per ton (₹)..." : "Rate per person (₹)..."}
+                    placeholder="Amount per person (₹)..."
                     className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
                     value={formData.rate}
                     onChange={e => setFormData({ ...formData, rate: e.target.value === '' ? '' : Number(e.target.value) })}

@@ -634,7 +634,7 @@ export function InchargeWiseReportPage() {
       const formatted = workTypeAnalysis.map((w, idx) => ({
         'Sr No': idx + 1,
         'Work Activity': w.workType,
-        'Rate Basis': w.isTon ? 'Per Ton' : 'Per Person',
+        'Rate Basis': 'Per Person',
         'Labour Count': w.labourCount,
         'Production Output': w.qtyMade,
         'Per Person Avg (₹)': w.avgAmountPerLabour,
@@ -1371,7 +1371,7 @@ export function InchargeWiseReportPage() {
                       </td>
                       <td className="px-3 py-2.5">
                         {w.isTon ? (
-                          <span className={badgeEmerald}><Scale size={11} /> Per Ton</span>
+                          <span className={badgeEmerald}><Scale size={11} /> Per Person (Qty in Tons)</span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold border bg-indigo-50 text-indigo-700 border-indigo-200">
                             <User size={11} /> Per Person

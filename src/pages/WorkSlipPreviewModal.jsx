@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Printer, X, Eye, FileText, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Modal } from '../components/common/Modal';
-import { isTonBasedWork } from '../utils/workTypes';
+import { isTonBasedWork, formatEntryRate } from '../utils/workTypes';
 import { formatWorkDate, printWorkSlip } from '../utils/exportUtils';
 
 export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
@@ -146,7 +146,7 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
             <div className={detailCellClass}>
               <div className={detailLabelClass}>Work Description</div>
               <div className={detailValueClass}>
-                {entry.work} ({isTonBasedWork(entry.work) ? 'Per Ton' : 'Per Person'})
+                {entry.work} ({isTonBasedWork(entry.work) ? 'Qty in Tons' : 'Per Person'})
               </div>
             </div>
 
@@ -160,7 +160,7 @@ export default function WorkSlipPreviewModal({ isOpen, onClose, entry }) {
             <div className={detailCellClass}>
               <div className={detailLabelClass}>Rate</div>
               <div className={detailValueClass}>
-                &#8377;{entry.rate} {isTonBasedWork(entry.work) ? '/ Ton' : '/ person'}
+                {formatEntryRate(entry)}
               </div>
             </div>
 

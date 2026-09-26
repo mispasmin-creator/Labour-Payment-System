@@ -99,15 +99,10 @@ export function filterValidEntries(list) {
     const rate = Number(e.rate) || 0;
     const labourCount = Number(e.labourCount) || (e.labourNames ? e.labourNames.length : 1);
 
-    // Compute true total amount
-    let totalAmount = 0;
-    if (isTon && qty > 0 && rate > 0) {
-      totalAmount = qty * rate;
-    } else if (!isTon && labourCount > 0 && rate > 0) {
-      totalAmount = labourCount * rate;
-    } else {
-      totalAmount = Number(e.totalAmount) || (isTon ? qty * rate : labourCount * rate);
-    }
+    // Sheet "Total Amount" is the source of truth; only compute when it is missing
+    const totalAmount = Number(e.totalAmount) > 0
+      ? Number(e.totalAmount)
+      : labourCount * rate; // Amount per person x Labour count
 
     return {
       ...e,
@@ -604,7 +599,7 @@ export async function submitWorkEntry(entryData) {
   const isTon = isTonBasedWork(entryData.work);
   const totalAmount = entryData.totalAmount !== undefined && !isNaN(Number(entryData.totalAmount))
     ? Number(entryData.totalAmount)
-    : (isTon ? (qty * rate) : (labourCount * rate));
+    : labourCount * rate; // Amount per person x Labour count
 
   const newEntry = {
     ...entryData,
