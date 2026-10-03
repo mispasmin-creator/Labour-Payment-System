@@ -11,7 +11,8 @@ import {
   History,
   ListFilter,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -22,7 +23,7 @@ import { WorkDetailModal } from './WorkDetailModal';
 import { isTonBasedWork } from '../utils/workTypes';
 
 export function TallyPage() {
-  const { entries, tallyEntry, syncing, canPerformAction } = useApp();
+  const { entries, tallyEntry, syncing, canPerformAction, isAdmin, openEditEntry } = useApp();
   const canTally = canPerformAction('tally');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,11 +34,12 @@ export function TallyPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pending vs History
+  const isCancelled = e => e && (e.status === 'Cancelled' || String(e.status).toLowerCase().includes('cancel'));
   const pendingTally = entries.filter(
-    e => e.status === 'Paid (Pending Tally)' || (e.paymentActual && !e.tallyActual)
+    e => !isCancelled(e) && (e.status === 'Paid (Pending Tally)' || (e.paymentActual && !e.tallyActual))
   );
   const historyTally = entries.filter(
-    e => e.status === 'Tally Complete' || Boolean(e.tallyActual)
+    e => !isCancelled(e) && (e.status === 'Tally Complete' || Boolean(e.tallyActual))
   );
 
   const currentList = activeTab === 'pending' ? pendingTally : historyTally;
@@ -296,33 +298,45 @@ export function TallyPage() {
                         </td>
                       )}
                       <td className="px-3 py-2.5">
-                        {activeTab === 'pending' ? (
-                          canTally ? (
-                            <button
-                              onClick={() => handleOpenTallyModal(entry)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 hover:bg-teal-700 text-white"
-                            >
-                              <BookOpen size={14} />
-                              <span>Submit Tally</span>
-                            </button>
+                        <div className="flex items-center gap-1.5">
+                          {activeTab === 'pending' ? (
+                            canTally ? (
+                              <button
+                                onClick={() => handleOpenTallyModal(entry)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 hover:bg-teal-700 text-white"
+                              >
+                                <BookOpen size={14} />
+                                <span>Submit Tally</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setTimelineWorkId(entry.workId)}
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                              >
+                                <Eye size={14} />
+                                <span>View</span>
+                              </button>
+                            )
                           ) : (
                             <button
                               onClick={() => setTimelineWorkId(entry.workId)}
                               className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
                             >
                               <Eye size={14} />
-                              <span>View</span>
+                              <span>Details</span>
                             </button>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => setTimelineWorkId(entry.workId)}
-                            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
-                          >
-                            <Eye size={14} />
-                            <span>Details</span>
-                          </button>
-                        )}
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

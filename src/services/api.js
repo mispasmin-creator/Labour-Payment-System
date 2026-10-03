@@ -47,6 +47,11 @@ export function cleanTimestamp(val) {
 }
 
 export function normalizeStatus(status, entry = {}) {
+  const s = String(status || entry.status || '').toLowerCase().trim();
+  if (s.includes('cancel')) {
+    return 'Cancelled';
+  }
+
   const vActual = cleanTimestamp(entry.verificationActual);
   const aActual = cleanTimestamp(entry.approvalActual);
   const pActual = cleanTimestamp(entry.paymentActual);
@@ -66,7 +71,6 @@ export function normalizeStatus(status, entry = {}) {
   // Approval completed: if approval actual timestamp is present
   if (aActual) return 'Approved (Pending Payment)';
 
-  const s = String(status || '').toLowerCase().trim();
   if (s.includes('approved')) return 'Approved (Pending Payment)';
 
   return 'Verified (Pending Approval)';
@@ -233,7 +237,7 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
   if (forceRemote || !Array.isArray(localEntries) || localEntries.length === 0) return remoteCleaned;
 
   const now = Date.now();
-  const OPTIMISTIC_WINDOW_MS = 25000; // 25 seconds window for pending async writes to reach Google Apps Script
+  const OPTIMISTIC_WINDOW_MS = 60000; // 60 seconds window for pending async writes to reach Google Apps Script
 
   return remoteCleaned.map(remote => {
     // Robust match: Check timestamp or workId+work first to avoid duplicate workId collisions (e.g. multiple WRK-0019 in Sheet)
@@ -244,14 +248,34 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
 
     if (!local) return remote;
 
+    // CRITICAL FIX: If local entry was marked Cancelled by the user in React,
+    // PRESERVE Cancelled status! Never let remote "Pending Verification" overwrite a user cancellation
+    // until Google Sheets itself confirms it or unless explicitly forced!
+    const isLocalCancelled = local.status === 'Cancelled' || String(local.status).toLowerCase().includes('cancel');
+    const isRemoteCancelled = remote.status === 'Cancelled' || String(remote.status).toLowerCase().includes('cancel');
+
+    if (isLocalCancelled && !isRemoteCancelled && !forceRemote) {
+      return {
+        ...remote,
+        status: 'Cancelled',
+        currentStatus: 'Cancelled',
+        verificationActual: local.verificationActual || remote.verificationActual || local.cancelledActual,
+        cancelledActual: local.cancelledActual || local.verificationActual || remote.verificationActual,
+        cancellationRemarks: local.cancellationRemarks || remote.cancellationRemarks || local.verificationRemarks,
+        verificationRemarks: local.verificationRemarks || remote.verificationRemarks,
+        _optimisticAt: local._optimisticAt || now
+      };
+    }
+
     // Check if this entry was optimistically updated in this browser session very recently
     const isRecentLocalAction = local._optimisticAt && (now - local._optimisticAt < OPTIMISTIC_WINDOW_MS);
 
-    if (isRecentLocalAction) {
+    if (isRecentLocalAction && !forceRemote) {
       // Keep optimistic values until GAS write completes
       return {
         ...remote,
         status: local.status || remote.status,
+        currentStatus: local.currentStatus || remote.currentStatus,
         verificationActual: local.verificationActual ?? remote.verificationActual,
         approvalActual: local.approvalActual ?? remote.approvalActual,
         paymentActual: local.paymentActual ?? remote.paymentActual,
@@ -260,6 +284,8 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
         paymentRef: local.paymentRef || remote.paymentRef,
         tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
         tallyLedger: local.tallyLedger || remote.tallyLedger,
+        cancellationRemarks: local.cancellationRemarks || remote.cancellationRemarks,
+        verificationRemarks: local.verificationRemarks || remote.verificationRemarks,
         _optimisticAt: local._optimisticAt
       };
     }
@@ -674,6 +700,42 @@ export async function submitVerification(workId, remarks = '') {
 }
 
 /**
+ * Stage 1 Action: Cancel Work (Sets status to 'Cancelled')
+ */
+export async function cancelWork(workId, remarks = '') {
+  const entries = getStoredEntries();
+  const now = getNowTimestamp();
+
+  const updatedEntries = entries.map(item => {
+    if (item.workId === workId) {
+      const delayInfo = calculateWorkflowDelay(item.verificationPlanned, now);
+      return {
+        ...item,
+        status: 'Cancelled',
+        currentStatus: 'Cancelled',
+        verificationActual: now,
+        cancelledActual: now,
+        verificationDelay: delayInfo.formatted,
+        verificationRemarks: remarks || 'Cancelled by Verifier',
+        cancellationRemarks: remarks || 'Cancelled by Verifier'
+      };
+    }
+    return item;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(updatedEntries));
+  sendToAppsScript('cancelWork', {
+    workId,
+    remarks: remarks || 'Cancelled by Verifier',
+    status: 'Cancelled',
+    currentStatus: 'Cancelled',
+    isCancelled: true
+  }).catch(err => console.warn('Cancellation sync failed:', err));
+
+  return updatedEntries.find(i => i.workId === workId);
+}
+
+/**
  * Stage 2 Action: Approve Payment (Sets status to 'Approved')
  */
 export async function submitApproval(workId) {
@@ -779,6 +841,30 @@ export async function updateWorkRemark(workId, workRemark) {
   sendToAppsScript('updateWorkRemark', { workId, workRemark }).catch(err => console.warn('Work Remark sync failed:', err));
 
   return updatedEntries.find(i => i.workId === workId);
+}
+
+/**
+ * Update Full Work Entry (Admin Action)
+ */
+export async function updateStoredWorkEntry(updatedData) {
+  if (!updatedData || !updatedData.workId) return null;
+  const entries = getStoredEntries();
+  const updatedEntries = entries.map(item => {
+    if (item.workId === updatedData.workId) {
+      return {
+        ...item,
+        ...updatedData
+      };
+    }
+    return item;
+  });
+
+  localStorage.setItem(STORAGE_KEYS.ENTRIES, JSON.stringify(updatedEntries));
+  sendToAppsScript('updateWorkEntry', updatedData).catch(err =>
+    console.warn('Update work entry sync failed:', err)
+  );
+
+  return updatedEntries.find(i => i.workId === updatedData.workId);
 }
 
 /**

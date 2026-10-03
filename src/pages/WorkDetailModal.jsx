@@ -9,7 +9,8 @@ import {
   Users,
   Building2,
   CheckCircle2,
-  Eye
+  Eye,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Modal } from '../components/common/Modal';
@@ -21,7 +22,7 @@ import { sanitizeLabourersList } from '../services/api';
 import WorkSlipPreviewModal from './WorkSlipPreviewModal';
 
 export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
-  const { entries, masterData } = useApp();
+  const { entries, masterData, isAdmin, openEditEntry } = useApp();
   const [showPreview, setShowPreview] = useState(false);
   const entry = entries.find(e => e.workId === workId);
 
@@ -84,6 +85,19 @@ export function WorkDetailModal({ workId, onClose, showLabourNames = true }) {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    openEditEntry(entry);
+                  }}
+                  title="Edit Work Order (Admin)"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-all"
+                >
+                  <Pencil size={15} />
+                  <span>Edit Order</span>
+                </button>
+              )}
               <button
                 onClick={() => setShowPreview(true)}
                 title="Preview printable slip"

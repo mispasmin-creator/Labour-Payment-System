@@ -22,7 +22,8 @@ import {
   Factory,
   Cog,
   Hammer,
-  ShieldCheck
+  ShieldCheck,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -122,7 +123,7 @@ function ProductionStat({ title, source, icon: Icon, accent, data, share, loadin
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { entries, counts, refreshData, syncing, openNewEntry } = useApp();
+  const { entries, counts, refreshData, syncing, openNewEntry, isAdmin, openEditEntry } = useApp();
   const [selectedWorkId, setSelectedWorkId] = useState(null);
 
   // Date Range & Week Filter State
@@ -810,12 +811,24 @@ export function DashboardPage() {
                         <StatusBadge status={entry.status} />
                       </td>
                       <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => setSelectedWorkId(entry.workId)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-teal-200 text-teal-700 hover:bg-teal-50 transition-colors"
-                        >
-                          <span>Details</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedWorkId(entry.workId)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg bg-white border border-teal-200 text-teal-700 hover:bg-teal-50 transition-colors"
+                          >
+                            <span>Details</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

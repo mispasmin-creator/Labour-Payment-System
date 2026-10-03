@@ -4,7 +4,8 @@ import {
   Search,
   Download,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -19,7 +20,7 @@ const thClass = 'px-3 py-2.5 font-semibold text-slate-700 uppercase tracking-wid
 const tdClass = 'px-3 py-2.5 text-xs text-slate-600';
 
 export function WorkTrackerPage() {
-  const { entries, refreshData, syncing } = useApp();
+  const { entries, refreshData, syncing, isAdmin, openEditEntry } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [inchargeFilter, setInchargeFilter] = useState('');
@@ -37,7 +38,7 @@ export function WorkTrackerPage() {
       (item.paymentRef && item.paymentRef.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.tallyVoucher && item.tallyVoucher.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesStatus = !statusFilter || item.status === statusFilter;
+    const matchesStatus = !statusFilter || item.status === statusFilter || (statusFilter === 'Cancelled' && (item.status === 'Cancelled' || String(item.status).toLowerCase().includes('cancel')));
     const matchesIncharge = !inchargeFilter || item.incharge === inchargeFilter;
     const matchesFirm = !firmFilter || item.firmName === firmFilter;
 
@@ -113,6 +114,7 @@ export function WorkTrackerPage() {
             <option value="Approved (Pending Payment)">Approved (Pending Payment)</option>
             <option value="Paid (Pending Tally)">Paid (Pending Tally)</option>
             <option value="Tally Complete">Tally Complete</option>
+            <option value="Cancelled">Cancelled</option>
           </select>
 
           <select
@@ -181,14 +183,26 @@ export function WorkTrackerPage() {
                   return (
                     <tr key={entry.workId} className="hover:bg-slate-50/80 transition-colors">
                       <td className="sticky left-0 bg-white z-10 border-r border-slate-200 shadow-xs px-3 py-2.5">
-                        <button
-                          onClick={() => setSelectedWorkId(entry.workId)}
-                          title="View Work Order Details & Labourers"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 text-white hover:bg-indigo-700"
-                        >
-                          <Eye size={14} />
-                          <span>Details</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSelectedWorkId(entry.workId)}
+                            title="View Work Order Details & Labourers"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 text-white hover:bg-indigo-700"
+                          >
+                            <Eye size={14} />
+                            <span>Details</span>
+                          </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className={`${tdClass} font-mono font-bold text-indigo-600 whitespace-nowrap`}>
                         {entry.workId}

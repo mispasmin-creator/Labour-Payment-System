@@ -12,7 +12,8 @@ import {
   ListFilter,
   Eye,
   Building2,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -22,7 +23,7 @@ import { WorkDetailModal } from './WorkDetailModal';
 import { isTonBasedWork } from '../utils/workTypes';
 
 export function PaymentApprovalPage() {
-  const { entries, approveEntry, approveBatch, syncing, canPerformAction } = useApp();
+  const { entries, approveEntry, approveBatch, syncing, canPerformAction, isAdmin, openEditEntry } = useApp();
   const canApprove = canPerformAction('approval');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,11 +35,12 @@ export function PaymentApprovalPage() {
   const [isBatchApproving, setIsBatchApproving] = useState(false);
 
   // Pending vs History
+  const isCancelled = e => e && (e.status === 'Cancelled' || String(e.status).toLowerCase().includes('cancel'));
   const pendingApproval = entries.filter(
-    e => e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual)
+    e => !isCancelled(e) && (e.status === 'Verified (Pending Approval)' || (e.verificationActual && !e.approvalActual && !e.paymentActual && !e.tallyActual))
   );
   const historyApproval = entries.filter(
-    e => ['Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.approvalActual)
+    e => !isCancelled(e) && (['Approved (Pending Payment)', 'Approved', 'Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.approvalActual))
   );
 
   const currentList = activeTab === 'pending' ? pendingApproval : historyApproval;
@@ -364,43 +366,55 @@ export function PaymentApprovalPage() {
                         </td>
                       )}
                       <td className="px-3 py-2.5">
-                        {activeTab === 'pending' ? (
-                          canApprove ? (
-                            <button
-                              onClick={() => handleSingleApprove(entry.workId)}
-                              disabled={approvingId === entry.workId}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              {approvingId === entry.workId ? (
-                                <>
-                                  <RefreshCw size={14} className="animate-spin" />
-                                  <span>Approving...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <CheckCircle2 size={14} />
-                                  <span>Approve</span>
-                                </>
-                              )}
-                            </button>
+                        <div className="flex items-center gap-1.5">
+                          {activeTab === 'pending' ? (
+                            canApprove ? (
+                              <button
+                                onClick={() => handleSingleApprove(entry.workId)}
+                                disabled={approvingId === entry.workId}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                {approvingId === entry.workId ? (
+                                  <>
+                                    <RefreshCw size={14} className="animate-spin" />
+                                    <span>Approving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 size={14} />
+                                    <span>Approve</span>
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setTimelineWorkId(entry.workId)}
+                                className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
+                              >
+                                <Eye size={14} />
+                                <span>View</span>
+                              </button>
+                            )
                           ) : (
                             <button
                               onClick={() => setTimelineWorkId(entry.workId)}
                               className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
                             >
                               <Eye size={14} />
-                              <span>View</span>
+                              <span>Details</span>
                             </button>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => setTimelineWorkId(entry.workId)}
-                            className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 transition-colors"
-                          >
-                            <Eye size={14} />
-                            <span>Details</span>
-                          </button>
-                        )}
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -74,6 +74,8 @@ function toISODate(d) {
 // Verification & Payment Checkers
 export const isEntryVerified = (e) => {
   if (!e) return false;
+  const statusLower = String(e.status || '').toLowerCase();
+  if (statusLower.includes('cancel')) return false;
   const actual = String(e.verificationActual || '').trim();
   const hasActual = Boolean(
     actual &&
@@ -81,12 +83,13 @@ export const isEntryVerified = (e) => {
     actual !== 'null' &&
     actual !== 'undefined'
   );
-  const statusLower = String(e.status || '').toLowerCase();
   return hasActual || ['verified', 'approved', 'paid', 'tally'].some(s => statusLower.includes(s));
 };
 
 export const isEntryPaid = (e) => {
   if (!e) return false;
+  const statusLower = String(e.status || '').toLowerCase();
+  if (statusLower.includes('cancel')) return false;
   const actual = String(e.paymentActual || '').trim();
   return Boolean(
     actual &&

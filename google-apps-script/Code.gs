@@ -117,18 +117,14 @@
     'Amount',
     'Status',
     'Work Remark',
-    'Planned Timestamp',
+    'Planned',
     'Actual Timestamp',
     'Delay',
-    'Planned 2',
-    'Actual 2',
-    'Delay 2',
+    'Current Status',
+    'Remark',
     'Planned 3',
     'Actual 3',
-    'Delay 3',
-    'Planned 4',
-    'Actual 4',
-    'Delay 4'
+    'Delay 3'
   ];
 
   const STANDARD_LOGIN_HEADERS = [
@@ -239,6 +235,19 @@
           break;
         }
 
+        case 'cancelWork': {
+          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+          result = handleCancelWork(ss, payloadData);
+          break;
+        }
+
+        case 'updateWorkEntry':
+        case 'updateEntry': {
+          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
+          result = handleUpdateWorkEntry(ss, payloadData);
+          break;
+        }
+
         case 'approvePayment': {
           const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
           result = handleApprovePayment(ss, payloadData);
@@ -318,6 +327,15 @@
 
         case 'verifyWork':
           response = handleVerifyWork(ss, data);
+          break;
+
+        case 'cancelWork':
+          response = handleCancelWork(ss, data);
+          break;
+
+        case 'updateWorkEntry':
+        case 'updateEntry':
+          response = handleUpdateWorkEntry(ss, data);
           break;
 
         case 'approvePayment':
@@ -478,7 +496,7 @@
         if (target === 'work id' || target === 'workid') {
           if (val.includes('remark')) continue;
         }
-        if (val.includes(target)) {
+        if (val.includes(target) || (target.length >= 4 && val.length >= 4 && target.includes(val))) {
           return c; // 0-indexed
         }
       }
@@ -536,7 +554,7 @@
           if (target === 'work id' || target === 'workid') {
             if (val.includes('remark')) continue;
           }
-          if (val.includes(target)) {
+          if (val.includes(target) || (target.length >= 4 && val.length >= 4 && target.includes(val))) {
             return c + 1; // 1-indexed
           }
         }
@@ -783,23 +801,38 @@
 
   /**
   * Stage 1: Verification Action
+  * Updates FMS sheet: Col O (Actual Timestamp), Col Q (Current Status = 'Verified'), Col R (Remark)
   */
   function handleVerifyWork(ss, data) {
     const { workId, remarks } = data;
+    const isCancelled = data.status === 'Cancelled' || data.isCancelled === true;
     const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Verified (Pending Approval)';
+    const nextStatus = isCancelled ? 'Cancelled' : 'Verified (Pending Approval)';
+    const currentStatusVal = isCancelled ? 'Cancelled' : 'Verified';
 
     const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
     if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual'], 15);
-      const statusCol = findColIndex(fmsSheet, ['status', 'current status'], 12);
+      const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
+      const currentStatusCol = findColIndex(fmsSheet, ['current status', 'current', 'verification status'], 17);
+      const remarkCol = findColIndex(fmsSheet, ['remark', 'remarks', 'verifier remark', 'work remark'], 18);
+      const statusCol = findColIndex(fmsSheet, ['status'], 12);
+      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
       const headerRow = getHeaderRowIndex(fmsSheet);
       const dataRange = fmsSheet.getDataRange().getValues();
 
       for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
+        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
+        if (cellWorkId === String(workId).trim().toUpperCase()) {
           const rowIndex = i + 1;
-          fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
+          if (actualCol > 0) {
+            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
+          }
+          if (currentStatusCol > 0) {
+            fmsSheet.getRange(rowIndex, currentStatusCol).setValue(currentStatusVal);
+          }
+          if (remarkCol > 0 && remarks) {
+            fmsSheet.getRange(rowIndex, remarkCol).setValue(remarks);
+          }
           if (statusCol > 0) {
             fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
           }
@@ -809,7 +842,53 @@
     }
 
     updateEntryStatus(ss, workId, nextStatus);
-    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
+    SpreadsheetApp.flush();
+    return { status: 'success', workId: workId, actualDate: actualDate, currentStatus: currentStatusVal, nextStatus: nextStatus };
+  }
+
+  /**
+  * Stage 1: Cancel Work Action
+  * Updates FMS sheet: Col O (Actual Timestamp), Col Q (Current Status = 'Cancelled'), Col R (Remark), Col L (Status = 'Cancelled')
+  */
+  function handleCancelWork(ss, data) {
+    const { workId, remarks } = data;
+    const actualDate = getFormattedSheetTimestamp();
+    const nextStatus = 'Cancelled';
+
+    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
+    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
+      const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
+      const currentStatusCol = findColIndex(fmsSheet, ['current status', 'current', 'verification status'], 17);
+      const remarkCol = findColIndex(fmsSheet, ['remark', 'remarks', 'verifier remark', 'work remark'], 18);
+      const statusCol = findColIndex(fmsSheet, ['status'], 12);
+      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
+      const headerRow = getHeaderRowIndex(fmsSheet);
+      const dataRange = fmsSheet.getDataRange().getValues();
+
+      for (let i = headerRow; i < dataRange.length; i++) {
+        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
+        if (cellWorkId === String(workId).trim().toUpperCase()) {
+          const rowIndex = i + 1;
+          if (actualCol > 0) {
+            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
+          }
+          if (currentStatusCol > 0) {
+            fmsSheet.getRange(rowIndex, currentStatusCol).setValue('Cancelled');
+          }
+          if (remarkCol > 0) {
+            fmsSheet.getRange(rowIndex, remarkCol).setValue(remarks || 'Cancelled by Verifier');
+          }
+          if (statusCol > 0) {
+            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
+          }
+          break;
+        }
+      }
+    }
+
+    updateEntryStatus(ss, workId, nextStatus);
+    SpreadsheetApp.flush();
+    return { status: 'success', workId: workId, actualDate: actualDate, currentStatus: 'Cancelled', nextStatus: nextStatus };
   }
 
   /**
@@ -823,7 +902,40 @@
     const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
     if (fmsSheet && fmsSheet.getLastRow() >= 1) {
       const actualCol = findColIndex(fmsSheet, ['actual 2', 'actual approval', 'payment approval actual'], 18);
-      const statusCol = findColIndex(fmsSheet, ['status', 'current status'], 12);
+      const statusCol = findColIndex(fmsSheet, ['status'], 12);
+      const headerRow = getHeaderRowIndex(fmsSheet);
+      const dataRange = fmsSheet.getDataRange().getValues();
+
+      for (let i = headerRow; i < dataRange.length; i++) {
+        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
+          const rowIndex = i + 1;
+          if (actualCol > 0) {
+            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
+          }
+          if (statusCol > 0) {
+            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
+          }
+          break;
+        }
+      }
+    }
+
+    updateEntryStatus(ss, workId, nextStatus);
+    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
+  }
+
+  /**
+  * Stage 3: Payment Disbursal Action (Col T = Actual 3)
+  */
+  function handleRecordPayment(ss, data) {
+    const { workId, paymentMethod, paymentRef } = data;
+    const actualDate = getFormattedSheetTimestamp();
+    const nextStatus = 'Paid (Pending Tally)';
+
+    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
+    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
+      const actualCol = findColIndex(fmsSheet, ['actual 3', 'actual payment', 'payment actual'], 20);
+      const statusCol = findColIndex(fmsSheet, ['status'], 12);
       const headerRow = getHeaderRowIndex(fmsSheet);
       const dataRange = fmsSheet.getDataRange().getValues();
 
@@ -844,34 +956,125 @@
   }
 
   /**
-  * Stage 3: Payment Disbursal Action
+  * Admin Action: Update Work Entry (Full Edit across Entry & FMS sheets)
   */
-  function handleRecordPayment(ss, data) {
-    const { workId, paymentMethod, paymentRef } = data;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Paid (Pending Tally)';
+  function handleUpdateWorkEntry(ss, data) {
+    const { workId } = data;
+    if (!workId) return { status: 'error', message: 'Work ID is required for update' };
 
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual 3', 'actual payment', 'payment actual'], 21);
-      const statusCol = findColIndex(fmsSheet, ['status', 'current status'], 12);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
+    let labourNames = [];
+    if (Array.isArray(data.labourNames)) {
+      labourNames = data.labourNames.map(n => String(n || '').trim()).filter(Boolean);
+    }
+    const labourCount = labourNames.length > 0 ? labourNames.length : (Number(data.labourCount) || 1);
+    const rate = Number(data.rate) || 0;
+    const qty = Number(data.qty) || 0;
+    const hours = Number(data.hours) || 0;
+    const totalAmount = data.totalAmount !== undefined && !isNaN(Number(data.totalAmount)) && Number(data.totalAmount) > 0
+      ? Number(data.totalAmount)
+      : (labourCount * rate);
+    const status = data.status ? String(data.status).trim() : 'Pending Verification';
+    const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
+    const firmName = data.firmName ? String(data.firmName).trim() : (data.firm ? String(data.firm).trim() : 'PMMPL');
+    const shift = data.shift ? String(data.shift).trim() : '';
+    const incharge = data.incharge ? String(data.incharge).trim() : '';
+    const work = data.work ? String(data.work).trim() : '';
+    const date = data.date ? String(data.date).trim() : '';
+
+    // 1. Update Entry Sheet
+    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
+    if (entrySheet && entrySheet.getLastRow() >= 1) {
+      const headerRow = getHeaderRowIndex(entrySheet);
+      const lastCol = Math.max(entrySheet.getLastColumn(), 14 + Math.max(labourNames.length, 11));
+      ensureLabourColumns(entrySheet, Math.max(labourNames.length, 11));
+      const headers = entrySheet.getRange(headerRow, 1, 1, entrySheet.getLastColumn()).getValues()[0];
+      const dataRange = entrySheet.getDataRange().getValues();
 
       for (let i = headerRow; i < dataRange.length; i++) {
         if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
           const rowIndex = i + 1;
-          fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
+          for (let c = 0; c < headers.length; c++) {
+            const h = String(headers[c] || '').toLowerCase().trim();
+            if (!h || h === 'timestamp' || h === 'work id' || h === 'workid') continue;
+
+            if (h === 'date') entrySheet.getRange(rowIndex, c + 1).setValue(date);
+            else if (h === 'firm' || h === 'firm name' || h === 'company') entrySheet.getRange(rowIndex, c + 1).setValue(firmName);
+            else if (h === 'shift') entrySheet.getRange(rowIndex, c + 1).setValue(shift);
+            else if (h === 'incharge' || h === 'supervisor') entrySheet.getRange(rowIndex, c + 1).setValue(incharge);
+            else if (h === 'work' || h === 'activity' || h === 'work type') entrySheet.getRange(rowIndex, c + 1).setValue(work);
+            else if (h.includes('labour (count)') || h.includes('labour count') || h.includes('no of labour')) entrySheet.getRange(rowIndex, c + 1).setValue(labourCount);
+            else if (h === 'hours') entrySheet.getRange(rowIndex, c + 1).setValue(hours);
+            else if (h === 'qty' || h === 'quantity') entrySheet.getRange(rowIndex, c + 1).setValue(qty);
+            else if (h.includes('amount per person') || h === 'rate') entrySheet.getRange(rowIndex, c + 1).setValue(rate);
+            else if (h === 'total amount' || h === 'amount' || h === 'total') entrySheet.getRange(rowIndex, c + 1).setValue(totalAmount);
+            else if (h === 'status' || h === 'current status') entrySheet.getRange(rowIndex, c + 1).setValue(status);
+            else if (h.includes('work remark') || h.includes('remark') || h.includes('remarks')) entrySheet.getRange(rowIndex, c + 1).setValue(workRemark);
+            else if (h.startsWith('labour') && !h.includes('count')) {
+              const labourIdx = parseInt(h.replace('labour', '').trim(), 10);
+              if (!isNaN(labourIdx) && labourIdx >= 1) {
+                entrySheet.getRange(rowIndex, c + 1).setValue(labourIdx <= labourNames.length ? labourNames[labourIdx - 1] : '');
+              }
+            }
           }
           break;
         }
       }
     }
 
-    updateEntryStatus(ss, workId, nextStatus);
-    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
+    // 2. Update FMS Sheet
+    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
+    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
+      const headerRow = getHeaderRowIndex(fmsSheet);
+      const headers = fmsSheet.getRange(headerRow, 1, 1, fmsSheet.getLastColumn()).getValues()[0];
+      const dataRange = fmsSheet.getDataRange().getValues();
+      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
+
+      for (let i = headerRow; i < dataRange.length; i++) {
+        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
+        if (cellWorkId === String(workId).trim().toUpperCase()) {
+          const rowIndex = i + 1;
+          for (let c = 0; c < headers.length; c++) {
+            const h = String(headers[c] || '').toLowerCase().trim();
+            if (!h || h === 'timestamp' || h === 'work id' || h === 'workid') continue;
+
+            if (h === 'date') fmsSheet.getRange(rowIndex, c + 1).setValue(date);
+            else if (h === 'firm' || h === 'firm name' || h === 'company') fmsSheet.getRange(rowIndex, c + 1).setValue(firmName);
+            else if (h === 'shift') fmsSheet.getRange(rowIndex, c + 1).setValue(shift);
+            else if (h === 'incharge' || h === 'supervisor') fmsSheet.getRange(rowIndex, c + 1).setValue(incharge);
+            else if (h === 'work' || h === 'activity' || h === 'work type') fmsSheet.getRange(rowIndex, c + 1).setValue(work);
+            else if (h.includes('no of labour') || h.includes('labour count') || h.includes('labour')) fmsSheet.getRange(rowIndex, c + 1).setValue(labourCount);
+            else if (h === 'hours') fmsSheet.getRange(rowIndex, c + 1).setValue(hours);
+            else if (h === 'qty' || h === 'quantity') fmsSheet.getRange(rowIndex, c + 1).setValue(qty);
+            else if (h === 'amount' || h === 'total amount' || h === 'total') fmsSheet.getRange(rowIndex, c + 1).setValue(totalAmount);
+            else if (h === 'status') fmsSheet.getRange(rowIndex, c + 1).setValue(status);
+            else if (h.includes('work remark')) fmsSheet.getRange(rowIndex, c + 1).setValue(workRemark);
+            else if (h === 'current status' || h === 'current') {
+              if (status === 'Cancelled') fmsSheet.getRange(rowIndex, c + 1).setValue('Cancelled');
+              else if (data.currentStatus) fmsSheet.getRange(rowIndex, c + 1).setValue(data.currentStatus);
+            }
+            else if (h === 'remark' || h === 'remarks' || h === 'verifier remark') {
+              if (data.remarks || data.verificationRemarks || data.cancellationRemarks) {
+                fmsSheet.getRange(rowIndex, c + 1).setValue(data.remarks || data.verificationRemarks || data.cancellationRemarks);
+              }
+            }
+          }
+
+          if (status === 'Cancelled') {
+            const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
+            if (actualCol > 0) {
+              const currentActual = fmsSheet.getRange(rowIndex, actualCol).getValue();
+              if (!currentActual) {
+                fmsSheet.getRange(rowIndex, actualCol).setValue(getFormattedSheetTimestamp());
+              }
+            }
+          }
+          break;
+        }
+      }
+    }
+
+    SpreadsheetApp.flush();
+    return { status: 'success', workId, message: 'Work entry updated successfully' };
   }
 
   /**
@@ -1340,22 +1543,20 @@
 
       // Zero-overhead in-memory column resolution
       const p1Col = findColInHeaders(fmsHeaders, ['planned timestamp', 'planned 1', 'planned date', 'planned date 1', 'planned', 'verification planned', 'plan date'], 14);
-      const a1Col = findColInHeaders(fmsHeaders, ['actual timestamp', 'actual 1'], 15);
+      const a1Col = findColInHeaders(fmsHeaders, ['actual timestamp', 'actual 1', 'actual'], 15);
       const d1Col = findColInHeaders(fmsHeaders, ['delay', 'delay 1'], 16);
 
-      const p2Col = findColInHeaders(fmsHeaders, ['planned 2'], 17);
-      const a2Col = findColInHeaders(fmsHeaders, ['actual 2'], 18);
-      const d2Col = findColInHeaders(fmsHeaders, ['delay 2'], 19);
+      // Col Q (17): Current Status & Col R (18): Remark
+      const currentStatusCol = findColInHeaders(fmsHeaders, ['current status', 'current', 'verification status'], 17);
+      const fmsRemarkCol = findColInHeaders(fmsHeaders, ['remark', 'remarks', 'verifier remark', 'verification remark'], 18);
 
-      const p3Col = findColInHeaders(fmsHeaders, ['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 20);
-      const a3Col = findColInHeaders(fmsHeaders, ['actual 3'], 21);
-      const d3Col = findColInHeaders(fmsHeaders, ['delay 3'], 22);
+      // Payment Section (Col S, T, U = 19, 20, 21)
+      const p3Col = findColInHeaders(fmsHeaders, ['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 19);
+      const a3Col = findColInHeaders(fmsHeaders, ['actual 3', 'payment actual', 'actual payment'], 20);
+      const d3Col = findColInHeaders(fmsHeaders, ['delay 3'], 21);
 
-      const p4Col = findColInHeaders(fmsHeaders, ['planned 4'], 23);
-      const a4Col = findColInHeaders(fmsHeaders, ['actual 4'], 24);
-      const d4Col = findColInHeaders(fmsHeaders, ['delay 4'], 25);
-
-      const fmsRemarkCol = findColInHeaders(fmsHeaders, ['work remark', 'remark', 'remarks'], 13);
+      const fmsWorkRemarkCol = findColInHeaders(fmsHeaders, ['work remark', 'work remarks'], 13);
+      const fmsStatusCol = findColInHeaders(fmsHeaders, ['status'], 12);
 
       for (let i = fmsHeaderRow; i < fmsData.length; i++) {
         const row = fmsData[i];
@@ -1367,28 +1568,44 @@
           existing.verificationPlanned = row[p1Col] ? (row[p1Col] instanceof Date ? row[p1Col].toISOString() : String(row[p1Col]).trim()) : null;
           existing.verificationActual = row[a1Col] ? (row[a1Col] instanceof Date ? row[a1Col].toISOString() : String(row[a1Col]).trim()) : null;
           existing.verificationDelay = formatSheetDelay(row[d1Col]);
-          existing.approvalPlanned = row[p2Col] ? (row[p2Col] instanceof Date ? row[p2Col].toISOString() : String(row[p2Col]).trim()) : null;
-          existing.approvalActual = row[a2Col] ? (row[a2Col] instanceof Date ? row[a2Col].toISOString() : String(row[a2Col]).trim()) : null;
-          existing.approvalDelay = formatSheetDelay(row[d2Col]);
+
+          const fmsCurrentStatus = row[currentStatusCol] ? String(row[currentStatusCol]).trim() : '';
+          const fmsRemark = row[fmsRemarkCol] ? String(row[fmsRemarkCol]).trim() : '';
+          const fmsMainStatus = row[fmsStatusCol] ? String(row[fmsStatusCol]).trim() : '';
+
+          if (fmsCurrentStatus) {
+            existing.currentStatus = fmsCurrentStatus;
+          }
+          if (fmsRemark) {
+            existing.verificationRemarks = fmsRemark;
+            if (fmsCurrentStatus.toLowerCase().includes('cancel') || fmsMainStatus.toLowerCase().includes('cancel')) {
+              existing.cancellationRemarks = fmsRemark;
+            }
+          }
+
           existing.paymentPlanned = row[p3Col] ? (row[p3Col] instanceof Date ? row[p3Col].toISOString() : String(row[p3Col]).trim()) : null;
           existing.paymentActual = row[a3Col] ? (row[a3Col] instanceof Date ? row[a3Col].toISOString() : String(row[a3Col]).trim()) : null;
           existing.paymentDelay = formatSheetDelay(row[d3Col]);
-          existing.tallyPlanned = row[p4Col] ? (row[p4Col] instanceof Date ? row[p4Col].toISOString() : String(row[p4Col]).trim()) : null;
-          existing.tallyActual = row[a4Col] ? (row[a4Col] instanceof Date ? row[a4Col].toISOString() : String(row[a4Col]).trim()) : null;
-          existing.tallyDelay = formatSheetDelay(row[d4Col]);
-          if (!existing.workRemark && row[fmsRemarkCol]) {
-            existing.workRemark = String(row[fmsRemarkCol]).trim();
+
+          if (!existing.workRemark && row[fmsWorkRemarkCol]) {
+            existing.workRemark = String(row[fmsWorkRemarkCol]).trim();
           }
 
           // Dynamic milestone-based status synchronization:
-          // If an actual timestamp was removed or cleared in the sheet, dynamically align status!
-          if (existing.tallyActual) {
+          // CRITICAL: If an entry is marked Cancelled in sheet status or Col Q Current Status, retain Cancelled!
+          if (
+            existing.status === 'Cancelled' ||
+            fmsMainStatus.toLowerCase().includes('cancel') ||
+            fmsCurrentStatus.toLowerCase().includes('cancel')
+          ) {
+            existing.status = 'Cancelled';
+          } else if (existing.tallyActual) {
             existing.status = 'Tally Complete';
           } else if (existing.paymentActual) {
             existing.status = 'Paid (Pending Tally)';
           } else if (existing.approvalActual) {
             existing.status = 'Approved (Pending Payment)';
-          } else if (existing.verificationActual) {
+          } else if (existing.verificationActual || fmsCurrentStatus.toLowerCase().includes('verified')) {
             existing.status = 'Verified (Pending Approval)';
           } else {
             existing.status = 'Pending Verification';

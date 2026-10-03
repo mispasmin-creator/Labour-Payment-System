@@ -11,7 +11,8 @@ import {
   setScriptUrl as setScriptUrlApi,
   resetToDemoData,
   sendToAppsScript,
-  filterValidEntries
+  filterValidEntries,
+  updateStoredWorkEntry
 } from '../services/api';
 import { DEFAULT_LOGIN_USERS } from '../utils/mockData';
 import { calculateWorkflowDelay, getNowTimestamp } from '../utils/dateUtils';
@@ -106,9 +107,12 @@ export function AppProvider({ children }) {
   const [syncing, setSyncing] = useState(false);
   const [toasts, setToasts] = useState([]);
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
 
   const openNewEntry = useCallback(() => setIsNewEntryOpen(true), []);
   const closeNewEntry = useCallback(() => setIsNewEntryOpen(false), []);
+  const openEditEntry = useCallback(entry => setEditingEntry(entry), []);
+  const closeEditEntry = useCallback(() => setEditingEntry(null), []);
 
   // Toast helper
   const showToast = useCallback((message, type = 'success') => {
@@ -540,6 +544,71 @@ export function AppProvider({ children }) {
     return updatedItem;
   }, [showToast, triggerCelebration]);
 
+  // Cancel Work Entry (Instant 0ms UI update)
+  const cancelEntry = useCallback(async (workId, remarks = '') => {
+    const now = getNowTimestamp();
+    let updatedItem = null;
+
+    // 1. Immediately write to localStorage synchronously
+    try {
+      const raw = localStorage.getItem('labour_sys_entries');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const updated = parsed.map(e => {
+          if (e.workId === workId) {
+            updatedItem = {
+              ...e,
+              status: 'Cancelled',
+              currentStatus: 'Cancelled',
+              verificationActual: now,
+              cancelledActual: now,
+              verificationRemarks: remarks || 'Cancelled by Verifier',
+              cancellationRemarks: remarks || 'Cancelled by Verifier',
+              _optimisticAt: Date.now()
+            };
+            return updatedItem;
+          }
+          return e;
+        });
+        localStorage.setItem('labour_sys_entries', JSON.stringify(updated));
+      }
+    } catch (e) {}
+
+    // 2. Instant UI update
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          updatedItem = {
+            ...e,
+            status: 'Cancelled',
+            currentStatus: 'Cancelled',
+            verificationActual: now,
+            cancelledActual: now,
+            verificationRemarks: remarks || 'Cancelled by Verifier',
+            cancellationRemarks: remarks || 'Cancelled by Verifier',
+            _optimisticAt: Date.now()
+          };
+          return updatedItem;
+        }
+        return e;
+      });
+      return next;
+    });
+
+    showToast(`Work entry ${workId} cancelled`, 'info');
+
+    // Background sync
+    sendToAppsScript('cancelWork', {
+      workId,
+      remarks: remarks || 'Cancelled by Verifier',
+      status: 'Cancelled',
+      currentStatus: 'Cancelled',
+      isCancelled: true
+    }).catch(err => console.warn('Cancellation sync failed:', err));
+
+    return updatedItem;
+  }, [showToast]);
+
   // Stage 2: Approve Payment (Instant 0ms UI update)
   const approveEntry = useCallback(async workId => {
     const now = getNowTimestamp();
@@ -725,31 +794,32 @@ export function AppProvider({ children }) {
 
   // Computed workflow counts with complete safety
   const safeList = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const isCancelled = e => e && (e.status === 'Cancelled' || String(e.status).toLowerCase().includes('cancel'));
   const counts = {
     total: safeList.length,
     pendingVerification: safeList.filter(
-      e => e && (e.status === 'Pending Verification' || !e.verificationActual) && e.status !== 'Verified' && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
+      e => e && !isCancelled(e) && (e.status === 'Pending Verification' || !e.verificationActual) && e.status !== 'Verified' && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
     pendingApproval: safeList.filter(
-      e => e && (e.status === 'Verified' || e.status === 'Verified (Pending Approval)' || e.verificationActual) && !e.approvalActual && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
+      e => e && !isCancelled(e) && (e.status === 'Verified' || e.status === 'Verified (Pending Approval)' || e.verificationActual) && !e.approvalActual && e.status !== 'Approved' && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
     pendingPayment: safeList.filter(
-      e => e && (e.status === 'Approved' || e.status === 'Approved (Pending Payment)' || e.approvalActual) && !e.paymentActual && e.status !== 'Paid' && e.status !== 'Tally Complete'
+      e => e && !isCancelled(e) && (e.status === 'Approved' || e.status === 'Approved (Pending Payment)' || e.approvalActual) && !e.paymentActual && e.status !== 'Paid' && e.status !== 'Tally Complete'
     ).length,
     pendingTally: safeList.filter(
-      e => e && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.paymentActual) && !e.tallyActual && e.status !== 'Tally Complete'
+      e => e && !isCancelled(e) && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.paymentActual) && !e.tallyActual && e.status !== 'Tally Complete'
     ).length,
     completed: safeList.filter(
-      e => e && (e.status === 'Tally Complete' || Boolean(e.tallyActual))
+      e => e && !isCancelled(e) && (e.status === 'Tally Complete' || Boolean(e.tallyActual))
     ).length,
     verifiedCount: safeList.filter(
-      e => e && (Boolean(e.verificationActual) || (e.status && !e.status.toLowerCase().includes('pending verification')))
+      e => e && !isCancelled(e) && (Boolean(e.verificationActual) || (e.status && !e.status.toLowerCase().includes('pending verification')))
     ).length,
     totalPaidAmount: safeList
-      .filter(e => e && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.status === 'Tally Complete' || Boolean(e.paymentActual)))
+      .filter(e => e && !isCancelled(e) && (e.status === 'Paid' || e.status === 'Paid (Pending Tally)' || e.status === 'Tally Complete' || Boolean(e.paymentActual)))
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0),
     totalPendingAmount: safeList
-      .filter(e => e && e.status !== 'Tally Complete' && !e.tallyActual)
+      .filter(e => e && !isCancelled(e) && e.status !== 'Tally Complete' && !e.tallyActual)
       .reduce((sum, e) => sum + (Number(e.totalAmount) || 0), 0)
   };
 
@@ -770,6 +840,45 @@ export function AppProvider({ children }) {
     return true;
   }, [showToast]);
 
+  // Admin check
+  const isAdmin = currentUser?.role === 'admin' ||
+    (Array.isArray(currentUser?.permissions) && currentUser.permissions.includes('admin')) ||
+    currentUser?.username?.toLowerCase() === 'admin';
+
+  // Admin Update Work Entry (Full Edit)
+  const updateEntry = useCallback(async updatedData => {
+    if (!updatedData || !updatedData.workId) return null;
+    const workId = updatedData.workId;
+
+    let result = null;
+    setEntries(prev => {
+      const next = prev.map(e => {
+        if (e.workId === workId) {
+          result = {
+            ...e,
+            ...updatedData
+          };
+          return result;
+        }
+        return e;
+      });
+      try {
+        localStorage.setItem('labour_sys_entries', JSON.stringify(next));
+      } catch (err) {}
+      return next;
+    });
+
+    setEditingEntry(null);
+    showToast(`Work Order ${workId} updated successfully`, 'success');
+
+    // Sync to remote via updateStoredWorkEntry
+    updateStoredWorkEntry(updatedData).catch(err => {
+      console.warn('Update work entry sync failed:', err);
+    });
+
+    return result;
+  }, [showToast]);
+
   const value = {
     entries,
     masterData,
@@ -784,6 +893,7 @@ export function AppProvider({ children }) {
     removeToast,
     currentUser,
     users,
+    isAdmin,
     addUser,
     updateUser,
     deleteUser,
@@ -795,7 +905,9 @@ export function AppProvider({ children }) {
     logout,
     counts,
     createEntry,
+    updateEntry,
     verifyEntry,
+    cancelEntry,
     approveEntry,
     approveBatch,
     payEntry,
@@ -806,7 +918,10 @@ export function AppProvider({ children }) {
     resetDemo,
     isNewEntryOpen,
     openNewEntry,
-    closeNewEntry
+    closeNewEntry,
+    editingEntry,
+    openEditEntry,
+    closeEditEntry
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

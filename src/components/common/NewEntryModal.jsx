@@ -19,6 +19,8 @@ const DEFAULT_FIRMS = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
 
 function buildInitialFormData(activeFirms, inchargesList, activeWorks) {
   const todayStr = new Date().toISOString().slice(0, 10);
+  const initialRate = 450;
+  const initialCount = 1;
   return {
     date: todayStr,
     shift: 'Shift 1',
@@ -27,9 +29,11 @@ function buildInitialFormData(activeFirms, inchargesList, activeWorks) {
     work: activeWorks[0] || 'Production',
     hours: 8,
     qty: 100,
-    rate: 450,
+    rate: initialRate,
+    totalAmount: initialRate * initialCount,
     workRemark: '',
-    labourNames: ['']
+    labourNames: [''],
+    lastEditedField: 'total'
   };
 }
 
@@ -121,11 +125,17 @@ export function NewEntryModal() {
     );
 
     if (matched && typeof matched === 'object' && matched.defaultRate) {
-      setFormData(prev => ({
-        ...prev,
-        work: enteredWork,
-        rate: matched.defaultRate
-      }));
+      setFormData(prev => {
+        const count = prev.labourNames.length > 0 ? prev.labourNames.length : 1;
+        const newRate = Number(matched.defaultRate);
+        return {
+          ...prev,
+          work: enteredWork,
+          rate: newRate,
+          totalAmount: Math.round(newRate * count * 100) / 100,
+          lastEditedField: 'rate'
+        };
+      });
     } else {
       setFormData(prev => ({
         ...prev,
@@ -134,21 +144,83 @@ export function NewEntryModal() {
     }
   };
 
-  // Add Labour Slot
-  const addLabourSlot = () => {
-    setFormData(prev => ({
-      ...prev,
-      labourNames: [...prev.labourNames, '']
-    }));
+  // Handle Rate (Amount per person) change
+  const handleRateChange = val => {
+    const newRate = val === '' ? '' : (isNaN(Number(val)) ? val : Number(val));
+    setFormData(prev => {
+      const count = prev.labourNames.length > 0 ? prev.labourNames.length : 1;
+      const computedTotal = val === '' ? '' : Math.round(Number(val) * count * 100) / 100;
+      return {
+        ...prev,
+        rate: newRate,
+        totalAmount: computedTotal,
+        lastEditedField: 'rate'
+      };
+    });
   };
 
-  // Remove Labour Slot
+  // Handle Total Amount change -> Auto-calculates Amount per Person (₹/Person)
+  const handleTotalAmountChange = val => {
+    const newTotal = val === '' ? '' : (isNaN(Number(val)) ? val : Number(val));
+    setFormData(prev => {
+      const count = prev.labourNames.length > 0 ? prev.labourNames.length : 1;
+      const computedRate = (val === '' || isNaN(Number(val))) ? '' : Math.round((Number(val) / count) * 100) / 100;
+      return {
+        ...prev,
+        totalAmount: newTotal,
+        rate: computedRate,
+        lastEditedField: 'total'
+      };
+    });
+  };
+
+  // Add Labour Slot -> Auto-calculates Amount per Person based on Total Amount
+  const addLabourSlot = () => {
+    setFormData(prev => {
+      const nextNames = [...prev.labourNames, ''];
+      const count = nextNames.length;
+      let nextRate = prev.rate;
+      let nextTotal = prev.totalAmount;
+
+      if (prev.totalAmount !== '' && Number(prev.totalAmount) > 0) {
+        // Auto-recalculate Amount per person according to Total Amount
+        nextRate = Math.round((Number(prev.totalAmount) / count) * 100) / 100;
+      } else if (prev.rate !== '' && Number(prev.rate) > 0) {
+        nextTotal = Math.round(Number(prev.rate) * count * 100) / 100;
+      }
+
+      return {
+        ...prev,
+        labourNames: nextNames,
+        rate: nextRate,
+        totalAmount: nextTotal
+      };
+    });
+  };
+
+  // Remove Labour Slot -> Auto-calculates Amount per Person based on Total Amount
   const removeLabourSlot = index => {
     if (formData.labourNames.length <= 1) return;
-    setFormData(prev => ({
-      ...prev,
-      labourNames: prev.labourNames.filter((_, i) => i !== index)
-    }));
+    setFormData(prev => {
+      const nextNames = prev.labourNames.filter((_, i) => i !== index);
+      const count = nextNames.length > 0 ? nextNames.length : 1;
+      let nextRate = prev.rate;
+      let nextTotal = prev.totalAmount;
+
+      if (prev.totalAmount !== '' && Number(prev.totalAmount) > 0) {
+        // Auto-recalculate Amount per person according to Total Amount
+        nextRate = Math.round((Number(prev.totalAmount) / count) * 100) / 100;
+      } else if (prev.rate !== '' && Number(prev.rate) > 0) {
+        nextTotal = Math.round(Number(prev.rate) * count * 100) / 100;
+      }
+
+      return {
+        ...prev,
+        labourNames: nextNames,
+        rate: nextRate,
+        totalAmount: nextTotal
+      };
+    });
   };
 
   // Handle Labour Name Select
@@ -171,6 +243,7 @@ export function NewEntryModal() {
     if (!formData.incharge) newErrors.incharge = 'Incharge is required';
     if (!formData.work) newErrors.work = 'Work type is required';
     if (!formData.rate || Number(formData.rate) <= 0) newErrors.rate = 'Valid rate is required';
+    if (!formData.totalAmount || Number(formData.totalAmount) <= 0) newErrors.totalAmount = 'Valid total amount is required';
     if (!formData.hours || Number(formData.hours) <= 0) newErrors.hours = 'Valid hours required';
 
     if (isTon && (!formData.qty || Number(formData.qty) <= 0)) {
@@ -205,8 +278,7 @@ export function NewEntryModal() {
       const count = validNames.length > 0 ? validNames.length : 1;
       const rate = Number(formData.rate) || 0;
       const qty = Number(formData.qty) || 0;
-      // Amount per person x Labour count (same as sheet Col K x Col H)
-      const computedTotal = count * rate;
+      const totalAmount = Number(formData.totalAmount) > 0 ? Number(formData.totalAmount) : (count * rate);
 
       const payload = {
         date: formData.date,
@@ -218,7 +290,7 @@ export function NewEntryModal() {
         qty: qty,
         rate: rate,
         labourCount: count,
-        totalAmount: computedTotal,
+        totalAmount: totalAmount,
         workRemark: (formData.workRemark || '').trim(),
         labourNames: validNames
       };
@@ -360,7 +432,7 @@ export function NewEntryModal() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Hours Worked
@@ -397,6 +469,23 @@ export function NewEntryModal() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Total Amount <span className="text-rose-600">*</span>
+                    <span className="ml-1.5 font-semibold normal-case text-emerald-600">(₹ Total)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="any"
+                    placeholder="Enter total amount (₹)..."
+                    className="w-full px-3 py-2.5 bg-emerald-50/40 border border-emerald-300 rounded-lg text-slate-800 font-semibold text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white transition-all"
+                    value={formData.totalAmount}
+                    onChange={e => handleTotalAmountChange(e.target.value)}
+                  />
+                  {errors.totalAmount && <div className="text-xs text-rose-600 font-medium mt-1">{errors.totalAmount}</div>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                     Amount per Person <span className="text-rose-600">*</span>
                     <span className="ml-1.5 font-semibold normal-case text-indigo-600">(₹ / Person)</span>
                   </label>
@@ -405,9 +494,9 @@ export function NewEntryModal() {
                     min="0.01"
                     step="any"
                     placeholder="Amount per person (₹)..."
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
                     value={formData.rate}
-                    onChange={e => setFormData({ ...formData, rate: e.target.value === '' ? '' : Number(e.target.value) })}
+                    onChange={e => handleRateChange(e.target.value)}
                   />
                   {errors.rate && <div className="text-xs text-rose-600 font-medium mt-1">{errors.rate}</div>}
                 </div>
@@ -444,6 +533,11 @@ export function NewEntryModal() {
                     <span className="text-xs text-emerald-600 font-bold ml-2">
                       ({labourCount} {labourCount === 1 ? 'Person' : 'Persons'})
                     </span>
+                    {Number(formData.totalAmount) > 0 && (
+                      <span className="text-xs text-slate-500 font-medium ml-2">
+                        • Total: <strong className="text-emerald-700 font-bold">₹{Number(formData.totalAmount).toLocaleString('en-IN')}</strong>
+                      </span>
+                    )}
                   </div>
                 </div>
 

@@ -11,7 +11,9 @@ import {
   Eye,
   History,
   ListFilter,
-  RefreshCw
+  RefreshCw,
+  XCircle,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -33,7 +35,7 @@ export const isEntryVerified = entry => {
 };
 
 export function VerificationPage() {
-  const { entries, masterData, verifyEntry, syncing, canPerformAction, refreshData } = useApp();
+  const { entries, masterData, verifyEntry, cancelEntry, syncing, canPerformAction, refreshData, isAdmin, openEditEntry, showToast } = useApp();
   const canVerify = canPerformAction('verification');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,6 +45,7 @@ export function VerificationPage() {
   const [timelineWorkId, setTimelineWorkId] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [verifyingId, setVerifyingId] = useState(null);
 
   const getModalLabourers = entry => {
@@ -87,9 +90,10 @@ export function VerificationPage() {
     return list;
   };
 
-  // Pending vs History: Strictly mutually exclusive
-  const pendingEntries = entries.filter(e => !isEntryVerified(e));
-  const historyEntries = entries.filter(e => isEntryVerified(e));
+  // Pending vs History: Pending are unverified non-cancelled; History includes verified and cancelled entries
+  const isCancelled = e => e && (e.status === 'Cancelled' || String(e.status).toLowerCase().includes('cancel'));
+  const pendingEntries = entries.filter(e => !isEntryVerified(e) && !isCancelled(e));
+  const historyEntries = entries.filter(e => isEntryVerified(e) || isCancelled(e));
 
   const currentList = activeTab === 'pending' ? pendingEntries : historyEntries;
 
@@ -122,6 +126,28 @@ export function VerificationPage() {
       setActiveTab('history');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!selectedEntry || isSubmitting || isCancelling) return;
+    const confirmMsg = remarks.trim()
+      ? `Are you sure you want to cancel work entry ${selectedEntry.workId}?\nReason: "${remarks.trim()}"`
+      : `Are you sure you want to cancel work entry ${selectedEntry.workId}?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsCancelling(true);
+    try {
+      if (typeof cancelEntry === 'function') {
+        await cancelEntry(selectedEntry.workId, remarks.trim() || 'Cancelled by Verifier');
+      }
+      setSelectedEntry(null);
+      setRemarks('');
+      setActiveTab('history');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -277,24 +303,36 @@ export function VerificationPage() {
                   return (
                     <tr key={`${entry.workId || 'wrk'}_${idx}_${activeTab}`} className="hover:bg-slate-50/80 transition-colors">
                       <td className="sticky left-0 bg-white z-10 border-r border-slate-200 shadow-xs px-4 py-2.5 whitespace-nowrap">
-                        {verified ? (
-                          <button
-                            onClick={() => setTimelineWorkId(entry.workId)}
-                            className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
-                          >
-                            <Eye size={14} />
-                            <span>Details</span>
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleOpenVerifyModal(entry)}
-                            disabled={!canVerify}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-                          >
-                            <ShieldCheck size={14} />
-                            <span>Verify Work</span>
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {verified || isCancelled(entry) ? (
+                            <button
+                              onClick={() => setTimelineWorkId(entry.workId)}
+                              className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
+                            >
+                              <Eye size={14} />
+                              <span>Details</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenVerifyModal(entry)}
+                              disabled={!canVerify}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                            >
+                              <ShieldCheck size={14} />
+                              <span>Verify Work</span>
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>
@@ -360,7 +398,7 @@ export function VerificationPage() {
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
-                        <StatusBadge status={verified ? entry.status : 'Pending Verification'} />
+                        <StatusBadge status={isCancelled(entry) ? 'Cancelled' : (verified ? entry.status : 'Pending Verification')} />
                       </td>
                     </tr>
                   );
@@ -462,39 +500,63 @@ export function VerificationPage() {
               />
             </div>
 
-            <div className="flex justify-end items-center gap-3 mt-6">
-              <button
-                type="button"
-                onClick={() => setSelectedEntry(null)}
-                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold px-4 py-2"
-              >
-                Close
-              </button>
-              {canVerify ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-200">
+              {canVerify && (
                 <button
                   type="button"
-                  onClick={handleConfirmVerify}
-                  disabled={isSubmitting}
-                  className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  onClick={handleConfirmCancel}
+                  disabled={isSubmitting || isCancelling}
+                  className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-sm rounded-lg px-4 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {isSubmitting ? (
+                  {isCancelling ? (
                     <>
                       <RefreshCw size={16} className="animate-spin" />
-                      <span>Verifying & Moving...</span>
+                      <span>Cancelling...</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 size={16} />
-                      <span>Confirm & Mark Verified</span>
+                      <XCircle size={16} />
+                      <span>Cancel Entry</span>
                     </>
                   )}
                 </button>
-              ) : (
-                <div className="inline-flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-md font-semibold">
-                  <Eye size={14} />
-                  <span>View-Only Access (Verification Action Disabled)</span>
-                </div>
               )}
+
+              <div className="flex items-center gap-3 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setSelectedEntry(null)}
+                  disabled={isSubmitting || isCancelling}
+                  className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold px-4 py-2 transition-colors"
+                >
+                  Close
+                </button>
+                {canVerify ? (
+                  <button
+                    type="button"
+                    onClick={handleConfirmVerify}
+                    disabled={isSubmitting || isCancelling}
+                    className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        <span>Verifying & Moving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={16} />
+                        <span>Confirm & Mark Verified</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 px-3 py-1.5 rounded-md font-semibold">
+                    <Eye size={14} />
+                    <span>View-Only Access (Verification Action Disabled)</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

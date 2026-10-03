@@ -1,8 +1,17 @@
 import React from 'react';
-import { Clock, CheckCircle2, ShieldCheck, CreditCard, FileCheck2 } from 'lucide-react';
+import { Clock, CheckCircle2, ShieldCheck, CreditCard, FileCheck2, XCircle } from 'lucide-react';
 
 export function StatusBadge({ status }) {
   const norm = String(status || '').trim().toLowerCase();
+
+  if (norm.includes('cancel')) {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold border bg-red-50 text-red-700 border-red-300 shadow-2xs">
+        <XCircle size={13} className="text-red-600 stroke-[2.5]" />
+        Cancelled
+      </span>
+    );
+  }
 
   if (norm.includes('pending verification') || norm === 'pending') {
     return (

@@ -12,7 +12,8 @@ import {
   Eye,
   Receipt,
   Building2,
-  RefreshCw
+  RefreshCw,
+  Pencil
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatDate, formatDateTime } from '../utils/dateUtils';
@@ -22,7 +23,7 @@ import { Modal } from '../components/common/Modal';
 import { isTonBasedWork, formatEntryRate } from '../utils/workTypes';
 
 export function PaymentPage() {
-  const { entries, payEntry, syncing, canPerformAction } = useApp();
+  const { entries, payEntry, syncing, canPerformAction, isAdmin, openEditEntry } = useApp();
   const canDisburse = canPerformAction('payment');
   const [activeTab, setActiveTab] = useState('pending'); // 'pending' | 'history'
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,11 +34,12 @@ export function PaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Pending vs History
+  const isCancelled = e => e && (e.status === 'Cancelled' || String(e.status).toLowerCase().includes('cancel'));
   const pendingPayment = entries.filter(
-    e => e.status === 'Approved (Pending Payment)' || (e.approvalActual && !e.paymentActual && !e.tallyActual)
+    e => !isCancelled(e) && (e.status === 'Approved (Pending Payment)' || (e.approvalActual && !e.paymentActual && !e.tallyActual))
   );
   const historyPayment = entries.filter(
-    e => ['Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.paymentActual)
+    e => !isCancelled(e) && (['Paid (Pending Tally)', 'Paid', 'Tally Complete'].includes(e.status) || Boolean(e.paymentActual))
   );
 
   const currentList = activeTab === 'pending' ? pendingPayment : historyPayment;
@@ -233,33 +235,45 @@ export function PaymentPage() {
                   return (
                     <tr key={entry.workId} className="hover:bg-slate-50/80 transition-colors">
                       <td className="sticky left-0 bg-white z-10 border-r border-slate-200 shadow-xs px-4 py-2.5 whitespace-nowrap">
-                        {activeTab === 'pending' ? (
-                          canDisburse ? (
-                            <button
-                              onClick={() => handleOpenPayModal(entry)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 hover:bg-teal-700 text-white"
-                            >
-                              <Receipt size={14} />
-                              <span>Record Payment</span>
-                            </button>
+                        <div className="flex items-center gap-1.5">
+                          {activeTab === 'pending' ? (
+                            canDisburse ? (
+                              <button
+                                onClick={() => handleOpenPayModal(entry)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg shadow-sm hover:shadow-md transition-all bg-teal-600 hover:bg-teal-700 text-white"
+                              >
+                                <Receipt size={14} />
+                                <span>Record Payment</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setTimelineWorkId(entry.workId)}
+                                className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
+                              >
+                                <Eye size={14} />
+                                <span>View</span>
+                              </button>
+                            )
                           ) : (
                             <button
                               onClick={() => setTimelineWorkId(entry.workId)}
                               className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
                             >
                               <Eye size={14} />
-                              <span>View</span>
+                              <span>Details</span>
                             </button>
-                          )
-                        ) : (
-                          <button
-                            onClick={() => setTimelineWorkId(entry.workId)}
-                            className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
-                          >
-                            <Eye size={14} />
-                            <span>Details</span>
-                          </button>
-                        )}
+                          )}
+                          {isAdmin && (
+                            <button
+                              onClick={() => openEditEntry(entry)}
+                              title="Edit Work Order (Admin)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                            >
+                              <Pencil size={13} />
+                              <span>Edit</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="font-mono font-bold text-indigo-600 text-xs">{entry.workId}</span>

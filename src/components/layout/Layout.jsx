@@ -4,6 +4,7 @@ import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { ToastContainer } from '../common/ToastContainer';
 import { NewEntryModal } from '../common/NewEntryModal';
+import { EditEntryModal } from '../common/EditEntryModal';
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -47,6 +48,7 @@ export function Layout() {
 
       <ToastContainer />
       <NewEntryModal />
+      <EditEntryModal />
     </div>
   );
 }
