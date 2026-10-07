@@ -237,7 +237,7 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
   if (forceRemote || !Array.isArray(localEntries) || localEntries.length === 0) return remoteCleaned;
 
   const now = Date.now();
-  const OPTIMISTIC_WINDOW_MS = 60000; // 60 seconds window for pending async writes to reach Google Apps Script
+  const OPTIMISTIC_WINDOW_MS = 180000; // 3 minutes window for pending async writes to reach Google Apps Script
 
   return remoteCleaned.map(remote => {
     // Robust match: Check timestamp or workId+work first to avoid duplicate workId collisions (e.g. multiple WRK-0019 in Sheet)
@@ -248,7 +248,7 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
 
     if (!local) return remote;
 
-    // CRITICAL FIX: If local entry was marked Cancelled by the user in React,
+    // CRITICAL FIX 1: If local entry was marked Cancelled by the user in React,
     // PRESERVE Cancelled status! Never let remote "Pending Verification" overwrite a user cancellation
     // until Google Sheets itself confirms it or unless explicitly forced!
     const isLocalCancelled = local.status === 'Cancelled' || String(local.status).toLowerCase().includes('cancel');
@@ -267,31 +267,54 @@ export function reconcileRemoteWithLocal(remoteCleaned, localEntries = [], force
       };
     }
 
-    // Check if this entry was optimistically updated in this browser session very recently
-    const isRecentLocalAction = local._optimisticAt && (now - local._optimisticAt < OPTIMISTIC_WINDOW_MS);
+    // CRITICAL FIX 2: STAGE PROGRESSION PROTECTION
+    // Workflow stages strictly progress forward (Pending -> Verified -> Approved -> Paid -> Tally).
+    // An async background fetch MUST NEVER downgrade an entry back to "Pending"
+    // just because Google Sheets write is taking a few seconds or minutes to persist!
+    if (!forceRemote) {
+      const isRecentLocalAction = Boolean(local._optimisticAt && (now - local._optimisticAt < OPTIMISTIC_WINDOW_MS));
 
-    if (isRecentLocalAction && !forceRemote) {
-      // Keep optimistic values until GAS write completes
-      return {
-        ...remote,
-        status: local.status || remote.status,
-        currentStatus: local.currentStatus || remote.currentStatus,
-        verificationActual: local.verificationActual ?? remote.verificationActual,
-        approvalActual: local.approvalActual ?? remote.approvalActual,
-        paymentActual: local.paymentActual ?? remote.paymentActual,
-        tallyActual: local.tallyActual ?? remote.tallyActual,
-        paymentMethod: local.paymentMethod || remote.paymentMethod,
-        paymentRef: local.paymentRef || remote.paymentRef,
-        tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
-        tallyLedger: local.tallyLedger || remote.tallyLedger,
-        cancellationRemarks: local.cancellationRemarks || remote.cancellationRemarks,
-        verificationRemarks: local.verificationRemarks || remote.verificationRemarks,
-        _optimisticAt: local._optimisticAt
-      };
+      // Has local completed verification, approval, payment, or tally?
+      const localVerified = Boolean(local.verificationActual && local.verificationActual !== '-' && local.verificationActual !== 'null');
+      const remoteVerified = Boolean(remote.verificationActual && remote.verificationActual !== '-' && remote.verificationActual !== 'null');
+
+      const localApproved = Boolean(local.approvalActual && local.approvalActual !== '-' && local.approvalActual !== 'null');
+      const remoteApproved = Boolean(remote.approvalActual && remote.approvalActual !== '-' && remote.approvalActual !== 'null');
+
+      const localPaid = Boolean(local.paymentActual && local.paymentActual !== '-' && local.paymentActual !== 'null');
+      const remotePaid = Boolean(remote.paymentActual && remote.paymentActual !== '-' && remote.paymentActual !== 'null');
+
+      const localTally = Boolean(local.tallyActual && local.tallyActual !== '-' && local.tallyActual !== 'null');
+      const remoteTally = Boolean(remote.tallyActual && remote.tallyActual !== '-' && remote.tallyActual !== 'null');
+
+      if (isRecentLocalAction || (localVerified && !remoteVerified) || (localApproved && !remoteApproved) || (localPaid && !remotePaid) || (localTally && !remoteTally)) {
+        return {
+          ...remote,
+          status: local.status || remote.status,
+          currentStatus: local.currentStatus || remote.currentStatus,
+          verificationActual: localVerified ? local.verificationActual : remote.verificationActual,
+          verificationRemarks: local.verificationRemarks || remote.verificationRemarks,
+          verificationDelay: localVerified ? (local.verificationDelay || remote.verificationDelay) : remote.verificationDelay,
+          approvalPlanned: local.approvalPlanned || remote.approvalPlanned,
+          approvalActual: localApproved ? local.approvalActual : remote.approvalActual,
+          approvalDelay: localApproved ? (local.approvalDelay || remote.approvalDelay) : remote.approvalDelay,
+          paymentPlanned: local.paymentPlanned || remote.paymentPlanned,
+          paymentActual: localPaid ? local.paymentActual : remote.paymentActual,
+          paymentDelay: localPaid ? (local.paymentDelay || remote.paymentDelay) : remote.paymentDelay,
+          paymentMethod: local.paymentMethod || remote.paymentMethod,
+          paymentRef: local.paymentRef || remote.paymentRef,
+          tallyPlanned: local.tallyPlanned || remote.tallyPlanned,
+          tallyActual: localTally ? local.tallyActual : remote.tallyActual,
+          tallyDelay: localTally ? (local.tallyDelay || remote.tallyDelay) : remote.tallyDelay,
+          tallyVoucher: local.tallyVoucher || remote.tallyVoucher,
+          tallyLedger: local.tallyLedger || remote.tallyLedger,
+          cancellationRemarks: local.cancellationRemarks || remote.cancellationRemarks,
+          _optimisticAt: local._optimisticAt || now
+        };
+      }
     }
 
-    // Google Sheet is the authoritative source of truth!
-    // Whatever is in Google Sheet (including cleared/deleted cells) takes precedence!
+    // Google Sheet is the authoritative source of truth when fully synced
     return remote;
   });
 }

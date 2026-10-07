@@ -618,6 +618,35 @@
   }
 
   /**
+  * Check if a Work ID already exists in Entry or FMS sheets
+  */
+  function isWorkIdExists(ss, workId) {
+    if (!workId) return false;
+    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
+    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
+    const sheetsToCheck = [entrySheet, fmsSheet].filter(Boolean);
+    const searchId = String(workId).trim().toUpperCase();
+
+    for (let s = 0; s < sheetsToCheck.length; s++) {
+      const sheet = sheetsToCheck[s];
+      if (sheet.getLastRow() >= 1) {
+        const headerRow = getHeaderRowIndex(sheet);
+        const startRow = headerRow + 1;
+        const maxRows = sheet.getMaxRows();
+        if (maxRows >= startRow) {
+          const values = sheet.getRange(startRow, 2, maxRows - startRow + 1, 1).getValues();
+          for (let i = 0; i < values.length; i++) {
+            if (String(values[i][0] || '').trim().toUpperCase() === searchId) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
   * Check if a row is a valid data row
   */
   function isValidWorkRow(row) {
@@ -644,7 +673,11 @@
     const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
 
     const timestamp = getFormattedSheetTimestamp();
-    const workId = data.workId || generateNextWorkId(ss);
+    let workId = String(data.workId || '').trim();
+    // If workId is missing or already exists in sheet, assign a fresh unique sequential ID
+    if (!workId || isWorkIdExists(ss, workId)) {
+      workId = generateNextWorkId(ss);
+    }
 
     // Extract all valid labour names
     let labourNames = [];
@@ -767,6 +800,16 @@
 
       const targetFmsRow = getFirstEmptyDataRow(fmsSheet, fmsStartDataRow);
       fmsSheet.getRange(targetFmsRow, 1, 1, fmsRow.length).setValues([fmsRow]);
+
+      // If Column N (Planned Timestamp) formula is present in previous row, auto-fill it down
+      if (targetFmsRow > fmsStartDataRow) {
+        const prevRow = targetFmsRow - 1;
+        const plannedCol = maxEntryCol + 1; // Col N
+        const prevFormula = fmsSheet.getRange(prevRow, plannedCol).getFormula();
+        if (prevFormula) {
+          fmsSheet.getRange(prevRow, plannedCol).copyTo(fmsSheet.getRange(targetFmsRow, plannedCol), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
+        }
+      }
       SpreadsheetApp.flush();
     }
 
@@ -1532,7 +1575,10 @@
         };
 
         entries.push(entryObj);
-        workMap[workId] = entryObj;
+        if (!workMap[workId]) {
+          workMap[workId] = [];
+        }
+        workMap[workId].push(entryObj);
       }
     }
 
@@ -1563,8 +1609,10 @@
         if (!isValidWorkRow(row)) continue;
 
         const workId = String(row[1] || row[0] || '').trim();
-        const existing = workMap[workId];
+        const matches = workMap[workId] || [];
+        const existing = matches.find(m => !m._fmsMatched) || matches[0];
         if (existing) {
+          existing._fmsMatched = true;
           existing.verificationPlanned = row[p1Col] ? (row[p1Col] instanceof Date ? row[p1Col].toISOString() : String(row[p1Col]).trim()) : null;
           existing.verificationActual = row[a1Col] ? (row[a1Col] instanceof Date ? row[a1Col].toISOString() : String(row[a1Col]).trim()) : null;
           existing.verificationDelay = formatSheetDelay(row[d1Col]);

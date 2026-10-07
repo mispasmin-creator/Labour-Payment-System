@@ -477,9 +477,22 @@ export function AppProvider({ children }) {
     triggerCelebration();
 
     // Background sync to Google Apps Script
-    sendToAppsScript('submitLaborPayment', newEntry).catch(err => {
-      console.warn('Background sync to Google Sheets failed:', err);
-    });
+    sendToAppsScript('submitLaborPayment', newEntry)
+      .then(res => {
+        if (res && res.workId && res.workId !== newEntry.workId) {
+          const confirmedWorkId = res.workId;
+          setEntries(prev => {
+            const updated = prev.map(e => (e.workId === newEntry.workId ? { ...e, workId: confirmedWorkId } : e));
+            try {
+              localStorage.setItem('labour_sys_entries', JSON.stringify(updated));
+            } catch (e) {}
+            return updated;
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('Background sync to Google Sheets failed:', err);
+      });
 
     return newEntry;
   }, [showToast, triggerCelebration]);
@@ -487,6 +500,7 @@ export function AppProvider({ children }) {
   // Stage 1: Verify Work (Instant 0ms UI update)
   const verifyEntry = useCallback(async (workId, remarks = '') => {
     const now = getNowTimestamp();
+    const optimisticTimestamp = Date.now();
     let updatedItem = null;
 
     // 1. Immediately write to localStorage synchronously so no async race condition can wipe it out
@@ -503,7 +517,8 @@ export function AppProvider({ children }) {
               verificationActual: now,
               verificationDelay: delayInfo.formatted,
               verificationRemarks: remarks,
-              approvalPlanned: now
+              approvalPlanned: now,
+              _optimisticAt: optimisticTimestamp
             };
             return updatedItem;
           }
@@ -524,7 +539,8 @@ export function AppProvider({ children }) {
             verificationActual: now,
             verificationDelay: delayInfo.formatted,
             verificationRemarks: remarks,
-            approvalPlanned: now
+            approvalPlanned: now,
+            _optimisticAt: optimisticTimestamp
           };
           return updatedItem;
         }
@@ -612,6 +628,7 @@ export function AppProvider({ children }) {
   // Stage 2: Approve Payment (Instant 0ms UI update)
   const approveEntry = useCallback(async workId => {
     const now = getNowTimestamp();
+    const optimisticTimestamp = Date.now();
     let updatedItem = null;
 
     setEntries(prev => {
@@ -623,7 +640,8 @@ export function AppProvider({ children }) {
             status: 'Approved (Pending Payment)',
             approvalActual: now,
             approvalDelay: delayInfo.formatted,
-            paymentPlanned: now
+            paymentPlanned: now,
+            _optimisticAt: optimisticTimestamp
           };
           return updatedItem;
         }
@@ -650,6 +668,7 @@ export function AppProvider({ children }) {
   const approveBatch = useCallback(async workIds => {
     if (!Array.isArray(workIds) || workIds.length === 0) return;
     const now = getNowTimestamp();
+    const optimisticTimestamp = Date.now();
 
     setEntries(prev => {
       const next = prev.map(e => {
@@ -660,7 +679,8 @@ export function AppProvider({ children }) {
             status: 'Approved (Pending Payment)',
             approvalActual: now,
             approvalDelay: delayInfo.formatted,
-            paymentPlanned: now
+            paymentPlanned: now,
+            _optimisticAt: optimisticTimestamp
           };
         }
         return e;
@@ -726,6 +746,7 @@ export function AppProvider({ children }) {
   // Stage 4: Record Tally (Instant 0ms UI update)
   const tallyEntry = useCallback(async (workId, tallyVoucher = '', tallyLedger = 'Direct Labour Charges') => {
     const now = getNowTimestamp();
+    const optimisticTimestamp = Date.now();
     let updatedItem = null;
 
     setEntries(prev => {
@@ -738,7 +759,8 @@ export function AppProvider({ children }) {
             tallyActual: now,
             tallyDelay: delayInfo.formatted,
             tallyVoucher: tallyVoucher || '',
-            tallyLedger: tallyLedger || 'Direct Labour Charges'
+            tallyLedger: tallyLedger || 'Direct Labour Charges',
+            _optimisticAt: optimisticTimestamp
           };
           return updatedItem;
         }
