@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
   fetchEntries,
@@ -80,7 +80,7 @@ export function AppProvider({ children }) {
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('labour_sys_auth_user');
+      const stored = localStorage.getItem('labour_sys_auth_user') || sessionStorage.getItem('labour_sys_auth_user');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object' && parsed.isAuthenticated && parsed.username !== 'admin13') {
@@ -171,7 +171,8 @@ export function AppProvider({ children }) {
           permissions: fresh.permissions
         };
         setCurrentUser(synced);
-        localStorage.setItem('labour_sys_auth_user', JSON.stringify(synced));
+        const sessionOnly = !localStorage.getItem('labour_sys_auth_user') && sessionStorage.getItem('labour_sys_auth_user');
+        (sessionOnly ? sessionStorage : localStorage).setItem('labour_sys_auth_user', JSON.stringify(synced));
       }
     }
 
@@ -259,7 +260,7 @@ export function AppProvider({ children }) {
     return currentUser.assignedFirms.some(f => f.toLowerCase().trim() === firmName.toLowerCase().trim());
   }, [currentUser]);
 
-  const login = useCallback((username, password) => {
+  const login = useCallback((username, password, remember = true) => {
     const inputUname = String(username || '').trim();
     const inputPwd = String(password || '').trim();
 
@@ -312,7 +313,10 @@ export function AppProvider({ children }) {
 
     setCurrentUser(userObj);
     setCurrentRole(isAdmin ? ROLES.ALL : ROLES.INCHARGE);
-    localStorage.setItem('labour_sys_auth_user', JSON.stringify(userObj));
+    // "Keep me signed in": persistent login, otherwise the session ends when the browser is closed
+    const keep = remember ? localStorage : sessionStorage;
+    (remember ? sessionStorage : localStorage).removeItem('labour_sys_auth_user');
+    keep.setItem('labour_sys_auth_user', JSON.stringify(userObj));
     showToast(`Welcome back, ${userObj.displayName}!`, 'success');
     return true;
   }, [users, showToast]);
@@ -320,6 +324,7 @@ export function AppProvider({ children }) {
   const logout = useCallback(() => {
     setCurrentUser(null);
     localStorage.removeItem('labour_sys_auth_user');
+    sessionStorage.removeItem('labour_sys_auth_user');
     showToast('Logged out successfully', 'info');
   }, [showToast]);
 
@@ -342,19 +347,34 @@ export function AppProvider({ children }) {
   }, []);
 
   // Load initial data including Live Users from "Login Page" sheet
+  // Background polls must not re-render the whole app when the data is identical to what is on screen
+  const applyIfChanged = useCallback((value, setter) => {
+    let sig = null;
+    try { sig = JSON.stringify(value); } catch (e) { sig = null; }
+    setter(prev => {
+      if (sig !== null) {
+        try {
+          if (JSON.stringify(prev) === sig) return prev;
+        } catch (e) { /* fall through and replace */ }
+      }
+      return value;
+    });
+  }, []);
+
   const loadData = useCallback(async (silent = false, forceRemote = false) => {
-    setSyncing(true);
+    // Silent background polls update data quietly: no spinner / "Syncing..." flicker
     if (!silent) {
+      setSyncing(true);
       setLoading(true);
     }
     try {
       // 1. Try unified single-request fetch first for 10x faster loading
       const unified = await fetchAllData(forceRemote);
       if (unified && unified.entries) {
-        setEntries(unified.entries);
-        if (unified.master) setMasterData(unified.master);
+        applyIfChanged(unified.entries, setEntries);
+        if (unified.master) applyIfChanged(unified.master, setMasterData);
         if (unified.users && Array.isArray(unified.users) && unified.users.length > 0) {
-          setUsers(unified.users);
+          applyIfChanged(unified.users, setUsers);
         }
         if (!silent) showToast('Data synchronized successfully!', 'success');
         return;
@@ -367,13 +387,13 @@ export function AppProvider({ children }) {
         fetchUsers()
       ]);
       if (fetchedEntries && Array.isArray(fetchedEntries)) {
-        setEntries(fetchedEntries);
+        applyIfChanged(fetchedEntries, setEntries);
       }
       if (fetchedMaster) {
-        setMasterData(fetchedMaster);
+        applyIfChanged(fetchedMaster, setMasterData);
       }
       if (fetchedUsers && Array.isArray(fetchedUsers) && fetchedUsers.length > 0) {
-        setUsers(fetchedUsers);
+        applyIfChanged(fetchedUsers, setUsers);
       }
       if (!silent) {
         showToast('Data synchronized successfully!', 'success');
@@ -382,25 +402,27 @@ export function AppProvider({ children }) {
       console.error('Error loading data:', err);
       if (!silent) showToast('Error fetching data from Google Sheets', 'error');
     } finally {
-      setLoading(false);
-      setSyncing(false);
+      if (!silent) {
+        setLoading(false);
+        setSyncing(false);
+      }
     }
-  }, [showToast]);
+  }, [showToast, applyIfChanged]);
 
   const refreshData = useCallback(() => {
     return loadData(false, true); // forceRemote = true when user clicks Sync Sheet
   }, [loadData]);
 
-  // Initial load + Live background auto-polling every 35 seconds (when tab active) + Tab visibility change
+  // Initial load + Live background auto-polling every 60 seconds (when tab active) + Tab visibility change
   useEffect(() => {
     loadData();
 
-    // Auto-refresh interval (35s) - skips when tab is hidden or already syncing to avoid quota exhaustion
+    // Auto-refresh interval (60s) - skips when tab is hidden or already syncing to avoid quota exhaustion
     const interval = setInterval(() => {
       if (typeof document !== 'undefined' && !document.hidden) {
         loadData(true);
       }
-    }, 35000);
+    }, 60000);
 
     // Refresh only when user actually switches back to the browser tab after being away for > 15s
     let lastHiddenTime = 0;
@@ -901,7 +923,7 @@ export function AppProvider({ children }) {
     return result;
   }, [showToast]);
 
-  const value = {
+  const value = useMemo(() => ({
     entries,
     masterData,
     currentRole,
@@ -944,7 +966,50 @@ export function AppProvider({ children }) {
     editingEntry,
     openEditEntry,
     closeEditEntry
-  };
+  }), [
+    entries,
+    masterData,
+    currentRole,
+    setCurrentRole,
+    scriptUrl,
+    updateScriptUrl,
+    loading,
+    syncing,
+    toasts,
+    showToast,
+    removeToast,
+    currentUser,
+    users,
+    isAdmin,
+    addUser,
+    updateUser,
+    deleteUser,
+    hasPermission,
+    canPerformAction,
+    getAccessLevel,
+    hasFirmAccess,
+    login,
+    logout,
+    counts,
+    createEntry,
+    updateEntry,
+    verifyEntry,
+    cancelEntry,
+    approveEntry,
+    approveBatch,
+    payEntry,
+    tallyEntry,
+    updateMaster,
+    editWorkRemark,
+    refreshData,
+    resetDemo,
+    isNewEntryOpen,
+    openNewEntry,
+    closeNewEntry,
+    editingEntry,
+    openEditEntry,
+    closeEditEntry
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

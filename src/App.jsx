@@ -1,16 +1,15 @@
-import React from 'react';
+import React, { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Layout } from './components/layout/Layout';
-import { DashboardPage } from './pages/DashboardPage';
-import { VerificationPage } from './pages/VerificationPage';
-import { PaymentReportPage } from './pages/PaymentReportPage';
-import { WorkTrackerPage } from './pages/WorkTrackerPage';
-import { ReportsPage } from './pages/ReportsPage';
-import { InchargeWiseReportPage } from './pages/InchargeWiseReportPage';
 import { LoginPage } from './pages/LoginPage';
-import { AdministrationPage } from './pages/AdministrationPage';
-import { ProductionPage } from './pages/ProductionPage';
+
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const VerificationPage = lazy(() => import('./pages/VerificationPage').then(m => ({ default: m.VerificationPage })));
+const PaymentReportPage = lazy(() => import('./pages/PaymentReportPage').then(m => ({ default: m.PaymentReportPage })));
+const WorkTrackerPage = lazy(() => import('./pages/WorkTrackerPage').then(m => ({ default: m.WorkTrackerPage })));
+const AdministrationPage = lazy(() => import('./pages/AdministrationPage').then(m => ({ default: m.AdministrationPage })));
+const ProductionPage = lazy(() => import('./pages/ProductionPage').then(m => ({ default: m.ProductionPage })));
 
 function ProtectedRoute({ children }) {
   const { currentUser } = useApp();

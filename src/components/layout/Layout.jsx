@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
@@ -21,7 +21,7 @@ export function Layout() {
   };
 
   return (
-    <div className="h-screen flex bg-slate-50 overflow-hidden">
+    <div className="h-screen flex app-bg overflow-hidden">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -41,8 +41,16 @@ export function Layout() {
           isCollapsed={isCollapsed}
           onToggleCollapse={toggleCollapse}
         />
-        <main className="flex-1 min-w-0 overflow-hidden flex flex-col p-3 md:p-5">
-          <Outlet />
+        <main className="flex-1 min-w-0 overflow-hidden flex flex-col p-4 md:p-6">
+          <Suspense
+            fallback={
+              <div className="flex-1 flex items-center justify-center text-sm font-semibold text-slate-400">
+                Loading...
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

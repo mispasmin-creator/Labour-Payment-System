@@ -1,1744 +1,561 @@
-  /**
-  * =========================================================================
-  * Labour Payment & Workflow Tracking System - Google Apps Script Backend
-  * =========================================================================
-  * 
-  * Header-Name Matched & Fully Resilient Dynamic Version
-  * Supports "Login Page" Sheet for User Authentication & Role Permissions
-  * 
-  * Exact Entry Sheet Headers:
-  * Col A (1)  : Timestamp
-  * Col B (2)  : Work ID
-  * Col C (3)  : Date
-  * Col D (4)  : Firm
-  * Col E (5)  : Shift
-  * Col F (6)  : Incharge
-  * Col G (7)  : Work
-  * Col H (8)  : Labour (Count)
-  * Col I (9)  : Hours
-  * Col J (10) : Qty
-  * Col K (11) : Amount per person
-  * Col L (12) : Total Amount
-  * Col M (13) : Status
-  * Col N (14) : Work Remark
-  * Col O to Y (15-25): Labour 1, Labour 2, ... Labour 11 (Auto-extends for 12, 13, etc.)
-  * 
-  * Exact FMS Sheet Headers (Row 6):
-  * Col A (1)  : Timestamp
-  * Col B (2)  : Work ID
-  * Col C (3)  : Date
-  * Col D (4)  : Firm
-  * Col E (5)  : Shift
-  * Col F (6)  : Incharge
-  * Col G (7)  : Work
-  * Col H (8)  : No of Labour
-  * Col I (9)  : Hours
-  * Col J (10) : Qty
-  * Col K (11) : Amount
-  * Col L (12) : Status
-  * Col M (13) : Work Remark
-  * Col N (14) : Planned Timestamp
-  * Col O (15) : Actual Timestamp
-  * Col P (16) : Delay
-  * Col Q (17) : Planned 2
-  * Col R (18) : Actual 2
-  * Col S (19) : Delay 2
-  * Col T (20) : Planned 3
-  * Col U (21) : Actual 3
-  * Col V (22) : Delay 3
-  * Col W (23) : Planned 4
-  * Col X (24) : Actual 4
-  * Col Y (25) : Delay 4
-  * 
-  * Exact Login Page Sheet Headers:
-  * Col A: Username
-  * Col B: Password
-  * Col C: Name
-  * Col D: Administrate
-  * Col E: Store Issue
-  * Col F: Issue Data View
-  * Col G: Inventory
-  * Col H: Create Indent
-  * Col I: Create PO
-  * Col J: Indent Approval View
-  * Col K: Indent Approval Action
-  * Col L: Update Vendor View
-  * Col M: Update Vendor Action
-  * Col N: Three Party Approval View
-  */
+/**
+ * Labour Payment System - Google Apps Script backend (compact & fast)
+ *
+ * Sheets : Entry, FMS, Master, Login Page. Columns are matched by header NAME, never by position.
+ * Speed  : each request reads a sheet at most once, writes each row with ONE call, and the
+ *          read-all response is cached for 45 s (cleared on every write; ?fresh=1 skips it).
+ * Safety : every write runs under a script lock, so two users can never get the same Work ID.
+ * Deploy : Deploy > Manage deployments > Edit > Version: New version  (the /exec URL stays the same).
+ */
+const S = { ENTRY: 'Entry', FMS: 'FMS', MASTER: 'Master', LOGIN: 'Login Page' };
+const ENTRY_HEADERS = ['Timestamp', 'Work ID', 'Date', 'Firm', 'Shift', 'Incharge', 'Work', 'Labour (Count)', 'Hours', 'Qty',
+  'Amount per person', 'Total Amount', 'Status', 'Work Remark', 'Labour 1', 'Labour 2', 'Labour 3', 'Labour 4', 'Labour 5',
+  'Labour 6', 'Labour 7', 'Labour 8', 'Labour 9', 'Labour 10', 'Labour 11'];
+const LOGIN_HEADERS = ['Username', 'Password', 'Name', 'Administrate', 'Dashboard Overview', 'New Work Entry (Form)',
+  'All Work Orders Master Grid', 'Work Verification', 'Payment Approval', 'Payment Disbursal', 'Tally Entry', 'Reports & Export'];
+const ALL_PERMS = ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin'];
+const DEFAULT_USERS = [
+  { id: 'usr_admin', username: 'admin', password: 'admin123', name: 'Admin', role: 'admin', status: 'active', assignedFirms: ['*'], permissions: ALL_PERMS },
+  { id: 'usr_bhupendra', username: 'DME', password: 'user123', name: 'Bhupendra', role: 'user', status: 'active', assignedFirms: ['*'],
+    permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally'] }
+];
+const DEFAULT_SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
+const DEFAULT_FIRMS = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
+const DEFAULT_WORKS = [['Production', 450], ['Loading', 480], ['Loading Jumbo', 480], ['Unloading', 450], ['Unloading Jumbo', 450],
+  ['Daily Wags', 400], ['Grinding', 500], ['Housekeeping', 380], ['Mechanical', 550], ['Crusing', 460]]
+  .map(w => ({ name: w[0], defaultRate: w[1] }));
+const NOT_A_WORK_ID = ['what', 'who', 'when', 'where', 'why', 'how', 'work id', 'workid', 'timestamp', 'date', 'shift', 'incharge',
+  'work', 'status', 'total', 'grand total', 'planned', 'actual', 'delay'];
+const CACHE_KEY = 'all_data', CACHE_TTL = 45, CHUNK = 80000;
 
-  const SHEET_NAMES = {
-    ENTRY: 'Entry',
-    FMS: 'FMS',
-    WORKFLOW: 'Workflow',
-    MASTER: 'Master',
-    LOGIN: 'Login Page'
+// ---------------------------------------------------------------- small helpers
+const norm = v => String(v == null ? '' : v).toLowerCase().trim();
+const str = v => String(v == null ? '' : v).trim();
+const iso = v => (v ? (v instanceof Date ? v.toISOString() : str(v)) : null);
+
+function stamp() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Kolkata', 'M/d/yyyy H:mm:ss');
+}
+
+function json(o) {
+  return ContentService.createTextOutput(typeof o === 'string' ? o : JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function delayText(v) {
+  if (v === null || v === undefined || v === '') return '-';
+  if (typeof v !== 'number') return str(v);
+  if (v === 0) return '0 hrs';
+  const sign = v > 0 ? '+' : '';
+  return Math.abs(v) >= 1 ? sign + v.toFixed(1) + ' days' : sign + (v * 24).toFixed(1) + ' hrs';
+}
+
+function loginSheet(ss) {
+  const sh = [S.LOGIN, 'Login', 'Users', 'User'].map(n => ss.getSheetByName(n)).find(Boolean) || ss.insertSheet(S.LOGIN);
+  if (sh.getLastRow() < 1) {
+    sh.getRange(1, 1, 1, LOGIN_HEADERS.length).setValues([LOGIN_HEADERS]).setFontWeight('bold').setBackground('#E6F4EA');
+    sh.getRange(2, 1, 2, LOGIN_HEADERS.length).setValues([
+      ['admin', 'admin123', 'Admin', true, true, true, true, true, true, true, true, true],
+      ['DME', 'user123', 'Bhupendra', false, true, true, true, true, true, true, true, false]]);
+  }
+  return sh;
+}
+
+// ---------------------------------------------------------------- sheet / column lookup
+/** Index (0-based) of the header row inside already-read values (checks the first 10 rows). */
+function headerRow(values) {
+  for (let r = 0; r < Math.min(values.length, 10); r++) {
+    const s = values[r].map(norm).join(' ');
+    if (s.includes('work id') || s.includes('workid') || (s.includes('timestamp') && /date|shift|status/.test(s))) return r;
+  }
+  return 0;
+}
+
+/** Cheap sheet descriptor: header row, normalized headers, size. Reads only the top 10 rows. */
+function sheetInfo(sheet) {
+  const lr = sheet ? sheet.getLastRow() : 0, lc = sheet ? sheet.getLastColumn() : 0;
+  if (!lr || !lc) return null;
+  const top = sheet.getRange(1, 1, Math.min(lr, 10), lc).getValues(), hr = headerRow(top);
+  return { sheet, hr, lr, lc, headers: top[hr].map(norm) };
+}
+
+/** 1-based column for the first matching header: exact match first, then a guarded partial match. */
+function colOf(headers, names, def) {
+  const exact = headers.findIndex(h => h && names.indexOf(h) >= 0);
+  if (exact >= 0) return exact + 1;
+  for (let c = 0; c < headers.length; c++) {
+    const h = headers[c];
+    if (!h) continue;
+    for (const n of names) {
+      if ((n === 'work' || n === 'activity' || n === 'work type') && /id|remark|date|count/.test(h)) continue;
+      if ((n === 'work id' || n === 'workid') && h.includes('remark')) continue;
+      if (h.includes(n) || (n.length >= 4 && h.length >= 4 && n.includes(h))) return c + 1;
+    }
+  }
+  return def;
+}
+
+/** 1-based sheet row holding this Work ID (0 if absent). Reads only column B. */
+function findRow(info, workId) {
+  const n = info.lr - info.hr - 1;
+  if (n < 1) return 0;
+  const ids = info.sheet.getRange(info.hr + 2, 2, n, 1).getValues(), t = str(workId).toUpperCase();
+  for (let i = 0; i < n; i++) if (str(ids[i][0]).toUpperCase() === t) return info.hr + 2 + i;
+  return 0;
+}
+
+/** Set several cells of one row in a single write; untouched cells keep their formulas. map = {col1Based: value}. */
+function setCells(info, row, map) {
+  const w = Math.max(info.lc, ...Object.keys(map).map(Number));
+  const rng = info.sheet.getRange(row, 1, 1, w), vals = rng.getValues()[0], fx = rng.getFormulas()[0];
+  rng.setValues([vals.map((v, i) => (map[i + 1] !== undefined ? map[i + 1] : (fx[i] || v)))]);
+}
+
+/** All Work IDs of Entry + FMS (upper-cased) and the highest WRK-#### number. */
+function workIds(ss) {
+  const set = {};
+  let max = 0;
+  [S.ENTRY, S.FMS].forEach(name => {
+    const info = sheetInfo(ss.getSheetByName(name));
+    if (!info || info.lr < info.hr + 2) return;
+    info.sheet.getRange(info.hr + 2, 2, info.lr - info.hr - 1, 1).getValues().forEach(r => {
+      const id = str(r[0]).toUpperCase();
+      if (!id) return;
+      set[id] = true;
+      const n = id.startsWith('WRK-') ? parseInt(id.slice(4), 10) : NaN;
+      if (n > max) max = n;
+    });
+  });
+  return { set, max };
+}
+
+function firstEmptyRow(sheet, startRow) {
+  const max = sheet.getMaxRows();
+  if (max >= startRow) {
+    const ids = sheet.getRange(startRow, 2, max - startRow + 1, 1).getValues();
+    for (let i = 0; i < ids.length; i++) if (!str(ids[i][0])) return startRow + i;
+  }
+  sheet.insertRowsAfter(max, 1);
+  return max + 1;
+}
+
+/** Make sure the Entry sheet has the standard headers and enough "Labour n" columns. Returns {hr, headers}. */
+function ensureEntryHeaders(sheet, slots) {
+  const empty = sheet.getLastRow() < 1, width = Math.max(sheet.getLastColumn(), 14 + slots, ENTRY_HEADERS.length);
+  const top = empty ? [[]] : sheet.getRange(1, 1, Math.min(sheet.getLastRow(), 10), width).getValues();
+  const hr = empty ? 0 : headerRow(top), hdr = Array.from({ length: width }, (_, i) => (top[hr][i] === undefined ? '' : top[hr][i]));
+  let changed = empty;
+  if (empty || !norm(hdr[3]).includes('firm')) { ENTRY_HEADERS.forEach((h, i) => { hdr[i] = h; }); changed = true; }
+  for (let i = 1; i <= slots; i++) {
+    if (!norm(hdr[13 + i]).startsWith('labour')) { hdr[13 + i] = 'Labour ' + i; changed = true; }
+  }
+  if (changed) sheet.getRange(hr + 1, 1, 1, width).setValues([hdr]).setFontWeight('bold').setBackground('#D9EAD3');
+  return { hr, headers: hdr.map(norm) };
+}
+
+// ---------------------------------------------------------------- reading
+function getUsersData(ss) {
+  const values = loginSheet(ss).getDataRange().getValues();
+  if (values.length < 2) return DEFAULT_USERS;
+  let hr = 0, uC = 0, pC = 1, nC = 2;
+  for (let r = 0; r < Math.min(values.length, 5); r++) {
+    const row = values[r].map(norm);
+    if (row.includes('username') || row.includes('user') || (row.includes('password') && row.includes('name'))) {
+      hr = r;
+      row.forEach((h, c) => {
+        if (['username', 'user name', 'user'].includes(h)) uC = c;
+        else if (h === 'password' || h === 'pass') pC = c;
+        else if (['name', 'full name', 'display name'].includes(h)) nC = c;
+      });
+      break;
+    }
+  }
+  const keys = values[hr].map(norm), users = [];
+  for (let i = hr + 1; i < values.length; i++) {
+    const row = values[i], username = str(row[uC]);
+    if (!username) continue;
+    const f = {};   // which modules this user may use: 'full' or 'view'
+    keys.forEach((h, c) => {
+      const raw = row[c], t = norm(raw);
+      if (!(raw === true || raw === 1 || ['true', 'yes', 'full', 'view'].includes(t))) return;
+      const view = t === 'view' || /view|three party/.test(h);
+      const mark = (k, isView) => { if (isView) f[k] = f[k] || 'view'; else f[k] = 'full'; };
+      if (h.includes('admin') || h === 'all') f.admin = 'full';
+      if (/new work entry|new entry|create indent|entry form/.test(h) || h === 'entry') f.new_entry = 'full';
+      if (/master grid|work orders|tracker|store issue|inventory/.test(h)) f.tracker = 'full';
+      if (/verification|verify/.test(h)) f.verification = 'full';
+      if (h.includes('approval')) mark('approval', view);
+      if (/disbursal|create po|payment/.test(h)) mark('payment', view);
+      if (/tally|update vendor|accounts/.test(h)) mark('tally', view);
+      if (/reports|export/.test(h)) f.reports = 'full';
+    });
+    const base = { id: 'usr_' + (i - hr), username, password: str(row[pC]), name: str(row[nC]) || username, status: 'active', assignedFirms: ['*'] };
+    if (f.admin || norm(username) === 'admin') { users.push(Object.assign(base, { role: 'admin', permissions: ALL_PERMS })); continue; }
+    const p = ['dashboard'], any = f.approval || f.payment || f.tally;
+    if (f.new_entry) p.push('new_entry');
+    if (f.tracker || (!f.new_entry && !any)) p.push('tracker');
+    if (f.verification) p.push('verification');
+    ['approval', 'payment', 'tally'].forEach(k => { if (f[k] === 'full') p.push(k); else if (f[k] === 'view') p.push(k + ':view'); });
+    if (f.reports || f.tracker || f.approval === 'view' || f.payment === 'view' || f.tally === 'view') p.push('reports');
+    users.push(Object.assign(base, { role: 'user', permissions: p }));
+  }
+  return users.length ? users : DEFAULT_USERS;
+}
+
+function getMasterData(ss, users) {
+  const sheet = ss.getSheetByName(S.MASTER);
+  const out = { incharges: [], labourers: [], shifts: DEFAULT_SHIFTS, workTypes: DEFAULT_WORKS, firmNames: DEFAULT_FIRMS, users: users || getUsersData(ss) };
+  if (!sheet || sheet.getLastRow() < 1) return out;
+  const values = sheet.getDataRange().getValues();
+  let start = 0, cI = 0, cShift = 2, cWork = 3, cFirm = 4, cRate = 5;
+  for (let r = 0; r < Math.min(values.length, 6); r++) {
+    if (!/incharge|labour|shift|work|firm/.test(values[r].join(' ').toLowerCase())) continue;
+    start = r + 1;
+    values[r].forEach((v, c) => {
+      const h = norm(v);
+      if (h.includes('incharge')) cI = c;
+      else if (h.includes('labour')) { /* labour names are always column B */ }
+      else if (h.includes('shift')) cShift = c;
+      else if (/work|type|activity/.test(h)) cWork = c;
+      else if (h.includes('firm') || h.includes('company')) cFirm = c;
+      else if (h.includes('rate') || h.includes('amount')) cRate = c;
+    });
+    break;
+  }
+  const seen = {}, works = {}, incharges = [], labourers = [], shifts = [], workTypes = [], firms = [];
+  const BAD = ['labour', 'labours', 'labourer', 'labourers', 'labour names', 'labour name', 'name', 'names'];
+  for (let i = start; i < values.length; i++) {
+    const row = values[i], inc = str(row[cI]);
+    if (inc && !inc.toLowerCase().includes('incharge') && !seen['i' + inc.toLowerCase()]) { seen['i' + inc.toLowerCase()] = 1; incharges.push(inc); }
+    str(row[1]).split(/[,|\n\r/]+/).forEach(p => {
+      const lab = p.trim().replace(/\s+/g, ' '), k = 'l' + lab.toLowerCase();
+      if (lab.length >= 2 && BAD.indexOf(k.slice(1)) < 0 && !seen[k]) { seen[k] = 1; labourers.push(lab); }
+    });
+    const sh = str(row[cShift]), w = str(row[cWork]), fm = str(row[cFirm]);
+    if (sh && shifts.indexOf(sh) < 0) shifts.push(sh);
+    if (w && !w.toLowerCase().startsWith('shift') && !works[w.toLowerCase()]) { works[w.toLowerCase()] = 1; workTypes.push({ name: w, defaultRate: Number(row[cRate]) || 450 }); }
+    if (fm && firms.indexOf(fm) < 0) firms.push(fm);
+  }
+  const byName = (a, b) => a.localeCompare(b);
+  return { incharges: incharges.sort(byName), labourers: labourers.sort(byName), shifts: shifts.length ? shifts : DEFAULT_SHIFTS,
+    workTypes: workTypes.length ? workTypes : DEFAULT_WORKS, firmNames: firms.length ? firms : DEFAULT_FIRMS, users: out.users };
+}
+
+function getEntriesData(ss) {
+  const entries = [], byId = {};
+  const eSheet = ss.getSheetByName(S.ENTRY), fSheet = ss.getSheetByName(S.FMS);
+
+  if (eSheet && eSheet.getLastRow() >= 1) {
+    const data = eSheet.getDataRange().getValues(), hr = headerRow(data), h = (data[hr] || []).map(norm);
+    const c = n => colOf(h, n[0], n[1]) - 1;
+    const [cFirm, cShift, cInc, cWork, cCount, cHours, cQty, cRate, cTotal, cStatus, cRemark] = [
+      [['firm', 'firm name', 'company'], 4], [['shift'], 5], [['incharge', 'supervisor'], 6], [['work', 'activity', 'work type'], 7],
+      [['labour (count)', 'labour count', 'count'], 8], [['hours'], 9], [['qty', 'quantity'], 10], [['amount per person', 'rate'], 11],
+      [['total amount', 'amount', 'total'], 12], [['status'], 13], [['work remark', 'remark', 'remarks'], 14]].map(c);
+    for (let i = hr + 1; i < data.length; i++) {
+      const row = data[i], workId = str(row[1] || row[0]);
+      if (!workId || NOT_A_WORK_ID.indexOf(workId.toLowerCase()) >= 0) continue;
+      const labourNames = [];
+      for (let k = 14; k < row.length; k++) {
+        const v = str(row[k]);
+        if (v && !v.toLowerCase().startsWith('labour') && k !== cRemark) labourNames.push(v);
+      }
+      const count = Number(row[cCount]) || labourNames.length || 1, rate = Number(row[cRate]) || 0;
+      const e = {
+        timestamp: row[0], workId, date: row[2], firmName: str(row[cFirm] || 'PMMPL'), shift: str(row[cShift] || 'Shift 1'),
+        incharge: str(row[cInc]), work: str(row[cWork]), labourCount: count, hours: Number(row[cHours]) || 0, qty: Number(row[cQty]) || 0,
+        rate, totalAmount: Number(row[cTotal]) > 0 ? Number(row[cTotal]) : count * rate,
+        status: str(row[cStatus] || 'Pending Verification'), workRemark: str(row[cRemark]), labourNames,
+        verificationPlanned: null, verificationActual: null, verificationDelay: '-', approvalPlanned: null, approvalActual: null,
+        approvalDelay: '-', paymentPlanned: null, paymentActual: null, paymentDelay: '-', tallyPlanned: null, tallyActual: null, tallyDelay: '-'
+      };
+      entries.push(e);
+      (byId[workId] = byId[workId] || []).push(e);
+    }
+  }
+
+  if (fSheet && fSheet.getLastRow() >= 1) {
+    const data = fSheet.getDataRange().getValues(), hr = headerRow(data), h = (data[hr] || []).map(norm);
+    const c = (names, def) => colOf(h, names, def) - 1;
+    const p1 = c(['planned timestamp', 'planned 1', 'planned date', 'planned date 1', 'planned', 'verification planned', 'plan date'], 14);
+    const a1 = c(['actual timestamp', 'actual 1', 'actual'], 15), d1 = c(['delay', 'delay 1'], 16);
+    const cur = c(['current status', 'current', 'verification status'], 17), rem = c(['remark', 'remarks', 'verifier remark', 'verification remark'], 18);
+    const p3 = c(['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 19);
+    const a3 = c(['actual 3', 'payment actual', 'actual payment'], 20), d3 = c(['delay 3'], 21);
+    const wRem = c(['work remark', 'work remarks'], 13), stCol = c(['status'], 12);
+    for (let i = hr + 1; i < data.length; i++) {
+      const row = data[i], workId = str(row[1] || row[0]);
+      if (!workId || NOT_A_WORK_ID.indexOf(workId.toLowerCase()) >= 0) continue;
+      const matches = byId[workId] || [], e = matches.find(m => !m._fmsMatched) || matches[0];
+      if (!e) continue;
+      e._fmsMatched = true;
+      const curStatus = str(row[cur]), fmsRemark = str(row[rem]), main = norm(row[stCol]), cancelled = norm(curStatus).includes('cancel') || main.includes('cancel');
+      e.verificationPlanned = iso(row[p1]); e.verificationActual = iso(row[a1]); e.verificationDelay = delayText(row[d1]);
+      e.paymentPlanned = iso(row[p3]); e.paymentActual = iso(row[a3]); e.paymentDelay = delayText(row[d3]);
+      if (curStatus) e.currentStatus = curStatus;
+      if (fmsRemark) { e.verificationRemarks = fmsRemark; if (cancelled) e.cancellationRemarks = fmsRemark; }
+      if (!e.workRemark && row[wRem]) e.workRemark = str(row[wRem]);
+      e.status = (e.status === 'Cancelled' || cancelled) ? 'Cancelled'
+        : e.paymentActual ? 'Paid (Pending Tally)'
+        : (e.verificationActual || norm(curStatus).includes('verified')) ? 'Verified (Pending Approval)' : 'Pending Verification';
+    }
+  }
+  return entries;
+}
+
+/** Everything the app needs in one response; served from cache for 45 s unless fresh. */
+function getAllData(ss, fresh) {
+  const cache = CacheService.getScriptCache();
+  if (!fresh) {
+    try {
+      const n = Number(cache.get(CACHE_KEY + '_n'));
+      if (n) {
+        const parts = cache.getAll(Array.from({ length: n }, (_, i) => CACHE_KEY + '_' + i));
+        const text = Array.from({ length: n }, (_, i) => parts[CACHE_KEY + '_' + i]).join('');
+        if (text.length && !text.includes('undefined')) return text;
+      }
+    } catch (e) { /* cache is optional */ }
+  }
+  const users = getUsersData(ss);
+  const text = JSON.stringify({ master: getMasterData(ss, users), entries: getEntriesData(ss), users, status: 'success' });
+  try {
+    const put = {}, n = Math.ceil(text.length / CHUNK);
+    for (let i = 0; i < n; i++) put[CACHE_KEY + '_' + i] = text.slice(i * CHUNK, (i + 1) * CHUNK);
+    put[CACHE_KEY + '_n'] = String(n);
+    cache.putAll(put, CACHE_TTL);
+  } catch (e) { /* too big to cache: fine */ }
+  return text;
+}
+
+// ---------------------------------------------------------------- writing
+/** Normalized field bag shared by create + update. */
+function fields(d) {
+  const names = Array.isArray(d.labourNames) ? d.labourNames.map(str).filter(Boolean) : [];
+  const count = names.length || Number(d.labourCount) || 1, rate = Number(d.rate) || 0;
+  return {
+    names, count, rate, qty: Number(d.qty) || 0, hours: Number(d.hours) || 0, date: d.date || '', shift: str(d.shift), incharge: str(d.incharge),
+    work: str(d.work), remark: str(d.workRemark), firm: str(d.firmName || d.firm) || 'PMMPL',
+    total: Number(d.totalAmount) > 0 ? Number(d.totalAmount) : count * rate,
+    currentStatus: d.currentStatus, fmsRemark: d.remarks || d.verificationRemarks || d.cancellationRemarks
   };
+}
 
-  const STANDARD_ENTRY_HEADERS = [
-    'Timestamp',
-    'Work ID',
-    'Date',
-    'Firm',
-    'Shift',
-    'Incharge',
-    'Work',
-    'Labour (Count)',
-    'Hours',
-    'Qty',
-    'Amount per person',
-    'Total Amount',
-    'Status',
-    'Work Remark',
-    'Labour 1',
-    'Labour 2',
-    'Labour 3',
-    'Labour 4',
-    'Labour 5',
-    'Labour 6',
-    'Labour 7',
-    'Labour 8',
-    'Labour 9',
-    'Labour 10',
-    'Labour 11'
-  ];
+/** Value a sheet column should hold for header h (undefined = leave untouched / blank). fms: FMS sheet; upd: edit of an existing row. */
+function cellValue(h, v, fms, upd) {
+  switch (h) {
+    case 'timestamp': return upd ? undefined : v.ts;
+    case 'work id': case 'workid': return upd ? undefined : v.workId;
+    case 'date': return v.date;
+    case 'firm': case 'firm name': case 'company': return v.firm;
+    case 'shift': return v.shift;
+    case 'incharge': case 'supervisor': return v.incharge;
+    case 'work': case 'activity': case 'work type': return v.work;
+    case 'hours': return v.hours;
+    case 'qty': case 'quantity': return v.qty;
+    case 'rate': return fms ? undefined : v.rate;
+    case 'total amount': case 'amount': case 'total': return v.total;
+    case 'status': return v.status;
+    case 'current status': case 'current':
+      if (fms && upd) return v.status === 'Cancelled' ? 'Cancelled' : v.currentStatus;
+      return h === 'current status' ? v.status : undefined;
+    case 'remark': case 'remarks': case 'verifier remark':
+      if (fms && upd) return v.fmsRemark || undefined;
+      return h === 'verifier remark' ? undefined : v.remark;
+  }
+  if (h.includes('work remark') || (h.includes('remark') && !(fms && upd)) || (!fms && h.includes('notes'))) return v.remark;
+  if (h.includes('amount per person')) return fms ? undefined : v.rate;
+  if (fms ? h.includes('labour') : /labour \(count\)|labour count|no of labour/.test(h)) return v.count;
+  if (!fms && h.startsWith('labour') && !h.includes('count')) {
+    const i = parseInt(h.replace('labour', '').trim(), 10);
+    return i >= 1 ? (v.names[i - 1] || '') : undefined;
+  }
+  return undefined;
+}
 
-  const STANDARD_FMS_HEADERS = [
-    'Timestamp',
-    'Work ID',
-    'Date',
-    'Firm',
-    'Shift',
-    'Incharge',
-    'Work',
-    'No of Labour',
-    'Hours',
-    'Qty',
-    'Amount',
-    'Status',
-    'Work Remark',
-    'Planned',
-    'Actual Timestamp',
-    'Delay',
-    'Current Status',
-    'Remark',
-    'Planned 3',
-    'Actual 3',
-    'Delay 3'
-  ];
+function createEntry(ss, d) {
+  const ids = workIds(ss), v = fields(d);
+  v.ts = stamp();
+  v.status = 'Pending Verification';
+  v.workId = str(d.workId);
+  if (!v.workId || ids.set[v.workId.toUpperCase()]) v.workId = 'WRK-' + String(ids.max + 1).padStart(4, '0');
 
-  const STANDARD_LOGIN_HEADERS = [
-    'Username',
-    'Password',
-    'Name',
-    'Administrate',
-    'Dashboard Overview',
-    'New Work Entry (Form)',
-    'All Work Orders Master Grid',
-    'Work Verification',
-    'Payment Approval',
-    'Payment Disbursal',
-    'Tally Entry',
-    'Reports & Export'
-  ];
+  const entry = ss.getSheetByName(S.ENTRY) || ss.insertSheet(S.ENTRY);
+  const eh = ensureEntryHeaders(entry, Math.max(v.names.length, 11));
+  const row = firstEmptyRow(entry, eh.hr + 2);
+  entry.getRange(row, 1, 1, eh.headers.length).setValues([eh.headers.map(h => { const x = h ? cellValue(h, v, false, false) : undefined; return x === undefined ? '' : x; })]);
 
-  const DEFAULT_LOGIN_USERS = [
-    {
-      id: 'usr_admin',
-      username: 'admin',
-      password: 'admin123',
-      name: 'Admin',
-      role: 'admin',
-      status: 'active',
-      assignedFirms: ['*'],
-      permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
-    },
-    {
-      id: 'usr_bhupendra',
-      username: 'DME',
-      password: 'user123',
-      name: 'Bhupendra',
-      role: 'user',
-      status: 'active',
-      assignedFirms: ['*'],
-      permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally']
-    }
-  ];
-
-  /**
-  * Format timestamp as "9/9/2026 15:30:00"
-  */
-  function getFormattedSheetTimestamp(date) {
-    const d = date ? new Date(date) : new Date();
-    const tz = Session.getScriptTimeZone() || 'Asia/Kolkata';
-    try {
-      return Utilities.formatDate(d, tz, 'M/d/yyyy H:mm:ss');
-    } catch (e) {
-      const month = d.getMonth() + 1;
-      const day = d.getDate();
-      const year = d.getFullYear();
-      const hours = d.getHours();
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      const seconds = String(d.getSeconds()).padStart(2, '0');
-      return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
+  const fi = sheetInfo(ss.getSheetByName(S.FMS));
+  if (fi) {
+    // Only the entry columns (A..M) are written; planned/actual/delay columns hold the user's formulas.
+    const stop = fi.headers.findIndex(h => h.includes('planned timestamp') || h === 'planned 1');
+    const width = stop >= 0 ? stop : 13, fRow = firstEmptyRow(fi.sheet, fi.hr + 2);
+    fi.sheet.getRange(fRow, 1, 1, width).setValues([Array.from({ length: width }, (_, c) => { const x = fi.headers[c] ? cellValue(fi.headers[c], v, true, false) : undefined; return x === undefined ? '' : x; })]);
+    if (fRow > fi.hr + 2) {   // keep the "planned" formula column filled down
+      const prev = fi.sheet.getRange(fRow - 1, width + 1);
+      if (prev.getFormula()) prev.copyTo(fi.sheet.getRange(fRow, width + 1), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
     }
   }
+  return { status: 'success', workId: v.workId, timestamp: v.ts, firmName: v.firm, labourCount: v.count, labourNames: v.names, workRemark: v.remark, message: 'Entry created successfully' };
+}
 
-  /**
-  * Handle HTTP GET Requests (Fetch data & GET fallbacks)
-  */
-  function doGet(e) {
-    try {
-      const action = (e && e.parameter && e.parameter.action) || 'getAllData';
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      let result = {};
+function updateEntry(ss, d) {
+  if (!d.workId) return { status: 'error', message: 'Work ID is required for update' };
+  const v = fields(d);
+  v.status = d.status ? str(d.status) : 'Pending Verification';
 
-      switch (action) {
-        case 'getMasterData':
-        case 'getDropdownData':
-          result = getMasterData(ss);
-          break;
-
-        case 'getUsers':
-        case 'getLoginUsers':
-          result = { users: getUsersData(ss) };
-          break;
-
-        case 'getEntries':
-          result = { entries: getEntriesData(ss) };
-          break;
-
-        case 'getAllData':
-          result = {
-            master: getMasterData(ss),
-            entries: getEntriesData(ss),
-            users: getUsersData(ss),
-            status: 'success'
-          };
-          break;
-
-        case 'init':
-          ensureAllSheetsAndHeaders(ss);
-          result = { message: 'Sheets auto-configured and ready', status: 'success' };
-          break;
-
-        case 'submitLaborPayment':
-        case 'createEntry': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleCreateEntry(ss, payloadData);
-          break;
-        }
-
-        case 'verifyWork': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleVerifyWork(ss, payloadData);
-          break;
-        }
-
-        case 'cancelWork': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleCancelWork(ss, payloadData);
-          break;
-        }
-
-        case 'updateWorkEntry':
-        case 'updateEntry': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleUpdateWorkEntry(ss, payloadData);
-          break;
-        }
-
-        case 'approvePayment': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleApprovePayment(ss, payloadData);
-          break;
-        }
-
-        case 'recordPayment': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleRecordPayment(ss, payloadData);
-          break;
-        }
-
-        case 'recordTally': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleRecordTally(ss, payloadData);
-          break;
-        }
-
-        case 'updateMasterData': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleUpdateMasterData(ss, payloadData);
-          break;
-        }
-
-        case 'updateUsers':
-        case 'saveUsers': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleUpdateUsers(ss, payloadData);
-          break;
-        }
-
-        case 'updateWorkRemark': {
-          const payloadData = e.parameter.data ? JSON.parse(e.parameter.data) : {};
-          result = handleUpdateWorkRemark(ss, payloadData);
-          break;
-        }
-
-        default:
-          result = { error: 'Unknown GET action: ' + action, status: 'error' };
-      }
-
-      return ContentService.createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
-
-    } catch (error) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      })).setMimeType(ContentService.MimeType.JSON);
+  const entry = ss.getSheetByName(S.ENTRY);
+  if (entry && entry.getLastRow() >= 1) ensureEntryHeaders(entry, Math.max(v.names.length, 11));
+  [[entry, false], [ss.getSheetByName(S.FMS), true]].forEach(pair => {
+    const info = sheetInfo(pair[0]), row = info ? findRow(info, d.workId) : 0;
+    if (!row) return;
+    const map = {};
+    info.headers.forEach((h, c) => { const x = h ? cellValue(h, v, pair[1], true) : undefined; if (x !== undefined) map[c + 1] = x; });
+    if (pair[1] && v.status === 'Cancelled') {   // stamp the verification time once
+      const col = colOf(info.headers, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
+      if (!info.sheet.getRange(row, col).getValue()) map[col] = stamp();
     }
+    setCells(info, row, map);
+  });
+  return { status: 'success', workId: d.workId, message: 'Work entry updated successfully' };
+}
+
+/**
+ * Move a work order to the next stage: writes the given FMS cells + status on FMS, and the status on Entry.
+ * cells = [[header names, default column, value], ...] (empty values are skipped).
+ */
+function advance(ss, workId, status, cells) {
+  const fms = sheetInfo(ss.getSheetByName(S.FMS)), fRow = fms ? findRow(fms, workId) : 0;
+  if (fRow) {
+    const map = {};
+    cells.forEach(c => { if (c[2]) map[colOf(fms.headers, c[0], c[1])] = c[2]; });
+    map[colOf(fms.headers, ['status'], 12)] = status;
+    setCells(fms, fRow, map);
   }
+  const ent = sheetInfo(ss.getSheetByName(S.ENTRY)), eRow = ent ? findRow(ent, workId) : 0;
+  if (eRow) setCells(ent, eRow, { [colOf(ent.headers, ['status', 'current status'], 13)]: status });
+}
 
-  /**
-  * Handle HTTP POST Requests
-  */
-  function doPost(e) {
-    try {
-      let payload = {};
-      if (e && e.postData && e.postData.contents) {
-        try {
-          payload = JSON.parse(e.postData.contents);
-        } catch (parseErr) {
-          payload = {};
-        }
-      }
+const A1 = ['actual timestamp', 'actual 1', 'verification actual', 'actual'], CUR = ['current status', 'current', 'verification status'],
+  REM = ['remark', 'remarks', 'verifier remark', 'work remark'];
 
-      const action = payload.action || (e && e.parameter && e.parameter.action);
-      const data = payload.data || {};
-      const ss = SpreadsheetApp.getActiveSpreadsheet();
-      let response = {};
+function verifyWork(ss, d) {
+  const cancel = d.status === 'Cancelled' || d.isCancelled === true, at = stamp();
+  const next = cancel ? 'Cancelled' : 'Verified (Pending Approval)', cur = cancel ? 'Cancelled' : 'Verified';
+  advance(ss, d.workId, next, [[A1, 15, at], [CUR, 17, cur], [REM, 18, d.remarks]]);
+  return { status: 'success', workId: d.workId, actualDate: at, currentStatus: cur, nextStatus: next };
+}
 
-      switch (action) {
-        case 'submitLaborPayment':
-        case 'createEntry':
-          response = handleCreateEntry(ss, data);
-          break;
+function cancelWork(ss, d) {
+  const at = stamp();
+  advance(ss, d.workId, 'Cancelled', [[A1, 15, at], [CUR, 17, 'Cancelled'], [REM, 18, d.remarks || 'Cancelled by Verifier']]);
+  return { status: 'success', workId: d.workId, actualDate: at, currentStatus: 'Cancelled', nextStatus: 'Cancelled' };
+}
 
-        case 'verifyWork':
-          response = handleVerifyWork(ss, data);
-          break;
+function approvePayment(ss, d) {
+  const at = stamp(), next = 'Approved (Pending Payment)';
+  advance(ss, d.workId, next, [[['actual 2', 'actual approval', 'payment approval actual'], 18, at]]);
+  return { status: 'success', workId: d.workId, actualDate: at, nextStatus: next };
+}
 
-        case 'cancelWork':
-          response = handleCancelWork(ss, data);
-          break;
+function recordPayment(ss, d) {
+  const at = stamp(), next = 'Paid (Pending Tally)';
+  advance(ss, d.workId, next, [[['actual 3', 'actual payment', 'payment actual'], 20, at]]);
+  return { status: 'success', workId: d.workId, actualDate: at, nextStatus: next };
+}
 
-        case 'updateWorkEntry':
-        case 'updateEntry':
-          response = handleUpdateWorkEntry(ss, data);
-          break;
+function recordTally(ss, d) {
+  const at = stamp(), next = 'Tally Complete';
+  advance(ss, d.workId, next, [[['actual 4', 'actual tally', 'tally actual'], 24, at]]);
+  return { status: 'success', workId: d.workId, actualDate: at, nextStatus: next };
+}
 
-        case 'approvePayment':
-          response = handleApprovePayment(ss, data);
-          break;
+function updateWorkRemark(ss, d) {
+  if (!d.workId) return { status: 'error', message: 'Work ID required' };
+  [[S.ENTRY, 14], [S.FMS, 13]].forEach(p => {
+    const info = sheetInfo(ss.getSheetByName(p[0])), row = info ? findRow(info, d.workId) : 0;
+    if (row) info.sheet.getRange(row, colOf(info.headers, ['work remark', 'remark', 'remarks'], p[1])).setValue(d.workRemark || '');
+  });
+  return { status: 'success', workId: d.workId, workRemark: d.workRemark || '' };
+}
 
-        case 'recordPayment':
-          response = handleRecordPayment(ss, data);
-          break;
-
-        case 'recordTally':
-          response = handleRecordTally(ss, data);
-          break;
-
-        case 'updateMasterData':
-          response = handleUpdateMasterData(ss, data);
-          break;
-
-        case 'updateUsers':
-        case 'saveUsers':
-          response = handleUpdateUsers(ss, data);
-          break;
-
-        case 'updateWorkRemark':
-          response = handleUpdateWorkRemark(ss, data);
-          break;
-
-        case 'init':
-          ensureAllSheetsAndHeaders(ss);
-          response = { message: 'Sheets auto-configured and ready', status: 'success' };
-          break;
-
-        default:
-          response = { error: 'Unknown POST action: ' + action, status: 'error' };
-      }
-
-      return ContentService.createTextOutput(JSON.stringify(response))
-        .setMimeType(ContentService.MimeType.JSON);
-
-    } catch (error) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: 'error',
-        message: error.toString()
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
+function updateMasterData(ss, d) {
+  const sheet = ss.getSheetByName(S.MASTER) || ss.insertSheet(S.MASTER);
+  const inc = d.incharges || [], lab = d.labourers || [], sh = d.shifts || [], wt = d.workTypes || [], fm = d.firmNames || [];
+  const rows = [['Incharge Names', 'Labour Names', 'Shifts', 'Work Types', 'Firm Names', 'Default Rates']];
+  for (let i = 0, n = Math.max(inc.length, lab.length, sh.length, wt.length, fm.length); i < n; i++) {
+    const w = wt[i];
+    rows.push([inc[i] || '', lab[i] || '', sh[i] || '', w ? (typeof w === 'string' ? w : w.name) : '', fm[i] || '', w && typeof w === 'object' ? w.defaultRate : '']);
   }
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, 6).setValues(rows);
+  return { status: 'success', message: 'Master data updated' };
+}
 
-  /**
-  * Auto-detect Header Row (Checks Rows 1 to 10 for keywords)
-  */
-  function getHeaderRowIndex(sheet) {
-    if (!sheet || sheet.getLastRow() < 1) return 1;
-    const numRows = Math.min(sheet.getLastRow(), 10);
-    const data = sheet.getRange(1, 1, numRows, Math.min(sheet.getLastColumn() || 1, 30)).getValues();
-    for (let r = 0; r < data.length; r++) {
-      const rowStr = data[r].map(v => String(v || '').toLowerCase().trim()).join(' ');
-      if (rowStr.includes('work id') || rowStr.includes('workid') || (rowStr.includes('timestamp') && (rowStr.includes('date') || rowStr.includes('shift') || rowStr.includes('status')))) {
-        return r + 1; // 1-indexed
-      }
-    }
-    return 1;
-  }
+function updateUsers(ss, d) {
+  const list = Array.isArray(d) ? d : (d.users || []);
+  if (!list.length) return { status: 'error', message: 'No users provided' };
+  const sheet = loginSheet(ss), rows = [LOGIN_HEADERS];
+  list.forEach(u => {
+    const p = Array.isArray(u.permissions) ? u.permissions : [], admin = u.role === 'admin' || p.includes('admin');
+    const can = m => admin || p.includes(m) || p.includes(m + ':full') || p.includes(m + ':view');
+    rows.push([u.username || '', u.password || '', u.name || u.displayName || u.username || '', admin, can('dashboard'), admin || p.includes('new_entry') || p.includes('new_entry:full'),
+      can('tracker'), can('verification'), can('approval'), can('payment'), can('tally'), can('reports')]);
+  });
+  sheet.clearContents();
+  sheet.getRange(1, 1, rows.length, LOGIN_HEADERS.length).setValues(rows);
+  sheet.getRange(1, 1, 1, LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
+  return { status: 'success', message: 'Users updated in Login Page sheet' };
+}
 
-  /**
-  * Ensure Entry Sheet has the EXACT 25 Headers on Row 1 (Auto-Fixing)
-  */
-  function ensureEntryHeader(entrySheet) {
-    if (!entrySheet) return;
-    const headerRow = getHeaderRowIndex(entrySheet);
+function init(ss) {
+  ensureEntryHeaders(ss.getSheetByName(S.ENTRY) || ss.insertSheet(S.ENTRY), 11);
+  loginSheet(ss);
+  return { message: 'Sheets auto-configured and ready', status: 'success' };
+}
 
-    if (entrySheet.getLastRow() < 1) {
-      entrySheet.getRange(1, 1, 1, STANDARD_ENTRY_HEADERS.length).setValues([STANDARD_ENTRY_HEADERS]);
-      entrySheet.getRange(1, 1, 1, STANDARD_ENTRY_HEADERS.length).setFontWeight('bold').setBackground('#D9EAD3');
-      SpreadsheetApp.flush();
-      return;
-    }
+// ---------------------------------------------------------------- HTTP entry points
+const WRITES = {
+  submitLaborPayment: createEntry, createEntry, verifyWork, cancelWork, updateWorkEntry: updateEntry, updateEntry, approvePayment,
+  recordPayment, recordTally, updateMasterData, updateUsers, saveUsers: updateUsers, updateWorkRemark, init
+};
 
-    const existingHeaders = entrySheet.getRange(headerRow, 1, 1, Math.max(entrySheet.getLastColumn(), STANDARD_ENTRY_HEADERS.length)).getValues()[0];
-    const colD = String(existingHeaders[3] || '').toLowerCase().trim();
-
-    // If Column D is not 'firm', overwrite/fix header row seamlessly
-    if (!colD.includes('firm')) {
-      entrySheet.getRange(headerRow, 1, 1, STANDARD_ENTRY_HEADERS.length).setValues([STANDARD_ENTRY_HEADERS]);
-      entrySheet.getRange(headerRow, 1, 1, STANDARD_ENTRY_HEADERS.length).setFontWeight('bold').setBackground('#D9EAD3');
-      SpreadsheetApp.flush();
-    }
-  }
-
-  /**
-  * Ensure Login Page Sheet exists and has standard headers
-  */
-  function ensureLoginPageHeader(loginSheet) {
-    if (!loginSheet) return;
-    if (loginSheet.getLastRow() < 1) {
-      loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setValues([STANDARD_LOGIN_HEADERS]);
-      loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
-
-      const sampleRows = [
-        ['admin', 'admin123', 'Admin', true, true, true, true, true, true, true, true, true],
-        ['DME', 'user123', 'Bhupendra', false, true, true, true, true, true, true, true, false]
-      ];
-      loginSheet.getRange(2, 1, sampleRows.length, STANDARD_LOGIN_HEADERS.length).setValues(sampleRows);
-      SpreadsheetApp.flush();
-    }
-  }
-
-  /**
-  * Auto-extend Labour Columns if entry has 12, 13 or more labourers
-  */
-  function ensureLabourColumns(entrySheet, requiredLabourCount) {
-    if (!entrySheet || requiredLabourCount < 1) return;
-    const headerRow = getHeaderRowIndex(entrySheet);
-
-    let updated = false;
-    for (let i = 1; i <= requiredLabourCount; i++) {
-      const targetCol = 14 + i; // Col 15 (O) = Labour 1 ... Col 25 (Y) = Labour 11, Col 26 (Z) = Labour 12...
-      const cell = entrySheet.getRange(headerRow, targetCol);
-      const val = String(cell.getValue() || '').trim();
-      if (!val || !val.toLowerCase().startsWith('labour')) {
-        cell.setValue(`Labour ${i}`);
-        cell.setFontWeight('bold');
-        cell.setBackground('#D9EAD3');
-        updated = true;
-      }
-    }
-    if (updated) {
-      SpreadsheetApp.flush();
-    }
-  }
-
-  /**
-  * Fast in-memory Column Finder (0ms, 0 RPC calls)
-  */
-  function findColInHeaders(headersRow, possibleNames, defaultColIndex1Based) {
-    if (!headersRow || headersRow.length === 0) return (defaultColIndex1Based || 1) - 1;
-
-    // 1st Pass: EXACT MATCH (Highest Priority)
-    for (let c = 0; c < headersRow.length; c++) {
-      const val = String(headersRow[c] || '').toLowerCase().trim();
-      if (!val) continue;
-      for (let n = 0; n < possibleNames.length; n++) {
-        const target = possibleNames[n].toLowerCase().trim();
-        if (val === target) {
-          return c; // 0-indexed
-        }
-      }
-    }
-
-    // 2nd Pass: SAFE PARTIAL MATCH
-    for (let c = 0; c < headersRow.length; c++) {
-      const val = String(headersRow[c] || '').toLowerCase().trim();
-      if (!val) continue;
-      for (let n = 0; n < possibleNames.length; n++) {
-        const target = possibleNames[n].toLowerCase().trim();
-        if (target === 'work' || target === 'activity' || target === 'work type') {
-          if (val.includes('id') || val.includes('remark') || val.includes('date') || val.includes('count')) continue;
-        }
-        if (target === 'work id' || target === 'workid') {
-          if (val.includes('remark')) continue;
-        }
-        if (val.includes(target) || (target.length >= 4 && val.length >= 4 && target.includes(val))) {
-          return c; // 0-indexed
-        }
-      }
-    }
-
-    return (defaultColIndex1Based || 1) - 1;
-  }
-
-  /**
-  * Format delay values from Google Sheets formulas cleanly
-  */
-  function formatSheetDelay(val) {
-    if (val === null || val === undefined || val === '') return '-';
-    if (typeof val === 'number') {
-      if (val === 0) return '0 hrs';
-      if (Math.abs(val) >= 1) return (val > 0 ? '+' : '') + val.toFixed(1) + ' days';
-      return (val > 0 ? '+' : '') + (val * 24).toFixed(1) + ' hrs';
-    }
-    return String(val).trim();
-  }
-
-  /**
-  * Dynamic Column Finder with exact priority and conflict safeguards
-  */
-  function findColIndex(sheet, possibleNames, defaultIndex) {
-    if (!sheet || sheet.getLastColumn() < 1) return defaultIndex;
-    const lastCol = sheet.getLastColumn();
-    const headerRow = getHeaderRowIndex(sheet);
-
-    if (sheet.getLastRow() >= headerRow) {
-      const rowHeaders = sheet.getRange(headerRow, 1, 1, lastCol).getValues()[0];
-      
-      // 1st Pass: EXACT MATCH (Highest Priority)
-      for (let c = 0; c < rowHeaders.length; c++) {
-        const val = String(rowHeaders[c] || '').toLowerCase().trim();
-        if (!val) continue;
-        for (let n = 0; n < possibleNames.length; n++) {
-          const target = possibleNames[n].toLowerCase().trim();
-          if (val === target) {
-            return c + 1; // 1-indexed
-          }
-        }
-      }
-
-      // 2nd Pass: SAFE PARTIAL MATCH
-      for (let c = 0; c < rowHeaders.length; c++) {
-        const val = String(rowHeaders[c] || '').toLowerCase().trim();
-        if (!val) continue;
-        for (let n = 0; n < possibleNames.length; n++) {
-          const target = possibleNames[n].toLowerCase().trim();
-          // Guard against 'work' matching 'work id' or 'work remark' or 'work date'
-          if (target === 'work' || target === 'activity' || target === 'work type') {
-            if (val.includes('id') || val.includes('remark') || val.includes('date') || val.includes('count')) continue;
-          }
-          if (target === 'work id' || target === 'workid') {
-            if (val.includes('remark')) continue;
-          }
-          if (val.includes(target) || (target.length >= 4 && val.length >= 4 && target.includes(val))) {
-            return c + 1; // 1-indexed
-          }
-        }
-      }
-    }
-    return defaultIndex;
-  }
-
-  /**
-  * Find first available empty row in a sheet by scanning Work ID / Col B
-  */
-  function getFirstEmptyDataRow(sheet, startDataRow) {
-    if (!sheet) return startDataRow || 2;
-    const startRow = startDataRow || 2;
-    const maxRows = sheet.getMaxRows();
-    if (maxRows < startRow) return startRow;
-
-    const numRowsToRead = maxRows - startRow + 1;
-    const colBValues = sheet.getRange(startRow, 2, numRowsToRead, 1).getValues();
-
-    for (let i = 0; i < colBValues.length; i++) {
-      const val = colBValues[i][0];
-      if (val === '' || val === null || val === undefined || String(val).trim() === '') {
-        return startRow + i; // 1-indexed row
-      }
-    }
-
-    return maxRows + 1;
-  }
-
-  /**
-  * Generate sequential unique Work ID (e.g. WRK-0001, WRK-0002)
-  */
-  function generateNextWorkId(ss) {
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    const sheetsToCheck = [entrySheet, fmsSheet].filter(Boolean);
-
-    let maxNum = 0;
-    sheetsToCheck.forEach(sheet => {
-      if (sheet.getLastRow() >= 1) {
-        const headerRow = getHeaderRowIndex(sheet);
-        const startRow = headerRow + 1;
-        const maxRows = sheet.getMaxRows();
-        if (maxRows >= startRow) {
-          const workIds = sheet.getRange(startRow, 2, maxRows - startRow + 1, 1).getValues();
-          for (let i = 0; i < workIds.length; i++) {
-            const id = String(workIds[i][0] || '').trim();
-            if (id.startsWith('WRK-')) {
-              const num = parseInt(id.replace('WRK-', ''), 10);
-              if (!isNaN(num) && num > maxNum) {
-                maxNum = num;
-              }
-            }
-          }
-        }
-      }
-    });
-
-    return 'WRK-' + String(maxNum + 1).padStart(4, '0');
-  }
-
-  /**
-  * Check if a Work ID already exists in Entry or FMS sheets
-  */
-  function isWorkIdExists(ss, workId) {
-    if (!workId) return false;
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    const sheetsToCheck = [entrySheet, fmsSheet].filter(Boolean);
-    const searchId = String(workId).trim().toUpperCase();
-
-    for (let s = 0; s < sheetsToCheck.length; s++) {
-      const sheet = sheetsToCheck[s];
-      if (sheet.getLastRow() >= 1) {
-        const headerRow = getHeaderRowIndex(sheet);
-        const startRow = headerRow + 1;
-        const maxRows = sheet.getMaxRows();
-        if (maxRows >= startRow) {
-          const values = sheet.getRange(startRow, 2, maxRows - startRow + 1, 1).getValues();
-          for (let i = 0; i < values.length; i++) {
-            if (String(values[i][0] || '').trim().toUpperCase() === searchId) {
-              return true;
-            }
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  /**
-  * Check if a row is a valid data row
-  */
-  function isValidWorkRow(row) {
-    if (!row || row.length === 0) return false;
-    const workId = String(row[1] || row[0] || '').trim().toLowerCase();
-    if (!workId) return false;
-
-    const invalidKeywords = [
-      'what', 'who', 'when', 'where', 'why', 'how',
-      'work id', 'workid', 'timestamp', 'date', 'shift',
-      'incharge', 'work', 'status', 'total', 'grand total',
-      'planned', 'actual', 'delay'
-    ];
-
-    return !invalidKeywords.includes(workId);
-  }
-
-  /**
-  * Create New Work Entry:
-  * EXACT Header Name Mapping into Entry sheet and FMS sheet
-  */
-  function handleCreateEntry(ss, data) {
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY) || ss.insertSheet(SHEET_NAMES.ENTRY);
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-
-    const timestamp = getFormattedSheetTimestamp();
-    let workId = String(data.workId || '').trim();
-    // If workId is missing or already exists in sheet, assign a fresh unique sequential ID
-    if (!workId || isWorkIdExists(ss, workId)) {
-      workId = generateNextWorkId(ss);
-    }
-
-    // Extract all valid labour names
-    let labourNames = [];
-    if (Array.isArray(data.labourNames)) {
-      labourNames = data.labourNames.map(n => String(n || '').trim()).filter(Boolean);
-    }
-
-    const labourCount = labourNames.length > 0 ? labourNames.length : (Number(data.labourCount) || 1);
-    const rate = Number(data.rate) || 0;
-    const qty = Number(data.qty) || 0;
-    const isTon = ['loading', 'loading jumbo', 'unloading', 'unloading jumbo', 'production'].some(function(t) {
-      var w = String(data.work || '').toLowerCase().trim();
-      return w === t || (t.indexOf(' ') !== -1 && w.indexOf(t) !== -1) || w.indexOf(t) === 0;
-    });
-    const totalAmount = data.totalAmount !== undefined && !isNaN(Number(data.totalAmount)) && Number(data.totalAmount) > 0
-      ? Number(data.totalAmount)
-      : (labourCount * rate); // Amount per person x Labour count
-    const status = 'Pending Verification';
-    const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
-    const firmName = data.firmName ? String(data.firmName).trim() : (data.firm ? String(data.firm).trim() : 'PMMPL');
-
-    // 1. Write to Entry sheet by EXACT HEADER NAME matching
-    if (entrySheet) {
-      ensureEntryHeader(entrySheet);
-      const maxSlots = Math.max(labourNames.length, 11);
-      ensureLabourColumns(entrySheet, maxSlots);
-
-      const entryHeaderRow = getHeaderRowIndex(entrySheet);
-      const entryStartDataRow = entryHeaderRow + 1;
-      const lastCol = Math.max(entrySheet.getLastColumn(), 14 + maxSlots);
-      const currentHeaders = entrySheet.getRange(entryHeaderRow, 1, 1, lastCol).getValues()[0];
-
-      // Build row based on EXACT COLUMN HEADERS found in Entry Sheet
-      const entryRow = new Array(currentHeaders.length).fill('');
-
-      for (let c = 0; c < currentHeaders.length; c++) {
-        const h = String(currentHeaders[c] || '').toLowerCase().trim();
-        if (!h) continue;
-
-        if (h === 'timestamp') {
-          entryRow[c] = timestamp;
-        } else if (h === 'work id' || h === 'workid') {
-          entryRow[c] = workId;
-        } else if (h === 'date') {
-          entryRow[c] = data.date || '';
-        } else if (h === 'firm' || h === 'firm name' || h === 'company') {
-          entryRow[c] = firmName;
-        } else if (h === 'shift') {
-          entryRow[c] = data.shift || '';
-        } else if (h === 'incharge' || h === 'supervisor') {
-          entryRow[c] = data.incharge || '';
-        } else if (h === 'work' || h === 'work type' || h === 'activity') {
-          entryRow[c] = data.work || '';
-        } else if (h.includes('labour (count)') || h.includes('labour count') || h.includes('no of labour')) {
-          entryRow[c] = labourCount;
-        } else if (h === 'hours') {
-          entryRow[c] = Number(data.hours) || 0;
-        } else if (h === 'qty' || h === 'quantity') {
-          entryRow[c] = Number(data.qty) || 0;
-        } else if (h.includes('amount per person') || h === 'rate') {
-          entryRow[c] = rate;
-        } else if (h === 'total amount' || h === 'amount' || h === 'total') {
-          entryRow[c] = totalAmount;
-        } else if (h === 'status' || h === 'current status') {
-          entryRow[c] = status;
-        } else if (h.includes('work remark') || h.includes('remark') || h.includes('remarks') || h.includes('notes')) {
-          entryRow[c] = workRemark;
-        } else if (h.startsWith('labour') && !h.includes('count')) {
-          const labourIdx = parseInt(h.replace('labour', '').trim(), 10);
-          if (!isNaN(labourIdx) && labourIdx >= 1 && labourIdx <= labourNames.length) {
-            entryRow[c] = labourNames[labourIdx - 1];
-          } else {
-            entryRow[c] = '';
-          }
-        }
-      }
-
-      const targetRow = getFirstEmptyDataRow(entrySheet, entryStartDataRow);
-      entrySheet.getRange(targetRow, 1, 1, entryRow.length).setValues([entryRow]);
-      SpreadsheetApp.flush();
-    }
-
-    // 2. Write to FMS sheet (if exists) by EXACT Header Name matching
-    if (fmsSheet) {
-      const fmsHeaderRow = getHeaderRowIndex(fmsSheet);
-      const fmsStartDataRow = fmsHeaderRow + 1;
-      const lastCol = Math.max(fmsSheet.getLastColumn(), 25);
-      const fmsHeaders = fmsSheet.getRange(fmsHeaderRow, 1, 1, lastCol).getValues()[0];
-
-      // Col N (Planned Timestamp) and beyond are formula / workflow action columns.
-      // We only write entry data columns (Columns A to M) so user formulas in Col N or subsequent columns are never touched or overwritten.
-      let maxEntryCol = 13; // Default Columns A to M (13 columns)
-      for (let c = 0; c < fmsHeaders.length; c++) {
-        const h = String(fmsHeaders[c] || '').toLowerCase().trim();
-        if (h.includes('planned timestamp') || h === 'planned 1') {
-          maxEntryCol = c; // Stop right before Planned Timestamp (Col N)
-          break;
-        }
-      }
-
-      const fmsRow = new Array(maxEntryCol).fill('');
-      for (let c = 0; c < maxEntryCol; c++) {
-        const h = String(fmsHeaders[c] || '').toLowerCase().trim();
-        if (!h) continue;
-
-        if (h === 'timestamp') fmsRow[c] = timestamp;
-        else if (h === 'work id' || h === 'workid') fmsRow[c] = workId;
-        else if (h === 'date') fmsRow[c] = data.date || '';
-        else if (h === 'firm' || h === 'firm name' || h === 'company') fmsRow[c] = firmName;
-        else if (h === 'shift') fmsRow[c] = data.shift || '';
-        else if (h === 'incharge' || h === 'supervisor') fmsRow[c] = data.incharge || '';
-        else if (h === 'work' || h === 'activity' || h === 'work type') fmsRow[c] = data.work || '';
-        else if (h.includes('no of labour') || h.includes('labour count') || h.includes('labour')) fmsRow[c] = labourCount;
-        else if (h === 'hours') fmsRow[c] = Number(data.hours) || 0;
-        else if (h === 'qty' || h === 'quantity') fmsRow[c] = Number(data.qty) || 0;
-        else if (h === 'amount' || h === 'total amount' || h === 'total') fmsRow[c] = totalAmount;
-        else if (h === 'status' || h === 'current status') fmsRow[c] = status;
-        else if (h.includes('work remark') || h.includes('remark') || h.includes('remarks')) fmsRow[c] = workRemark;
-      }
-
-      const targetFmsRow = getFirstEmptyDataRow(fmsSheet, fmsStartDataRow);
-      fmsSheet.getRange(targetFmsRow, 1, 1, fmsRow.length).setValues([fmsRow]);
-
-      // If Column N (Planned Timestamp) formula is present in previous row, auto-fill it down
-      if (targetFmsRow > fmsStartDataRow) {
-        const prevRow = targetFmsRow - 1;
-        const plannedCol = maxEntryCol + 1; // Col N
-        const prevFormula = fmsSheet.getRange(prevRow, plannedCol).getFormula();
-        if (prevFormula) {
-          fmsSheet.getRange(prevRow, plannedCol).copyTo(fmsSheet.getRange(targetFmsRow, plannedCol), SpreadsheetApp.CopyPasteType.PASTE_FORMULA, false);
-        }
-      }
-      SpreadsheetApp.flush();
-    }
-
-    return {
-      status: 'success',
-      workId: workId,
-      timestamp: timestamp,
-      firmName: firmName,
-      labourCount: labourCount,
-      labourNames: labourNames,
-      workRemark: workRemark,
-      message: 'Entry created successfully'
-    };
-  }
-
-  /**
-  * Update Status column in Entry sheet
-  */
-  function updateEntryStatus(ss, workId, status) {
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    if (!entrySheet || entrySheet.getLastRow() < 1) return;
-    const headerRow = getHeaderRowIndex(entrySheet);
-    const dataRange = entrySheet.getDataRange().getValues();
-    const statusCol = findColIndex(entrySheet, ['status', 'current status'], 13);
-    for (let i = headerRow; i < dataRange.length; i++) {
-      if (String(dataRange[i][1]).trim() === workId) {
-        entrySheet.getRange(i + 1, statusCol).setValue(status);
-        break;
-      }
-    }
-  }
-
-  /**
-  * Stage 1: Verification Action
-  * Updates FMS sheet: Col O (Actual Timestamp), Col Q (Current Status = 'Verified'), Col R (Remark)
-  */
-  function handleVerifyWork(ss, data) {
-    const { workId, remarks } = data;
-    const isCancelled = data.status === 'Cancelled' || data.isCancelled === true;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = isCancelled ? 'Cancelled' : 'Verified (Pending Approval)';
-    const currentStatusVal = isCancelled ? 'Cancelled' : 'Verified';
-
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
-      const currentStatusCol = findColIndex(fmsSheet, ['current status', 'current', 'verification status'], 17);
-      const remarkCol = findColIndex(fmsSheet, ['remark', 'remarks', 'verifier remark', 'work remark'], 18);
-      const statusCol = findColIndex(fmsSheet, ['status'], 12);
-      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
-        if (cellWorkId === String(workId).trim().toUpperCase()) {
-          const rowIndex = i + 1;
-          if (actualCol > 0) {
-            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          }
-          if (currentStatusCol > 0) {
-            fmsSheet.getRange(rowIndex, currentStatusCol).setValue(currentStatusVal);
-          }
-          if (remarkCol > 0 && remarks) {
-            fmsSheet.getRange(rowIndex, remarkCol).setValue(remarks);
-          }
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
-          }
-          break;
-        }
-      }
-    }
-
-    updateEntryStatus(ss, workId, nextStatus);
+/** Run a write under a lock (no duplicate IDs / interleaved edits) and drop the read cache. */
+function runWrite(action, data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    const result = WRITES[action](SpreadsheetApp.getActiveSpreadsheet(), data);
     SpreadsheetApp.flush();
-    return { status: 'success', workId: workId, actualDate: actualDate, currentStatus: currentStatusVal, nextStatus: nextStatus };
+    CacheService.getScriptCache().remove(CACHE_KEY + '_n');
+    return result;
+  } finally {
+    lock.releaseLock();
   }
+}
 
-  /**
-  * Stage 1: Cancel Work Action
-  * Updates FMS sheet: Col O (Actual Timestamp), Col Q (Current Status = 'Cancelled'), Col R (Remark), Col L (Status = 'Cancelled')
-  */
-  function handleCancelWork(ss, data) {
-    const { workId, remarks } = data;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Cancelled';
+function respond(fn) {
+  try { return json(fn()); } catch (err) { return json({ status: 'error', message: String(err) }); }
+}
 
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
-      const currentStatusCol = findColIndex(fmsSheet, ['current status', 'current', 'verification status'], 17);
-      const remarkCol = findColIndex(fmsSheet, ['remark', 'remarks', 'verifier remark', 'work remark'], 18);
-      const statusCol = findColIndex(fmsSheet, ['status'], 12);
-      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
-        if (cellWorkId === String(workId).trim().toUpperCase()) {
-          const rowIndex = i + 1;
-          if (actualCol > 0) {
-            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          }
-          if (currentStatusCol > 0) {
-            fmsSheet.getRange(rowIndex, currentStatusCol).setValue('Cancelled');
-          }
-          if (remarkCol > 0) {
-            fmsSheet.getRange(rowIndex, remarkCol).setValue(remarks || 'Cancelled by Verifier');
-          }
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
-          }
-          break;
-        }
-      }
+function doGet(e) {
+  return respond(() => {
+    const p = (e && e.parameter) || {}, action = p.action || 'getAllData', ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (WRITES[action]) return runWrite(action, p.data ? JSON.parse(p.data) : {});
+    switch (action) {
+      case 'getAllData': return getAllData(ss, p.fresh === '1');
+      case 'getMasterData': case 'getDropdownData': return getMasterData(ss);
+      case 'getUsers': case 'getLoginUsers': return { users: getUsersData(ss) };
+      case 'getEntries': return { entries: getEntriesData(ss) };
+      default: return { error: 'Unknown GET action: ' + action, status: 'error' };
     }
-
-    updateEntryStatus(ss, workId, nextStatus);
-    SpreadsheetApp.flush();
-    return { status: 'success', workId: workId, actualDate: actualDate, currentStatus: 'Cancelled', nextStatus: nextStatus };
-  }
-
-  /**
-  * Stage 2: Payment Approval Action
-  */
-  function handleApprovePayment(ss, data) {
-    const { workId } = data;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Approved (Pending Payment)';
-
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual 2', 'actual approval', 'payment approval actual'], 18);
-      const statusCol = findColIndex(fmsSheet, ['status'], 12);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
-          const rowIndex = i + 1;
-          if (actualCol > 0) {
-            fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          }
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
-          }
-          break;
-        }
-      }
-    }
-
-    updateEntryStatus(ss, workId, nextStatus);
-    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
-  }
-
-  /**
-  * Stage 3: Payment Disbursal Action (Col T = Actual 3)
-  */
-  function handleRecordPayment(ss, data) {
-    const { workId, paymentMethod, paymentRef } = data;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Paid (Pending Tally)';
-
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual 3', 'actual payment', 'payment actual'], 20);
-      const statusCol = findColIndex(fmsSheet, ['status'], 12);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
-          const rowIndex = i + 1;
-          fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
-          }
-          break;
-        }
-      }
-    }
-
-    updateEntryStatus(ss, workId, nextStatus);
-    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
-  }
-
-  /**
-  * Admin Action: Update Work Entry (Full Edit across Entry & FMS sheets)
-  */
-  function handleUpdateWorkEntry(ss, data) {
-    const { workId } = data;
-    if (!workId) return { status: 'error', message: 'Work ID is required for update' };
-
-    let labourNames = [];
-    if (Array.isArray(data.labourNames)) {
-      labourNames = data.labourNames.map(n => String(n || '').trim()).filter(Boolean);
-    }
-    const labourCount = labourNames.length > 0 ? labourNames.length : (Number(data.labourCount) || 1);
-    const rate = Number(data.rate) || 0;
-    const qty = Number(data.qty) || 0;
-    const hours = Number(data.hours) || 0;
-    const totalAmount = data.totalAmount !== undefined && !isNaN(Number(data.totalAmount)) && Number(data.totalAmount) > 0
-      ? Number(data.totalAmount)
-      : (labourCount * rate);
-    const status = data.status ? String(data.status).trim() : 'Pending Verification';
-    const workRemark = data.workRemark ? String(data.workRemark).trim() : '';
-    const firmName = data.firmName ? String(data.firmName).trim() : (data.firm ? String(data.firm).trim() : 'PMMPL');
-    const shift = data.shift ? String(data.shift).trim() : '';
-    const incharge = data.incharge ? String(data.incharge).trim() : '';
-    const work = data.work ? String(data.work).trim() : '';
-    const date = data.date ? String(data.date).trim() : '';
-
-    // 1. Update Entry Sheet
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    if (entrySheet && entrySheet.getLastRow() >= 1) {
-      const headerRow = getHeaderRowIndex(entrySheet);
-      const lastCol = Math.max(entrySheet.getLastColumn(), 14 + Math.max(labourNames.length, 11));
-      ensureLabourColumns(entrySheet, Math.max(labourNames.length, 11));
-      const headers = entrySheet.getRange(headerRow, 1, 1, entrySheet.getLastColumn()).getValues()[0];
-      const dataRange = entrySheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
-          const rowIndex = i + 1;
-          for (let c = 0; c < headers.length; c++) {
-            const h = String(headers[c] || '').toLowerCase().trim();
-            if (!h || h === 'timestamp' || h === 'work id' || h === 'workid') continue;
-
-            if (h === 'date') entrySheet.getRange(rowIndex, c + 1).setValue(date);
-            else if (h === 'firm' || h === 'firm name' || h === 'company') entrySheet.getRange(rowIndex, c + 1).setValue(firmName);
-            else if (h === 'shift') entrySheet.getRange(rowIndex, c + 1).setValue(shift);
-            else if (h === 'incharge' || h === 'supervisor') entrySheet.getRange(rowIndex, c + 1).setValue(incharge);
-            else if (h === 'work' || h === 'activity' || h === 'work type') entrySheet.getRange(rowIndex, c + 1).setValue(work);
-            else if (h.includes('labour (count)') || h.includes('labour count') || h.includes('no of labour')) entrySheet.getRange(rowIndex, c + 1).setValue(labourCount);
-            else if (h === 'hours') entrySheet.getRange(rowIndex, c + 1).setValue(hours);
-            else if (h === 'qty' || h === 'quantity') entrySheet.getRange(rowIndex, c + 1).setValue(qty);
-            else if (h.includes('amount per person') || h === 'rate') entrySheet.getRange(rowIndex, c + 1).setValue(rate);
-            else if (h === 'total amount' || h === 'amount' || h === 'total') entrySheet.getRange(rowIndex, c + 1).setValue(totalAmount);
-            else if (h === 'status' || h === 'current status') entrySheet.getRange(rowIndex, c + 1).setValue(status);
-            else if (h.includes('work remark') || h.includes('remark') || h.includes('remarks')) entrySheet.getRange(rowIndex, c + 1).setValue(workRemark);
-            else if (h.startsWith('labour') && !h.includes('count')) {
-              const labourIdx = parseInt(h.replace('labour', '').trim(), 10);
-              if (!isNaN(labourIdx) && labourIdx >= 1) {
-                entrySheet.getRange(rowIndex, c + 1).setValue(labourIdx <= labourNames.length ? labourNames[labourIdx - 1] : '');
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    // 2. Update FMS Sheet
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const headers = fmsSheet.getRange(headerRow, 1, 1, fmsSheet.getLastColumn()).getValues()[0];
-      const dataRange = fmsSheet.getDataRange().getValues();
-      const workIdCol = findColIndex(fmsSheet, ['work id', 'workid'], 2);
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        const cellWorkId = String(dataRange[i][workIdCol - 1] || dataRange[i][1] || dataRange[i][0]).trim().toUpperCase();
-        if (cellWorkId === String(workId).trim().toUpperCase()) {
-          const rowIndex = i + 1;
-          for (let c = 0; c < headers.length; c++) {
-            const h = String(headers[c] || '').toLowerCase().trim();
-            if (!h || h === 'timestamp' || h === 'work id' || h === 'workid') continue;
-
-            if (h === 'date') fmsSheet.getRange(rowIndex, c + 1).setValue(date);
-            else if (h === 'firm' || h === 'firm name' || h === 'company') fmsSheet.getRange(rowIndex, c + 1).setValue(firmName);
-            else if (h === 'shift') fmsSheet.getRange(rowIndex, c + 1).setValue(shift);
-            else if (h === 'incharge' || h === 'supervisor') fmsSheet.getRange(rowIndex, c + 1).setValue(incharge);
-            else if (h === 'work' || h === 'activity' || h === 'work type') fmsSheet.getRange(rowIndex, c + 1).setValue(work);
-            else if (h.includes('no of labour') || h.includes('labour count') || h.includes('labour')) fmsSheet.getRange(rowIndex, c + 1).setValue(labourCount);
-            else if (h === 'hours') fmsSheet.getRange(rowIndex, c + 1).setValue(hours);
-            else if (h === 'qty' || h === 'quantity') fmsSheet.getRange(rowIndex, c + 1).setValue(qty);
-            else if (h === 'amount' || h === 'total amount' || h === 'total') fmsSheet.getRange(rowIndex, c + 1).setValue(totalAmount);
-            else if (h === 'status') fmsSheet.getRange(rowIndex, c + 1).setValue(status);
-            else if (h.includes('work remark')) fmsSheet.getRange(rowIndex, c + 1).setValue(workRemark);
-            else if (h === 'current status' || h === 'current') {
-              if (status === 'Cancelled') fmsSheet.getRange(rowIndex, c + 1).setValue('Cancelled');
-              else if (data.currentStatus) fmsSheet.getRange(rowIndex, c + 1).setValue(data.currentStatus);
-            }
-            else if (h === 'remark' || h === 'remarks' || h === 'verifier remark') {
-              if (data.remarks || data.verificationRemarks || data.cancellationRemarks) {
-                fmsSheet.getRange(rowIndex, c + 1).setValue(data.remarks || data.verificationRemarks || data.cancellationRemarks);
-              }
-            }
-          }
-
-          if (status === 'Cancelled') {
-            const actualCol = findColIndex(fmsSheet, ['actual timestamp', 'actual 1', 'verification actual', 'actual'], 15);
-            if (actualCol > 0) {
-              const currentActual = fmsSheet.getRange(rowIndex, actualCol).getValue();
-              if (!currentActual) {
-                fmsSheet.getRange(rowIndex, actualCol).setValue(getFormattedSheetTimestamp());
-              }
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    SpreadsheetApp.flush();
-    return { status: 'success', workId, message: 'Work entry updated successfully' };
-  }
-
-  /**
-  * Stage 4: Tally Entry Action
-  */
-  function handleRecordTally(ss, data) {
-    const { workId, tallyVoucher, tallyLedger } = data;
-    const actualDate = getFormattedSheetTimestamp();
-    const nextStatus = 'Tally Complete';
-
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const actualCol = findColIndex(fmsSheet, ['actual 4', 'actual tally', 'tally actual'], 24);
-      const statusCol = findColIndex(fmsSheet, ['status', 'current status'], 12);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0]).trim() === workId) {
-          const rowIndex = i + 1;
-          fmsSheet.getRange(rowIndex, actualCol).setValue(actualDate);
-          if (statusCol > 0) {
-            fmsSheet.getRange(rowIndex, statusCol).setValue(nextStatus);
-          }
-          break;
-        }
-      }
-    }
-
-    updateEntryStatus(ss, workId, nextStatus);
-    return { status: 'success', workId: workId, actualDate: actualDate, nextStatus: nextStatus };
-  }
-
-  /**
-  * Fetch Users from "Login Page" Sheet
-  */
-  function getUsersData(ss) {
-    let loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
-                    ss.getSheetByName('Login Page') ||
-                    ss.getSheetByName('Login') ||
-                    ss.getSheetByName('Users') ||
-                    ss.getSheetByName('User');
-
-    if (!loginSheet) {
-      loginSheet = ss.insertSheet('Login Page');
-      ensureLoginPageHeader(loginSheet);
-    }
-
-    if (loginSheet.getLastRow() < 1) {
-      ensureLoginPageHeader(loginSheet);
-    }
-
-    const values = loginSheet.getDataRange().getValues();
-    if (values.length < 2) {
-      return DEFAULT_LOGIN_USERS;
-    }
-
-    let headerRow = 0;
-    let usernameCol = 0, passwordCol = 1, nameCol = 2;
-
-    for (let r = 0; r < Math.min(values.length, 5); r++) {
-      const row = values[r].map(v => String(v || '').toLowerCase().trim());
-      if (row.includes('username') || row.includes('user') || (row.includes('password') && row.includes('name'))) {
-        headerRow = r;
-        for (let c = 0; c < row.length; c++) {
-          const h = row[c];
-          if (h === 'username' || h === 'user name' || h === 'user') usernameCol = c;
-          else if (h === 'password' || h === 'pass') passwordCol = c;
-          else if (h === 'name' || h === 'full name' || h === 'display name') nameCol = c;
-        }
-        break;
-      }
-    }
-
-    const headerKeys = values[headerRow].map(v => String(v || '').toLowerCase().trim());
-    const users = [];
-
-    for (let i = headerRow + 1; i < values.length; i++) {
-      const row = values[i];
-      const username = String(row[usernameCol] || '').trim();
-      if (!username) continue;
-
-      const password = String(row[passwordCol] || '').trim();
-      const name = String(row[nameCol] || username).trim();
-
-      const permissions = ['dashboard'];
-      let isAdmin = false;
-      let hasDashboard = true;
-      let hasNewEntry = false;
-      let hasTracker = false;
-      let hasVerification = false;
-      let hasApproval = false;
-      let hasApprovalView = false;
-      let hasPayment = false;
-      let hasPaymentView = false;
-      let hasTally = false;
-      let hasTallyView = false;
-      let hasReports = false;
-
-      for (let c = 0; c < headerKeys.length; c++) {
-        const h = headerKeys[c];
-        const val = row[c];
-        const valStr = String(val || '').toLowerCase().trim();
-        const isTrue = val === true || valStr === 'true' || val === 1 || valStr === 'yes' || valStr === 'full' || valStr === 'view';
-        const isViewOnly = valStr === 'view';
-
-        if (isTrue) {
-          if (h.includes('administrate') || h.includes('admin') || h === 'all') {
-            isAdmin = true;
-          }
-          if (h.includes('dashboard')) {
-            hasDashboard = true;
-          }
-          if (h.includes('new work entry') || h.includes('new entry') || h.includes('create indent') || h.includes('entry form') || h === 'entry') {
-            hasNewEntry = true;
-          }
-          if (h.includes('master grid') || h.includes('work orders') || h.includes('tracker') || h.includes('store issue') || h.includes('inventory')) {
-            hasTracker = true;
-          }
-          if (h.includes('work verification') || h.includes('verification') || h.includes('verify')) {
-            hasVerification = true;
-          }
-          if (h.includes('payment approval') || h.includes('indent approval') || h.includes('approval')) {
-            if (isViewOnly || h.includes('view')) hasApprovalView = true;
-            else hasApproval = true;
-          }
-          if (h.includes('payment disbursal') || h.includes('create po') || h.includes('disbursal') || h.includes('payment')) {
-            if (isViewOnly || h.includes('view') || h.includes('three party')) hasPaymentView = true;
-            else hasPayment = true;
-          }
-          if (h.includes('tally entry') || h.includes('tally') || h.includes('update vendor') || h.includes('accounts')) {
-            if (isViewOnly || h.includes('view')) hasTallyView = true;
-            else hasTally = true;
-          }
-          if (h.includes('reports') || h.includes('export')) {
-            hasReports = true;
-          }
-        }
-      }
-
-      if (isAdmin || username.toLowerCase() === 'admin') {
-        users.push({
-          id: 'usr_' + (i - headerRow),
-          username: username,
-          password: password,
-          name: name,
-          role: 'admin',
-          status: 'active',
-          assignedFirms: ['*'],
-          permissions: ['dashboard', 'new_entry', 'tracker', 'verification', 'approval', 'payment', 'tally', 'reports', 'admin']
-        });
-      } else {
-        if (hasNewEntry) permissions.push('new_entry');
-        if (hasTracker || (!hasNewEntry && !hasApproval && !hasPayment && !hasTally)) permissions.push('tracker');
-        if (hasVerification) permissions.push('verification');
-
-        if (hasApproval) permissions.push('approval');
-        else if (hasApprovalView) permissions.push('approval:view');
-
-        if (hasPayment) permissions.push('payment');
-        else if (hasPaymentView) permissions.push('payment:view');
-
-        if (hasTally) permissions.push('tally');
-        else if (hasTallyView) permissions.push('tally:view');
-
-        if (hasReports || hasTracker || hasApprovalView || hasPaymentView || hasTallyView) {
-          permissions.push('reports');
-        }
-
-        users.push({
-          id: 'usr_' + (i - headerRow),
-          username: username,
-          password: password,
-          name: name,
-          role: 'user',
-          status: 'active',
-          assignedFirms: ['*'],
-          permissions: Array.from(new Set(permissions))
-        });
-      }
-    }
-
-    return users.length > 0 ? users : DEFAULT_LOGIN_USERS;
-  }
-
-  /**
-  * Update Users into "Login Page" Sheet
-  */
-  function handleUpdateUsers(ss, data) {
-    let loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
-                    ss.getSheetByName('Login Page') ||
-                    ss.getSheetByName('Login') ||
-                    ss.getSheetByName('Users');
-
-    if (!loginSheet) {
-      loginSheet = ss.insertSheet('Login Page');
-    }
-
-    const usersList = Array.isArray(data) ? data : (data.users || []);
-    if (usersList.length === 0) return { status: 'error', message: 'No users provided' };
-
-    loginSheet.clearContents();
-    loginSheet.appendRow(STANDARD_LOGIN_HEADERS);
-    loginSheet.getRange(1, 1, 1, STANDARD_LOGIN_HEADERS.length).setFontWeight('bold').setBackground('#E6F4EA');
-
-    const rows = usersList.map(u => {
-      const isAdmin = u.role === 'admin' || (Array.isArray(u.permissions) && u.permissions.includes('admin'));
-      const perms = Array.isArray(u.permissions) ? u.permissions : [];
-
-      const hasFull = mod => isAdmin || perms.includes(mod) || perms.includes(`${mod}:full`);
-      const hasView = mod => isAdmin || hasFull(mod) || perms.includes(`${mod}:view`);
-
-      return [
-        u.username || '',
-        u.password || '',
-        u.name || u.displayName || u.username || '',
-        isAdmin,
-        isAdmin || hasView('dashboard'),
-        isAdmin || hasFull('new_entry'),
-        isAdmin || hasView('tracker'),
-        isAdmin || hasFull('verification') || hasView('verification'),
-        isAdmin || hasFull('approval') || hasView('approval'),
-        isAdmin || hasFull('payment') || hasView('payment'),
-        isAdmin || hasFull('tally') || hasView('tally'),
-        isAdmin || hasView('reports')
-      ];
-    });
-
-    if (rows.length > 0) {
-      loginSheet.getRange(2, 1, rows.length, STANDARD_LOGIN_HEADERS.length).setValues(rows);
-    }
-    SpreadsheetApp.flush();
-
-    return { status: 'success', message: 'Users updated in Login Page sheet' };
-  }
-
-  /**
-  * Fetch Full Master Data
-  */
-  function getMasterData(ss) {
-    const masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER);
-    const defaultShifts = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
-    const defaultWorkTypes = [
-      { name: 'Production', defaultRate: 450 },
-      { name: 'Loading', defaultRate: 480 },
-      { name: 'Loading Jumbo', defaultRate: 480 },
-      { name: 'Unloading', defaultRate: 450 },
-      { name: 'Unloading Jumbo', defaultRate: 450 },
-      { name: 'Daily Wags', defaultRate: 400 },
-      { name: 'Grinding', defaultRate: 500 },
-      { name: 'Housekeeping', defaultRate: 380 },
-      { name: 'Mechanical', defaultRate: 550 },
-      { name: 'Crusing', defaultRate: 460 }
-    ];
-    const defaultFirms = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
-
-    if (!masterSheet || masterSheet.getLastRow() < 1) {
-      return { incharges: [], labourers: [], shifts: defaultShifts, workTypes: defaultWorkTypes, firmNames: defaultFirms, users: getUsersData(ss) };
-    }
-
-    const values = masterSheet.getDataRange().getValues();
-    const incharges = [];
-    const labourers = [];
-    const shifts = [];
-    const workTypes = [];
-    const firmNames = [];
-
-    let startRow = 0;
-    let inchargeCol = 0, labourCol = 1, shiftCol = 2, workCol = 3, firmCol = 4, rateCol = 5;
-
-    for (let r = 0; r < Math.min(values.length, 6); r++) {
-      const rowStr = values[r].join(' ').toLowerCase();
-      if (rowStr.includes('incharge') || rowStr.includes('labour') || rowStr.includes('shift') || rowStr.includes('work') || rowStr.includes('firm')) {
-        startRow = r + 1;
-        for (let c = 0; c < values[r].length; c++) {
-          const header = String(values[r][c] || '').toLowerCase().trim();
-          if (header.includes('incharge')) inchargeCol = c;
-          else if (header.includes('labour')) labourCol = c;
-          else if (header.includes('shift')) shiftCol = c;
-          else if (header.includes('work') || header.includes('type') || header.includes('activity')) workCol = c;
-          else if (header.includes('firm') || header.includes('company')) firmCol = c;
-          else if (header.includes('rate') || header.includes('amount')) rateCol = c;
-        }
-        break;
-      }
-    }
-
-    // Column B (index 1) is strictly the Labour Names column in the Master sheet
-    const targetLabourCol = 1;
-    const targetInchargeCol = (inchargeCol !== undefined && inchargeCol >= 0) ? inchargeCol : 0;
-
-    const seenLabourers = {};
-    const seenIncharges = {};
-
-    for (let i = startRow; i < values.length; i++) {
-      const row = values[i];
-
-      // Incharges (Col A - index 0)
-      if (row[targetInchargeCol] && String(row[targetInchargeCol]).trim()) {
-        const inc = String(row[targetInchargeCol]).trim();
-        const incLower = inc.toLowerCase();
-        if (!incLower.includes('incharge') && !seenIncharges[incLower]) {
-          seenIncharges[incLower] = true;
-          incharges.push(inc);
-        }
-      }
-
-      // Labourers - strictly fetched from Master Sheet Column B
-      const labourCell = row[targetLabourCol];
-      if (labourCell && String(labourCell).trim()) {
-        const cellStr = String(labourCell).trim();
-        // Split if multiple names are comma-separated or newline-separated in one cell
-        const parts = cellStr.split(/[,|\n\r/]+/);
-        for (let p = 0; p < parts.length; p++) {
-          const lab = parts[p].trim().replace(/\s+/g, ' ');
-          if (!lab || lab.length < 2) continue;
-          const labLower = lab.toLowerCase();
-          if (
-            labLower !== 'labour' &&
-            labLower !== 'labours' &&
-            labLower !== 'labourer' &&
-            labLower !== 'labourers' &&
-            labLower !== 'labour names' &&
-            labLower !== 'labour name' &&
-            labLower !== 'name' &&
-            labLower !== 'names' &&
-            !seenLabourers[labLower]
-          ) {
-            seenLabourers[labLower] = true;
-            labourers.push(lab);
-          }
-        }
-      }
-
-      if (row[shiftCol] && String(row[shiftCol]).trim()) {
-        const sh = String(row[shiftCol]).trim();
-        if (!shifts.includes(sh)) shifts.push(sh);
-      }
-
-      if (row[workCol] && String(row[workCol]).trim()) {
-        const wName = String(row[workCol]).trim();
-        if (!wName.toLowerCase().startsWith('shift') && !workTypes.some(w => w.name.toLowerCase() === wName.toLowerCase())) {
-          workTypes.push({
-            name: wName,
-            defaultRate: Number(row[rateCol]) || 450
-          });
-        }
-      }
-
-      if (row[firmCol] && String(row[firmCol]).trim()) {
-        const fName = String(row[firmCol]).trim();
-        if (!firmNames.includes(fName)) firmNames.push(fName);
-      }
-    }
-
-    labourers.sort(function(a, b) { return a.localeCompare(b); });
-    incharges.sort(function(a, b) { return a.localeCompare(b); });
-
-    return {
-      incharges: incharges.length > 0 ? incharges : [],
-      labourers: labourers.length > 0 ? labourers : [],
-      shifts: shifts.length > 0 ? shifts : defaultShifts,
-      workTypes: workTypes.length > 0 ? workTypes : defaultWorkTypes,
-      firmNames: firmNames.length > 0 ? firmNames : defaultFirms,
-      users: getUsersData(ss)
-    };
-  }
-
-  /**
-  * Fetch Entries Data
-  */
-  function getEntriesData(ss) {
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (!entrySheet && !fmsSheet) return [];
-
-    const entries = [];
-    const workMap = {};
-
-    if (entrySheet && entrySheet.getLastRow() >= 1) {
-      const entryData = entrySheet.getDataRange().getValues();
-      const entryHeaderRow = getHeaderRowIndex(entrySheet);
-      const entryHeaders = entryData[entryHeaderRow - 1] || [];
-
-      // Zero-overhead in-memory column resolution
-      const firmCol = findColInHeaders(entryHeaders, ['firm', 'firm name', 'company'], 4);
-      const shiftCol = findColInHeaders(entryHeaders, ['shift'], 5);
-      const inchargeCol = findColInHeaders(entryHeaders, ['incharge', 'supervisor'], 6);
-      const workCol = findColInHeaders(entryHeaders, ['work', 'activity', 'work type'], 7);
-      const countCol = findColInHeaders(entryHeaders, ['labour (count)', 'labour count', 'count'], 8);
-      const hoursCol = findColInHeaders(entryHeaders, ['hours'], 9);
-      const qtyCol = findColInHeaders(entryHeaders, ['qty', 'quantity'], 10);
-      const rateCol = findColInHeaders(entryHeaders, ['amount per person', 'rate'], 11);
-      const totalCol = findColInHeaders(entryHeaders, ['total amount', 'amount', 'total'], 12);
-      const statusCol = findColInHeaders(entryHeaders, ['status'], 13);
-      const remarkCol = findColInHeaders(entryHeaders, ['work remark', 'remark', 'remarks'], 14);
-
-      for (let i = entryHeaderRow; i < entryData.length; i++) {
-        const row = entryData[i];
-        if (!isValidWorkRow(row)) continue;
-
-        const workId = String(row[1] || row[0] || '').trim();
-        if (!workId) continue;
-
-        const labourNames = [];
-        for (let c = 14; c < row.length; c++) {
-          const val = String(row[c] || '').trim();
-          if (val && !val.toLowerCase().startsWith('labour') && c !== remarkCol) {
-            labourNames.push(val);
-          }
-        }
-
-        const work = String(row[workCol] || '').trim();
-        const labourCount = Number(row[countCol]) || (labourNames.length > 0 ? labourNames.length : 1);
-        const hours = Number(row[hoursCol]) || 0;
-        const qty = Number(row[qtyCol]) || 0;
-        const rate = Number(row[rateCol]) || 0;
-        const isTon = ['loading', 'loading jumbo', 'unloading', 'unloading jumbo', 'production'].some(function(t) {
-          var w = work.toLowerCase().trim();
-          return w === t || (t.indexOf(' ') !== -1 && w.indexOf(t) !== -1) || w.indexOf(t) === 0;
-        });
-        
-        // Sheet "Total Amount" is the source of truth; only compute when it is missing
-        const sheetTotal = Number(row[totalCol]) || 0;
-        const totalAmount = sheetTotal > 0 ? sheetTotal : labourCount * rate; // Amount per person x Labour count
-
-        const entryObj = {
-          timestamp: row[0],
-          workId: workId,
-          date: row[2],
-          firmName: String(row[firmCol] || 'PMMPL').trim(),
-          shift: String(row[shiftCol] || 'Shift 1').trim(),
-          incharge: String(row[inchargeCol] || '').trim(),
-          work: work,
-          labourCount: labourCount,
-          hours: hours,
-          qty: qty,
-          rate: rate,
-          totalAmount: totalAmount,
-          status: String(row[statusCol] || 'Pending Verification').trim(),
-          workRemark: String(row[remarkCol] || '').trim(),
-          labourNames: labourNames,
-          verificationPlanned: null,
-          verificationActual: null,
-          verificationDelay: '-',
-          approvalPlanned: null,
-          approvalActual: null,
-          approvalDelay: '-',
-          paymentPlanned: null,
-          paymentActual: null,
-          paymentDelay: '-',
-          tallyPlanned: null,
-          tallyActual: null,
-          tallyDelay: '-'
-        };
-
-        entries.push(entryObj);
-        if (!workMap[workId]) {
-          workMap[workId] = [];
-        }
-        workMap[workId].push(entryObj);
-      }
-    }
-
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const fmsData = fmsSheet.getDataRange().getValues();
-      const fmsHeaderRow = getHeaderRowIndex(fmsSheet);
-      const fmsHeaders = fmsData[fmsHeaderRow - 1] || [];
-
-      // Zero-overhead in-memory column resolution
-      const p1Col = findColInHeaders(fmsHeaders, ['planned timestamp', 'planned 1', 'planned date', 'planned date 1', 'planned', 'verification planned', 'plan date'], 14);
-      const a1Col = findColInHeaders(fmsHeaders, ['actual timestamp', 'actual 1', 'actual'], 15);
-      const d1Col = findColInHeaders(fmsHeaders, ['delay', 'delay 1'], 16);
-
-      // Col Q (17): Current Status & Col R (18): Remark
-      const currentStatusCol = findColInHeaders(fmsHeaders, ['current status', 'current', 'verification status'], 17);
-      const fmsRemarkCol = findColInHeaders(fmsHeaders, ['remark', 'remarks', 'verifier remark', 'verification remark'], 18);
-
-      // Payment Section (Col S, T, U = 19, 20, 21)
-      const p3Col = findColInHeaders(fmsHeaders, ['planned 3', 'planned date 3', 'payment planned', 'planned payment', 'payment plan', 'plan date 3'], 19);
-      const a3Col = findColInHeaders(fmsHeaders, ['actual 3', 'payment actual', 'actual payment'], 20);
-      const d3Col = findColInHeaders(fmsHeaders, ['delay 3'], 21);
-
-      const fmsWorkRemarkCol = findColInHeaders(fmsHeaders, ['work remark', 'work remarks'], 13);
-      const fmsStatusCol = findColInHeaders(fmsHeaders, ['status'], 12);
-
-      for (let i = fmsHeaderRow; i < fmsData.length; i++) {
-        const row = fmsData[i];
-        if (!isValidWorkRow(row)) continue;
-
-        const workId = String(row[1] || row[0] || '').trim();
-        const matches = workMap[workId] || [];
-        const existing = matches.find(m => !m._fmsMatched) || matches[0];
-        if (existing) {
-          existing._fmsMatched = true;
-          existing.verificationPlanned = row[p1Col] ? (row[p1Col] instanceof Date ? row[p1Col].toISOString() : String(row[p1Col]).trim()) : null;
-          existing.verificationActual = row[a1Col] ? (row[a1Col] instanceof Date ? row[a1Col].toISOString() : String(row[a1Col]).trim()) : null;
-          existing.verificationDelay = formatSheetDelay(row[d1Col]);
-
-          const fmsCurrentStatus = row[currentStatusCol] ? String(row[currentStatusCol]).trim() : '';
-          const fmsRemark = row[fmsRemarkCol] ? String(row[fmsRemarkCol]).trim() : '';
-          const fmsMainStatus = row[fmsStatusCol] ? String(row[fmsStatusCol]).trim() : '';
-
-          if (fmsCurrentStatus) {
-            existing.currentStatus = fmsCurrentStatus;
-          }
-          if (fmsRemark) {
-            existing.verificationRemarks = fmsRemark;
-            if (fmsCurrentStatus.toLowerCase().includes('cancel') || fmsMainStatus.toLowerCase().includes('cancel')) {
-              existing.cancellationRemarks = fmsRemark;
-            }
-          }
-
-          existing.paymentPlanned = row[p3Col] ? (row[p3Col] instanceof Date ? row[p3Col].toISOString() : String(row[p3Col]).trim()) : null;
-          existing.paymentActual = row[a3Col] ? (row[a3Col] instanceof Date ? row[a3Col].toISOString() : String(row[a3Col]).trim()) : null;
-          existing.paymentDelay = formatSheetDelay(row[d3Col]);
-
-          if (!existing.workRemark && row[fmsWorkRemarkCol]) {
-            existing.workRemark = String(row[fmsWorkRemarkCol]).trim();
-          }
-
-          // Dynamic milestone-based status synchronization:
-          // CRITICAL: If an entry is marked Cancelled in sheet status or Col Q Current Status, retain Cancelled!
-          if (
-            existing.status === 'Cancelled' ||
-            fmsMainStatus.toLowerCase().includes('cancel') ||
-            fmsCurrentStatus.toLowerCase().includes('cancel')
-          ) {
-            existing.status = 'Cancelled';
-          } else if (existing.tallyActual) {
-            existing.status = 'Tally Complete';
-          } else if (existing.paymentActual) {
-            existing.status = 'Paid (Pending Tally)';
-          } else if (existing.approvalActual) {
-            existing.status = 'Approved (Pending Payment)';
-          } else if (existing.verificationActual || fmsCurrentStatus.toLowerCase().includes('verified')) {
-            existing.status = 'Verified (Pending Approval)';
-          } else {
-            existing.status = 'Pending Verification';
-          }
-        }
-      }
-    }
-
-    return entries;
-  }
-
-  /**
-  * Update Work Remark in Google Sheets (Entry and FMS sheets)
-  */
-  function handleUpdateWorkRemark(ss, data) {
-    const { workId, workRemark } = data;
-    if (!workId) return { status: 'error', message: 'Work ID required' };
-
-    // 1. Update Entry sheet
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY);
-    if (entrySheet && entrySheet.getLastRow() >= 1) {
-      const remarkCol = findColIndex(entrySheet, ['work remark', 'remark', 'remarks'], 14);
-      const headerRow = getHeaderRowIndex(entrySheet);
-      const dataRange = entrySheet.getDataRange().getValues();
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || '').trim() === workId) {
-          entrySheet.getRange(i + 1, remarkCol).setValue(workRemark || '');
-          break;
-        }
-      }
-    }
-
-    // 2. Update FMS sheet
-    const fmsSheet = ss.getSheetByName(SHEET_NAMES.FMS);
-    if (fmsSheet && fmsSheet.getLastRow() >= 1) {
-      const fmsRemarkCol = findColIndex(fmsSheet, ['work remark', 'remark', 'remarks'], 13);
-      const headerRow = getHeaderRowIndex(fmsSheet);
-      const dataRange = fmsSheet.getDataRange().getValues();
-      for (let i = headerRow; i < dataRange.length; i++) {
-        if (String(dataRange[i][1] || dataRange[i][0] || '').trim() === workId) {
-          fmsSheet.getRange(i + 1, fmsRemarkCol).setValue(workRemark || '');
-          break;
-        }
-      }
-    }
-
-    return { status: 'success', workId: workId, workRemark: workRemark || '' };
-  }
-
-  /**
-  * Update Master Sheet
-  */
-  function handleUpdateMasterData(ss, data) {
-    const masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER) || ss.insertSheet(SHEET_NAMES.MASTER);
-    masterSheet.clearContents();
-    masterSheet.appendRow(['Incharge Names', 'Labour Names', 'Shifts', 'Work Types', 'Firm Names', 'Default Rates']);
-
-    const { incharges = [], labourers = [], shifts = [], workTypes = [], firmNames = [] } = data;
-    const maxLen = Math.max(incharges.length, labourers.length, shifts.length, workTypes.length, firmNames.length);
-
-    for (let i = 0; i < maxLen; i++) {
-      masterSheet.appendRow([
-        incharges[i] || '',
-        labourers[i] || '',
-        shifts[i] || '',
-        workTypes[i] ? (typeof workTypes[i] === 'string' ? workTypes[i] : workTypes[i].name) : '',
-        firmNames[i] || '',
-        workTypes[i] ? (typeof workTypes[i] === 'object' ? workTypes[i].defaultRate : '') : ''
-      ]);
-    }
-
-    return { status: 'success', message: 'Master data updated' };
-  }
-
-  /**
-  * Auto-create and format all necessary sheets on init
-  */
-  function ensureAllSheetsAndHeaders(ss) {
-    const entrySheet = ss.getSheetByName(SHEET_NAMES.ENTRY) || ss.insertSheet(SHEET_NAMES.ENTRY);
-    ensureEntryHeader(entrySheet);
-
-    const loginSheet = ss.getSheetByName(SHEET_NAMES.LOGIN) ||
-                      ss.getSheetByName('Login Page') ||
-                      ss.getSheetByName('Login') ||
-                      ss.getSheetByName('Users') ||
-                      ss.insertSheet('Login Page');
-    ensureLoginPageHeader(loginSheet);
-  }
+  });
+}
+
+function doPost(e) {
+  return respond(() => {
+    let payload = {};
+    try { payload = JSON.parse(e.postData.contents); } catch (err) { payload = {}; }
+    const action = payload.action || (e && e.parameter && e.parameter.action);
+    if (!WRITES[action]) return { error: 'Unknown POST action: ' + action, status: 'error' };
+    return runWrite(action, payload.data || {});
+  });
+}

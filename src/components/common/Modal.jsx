@@ -18,7 +18,7 @@ export function Modal({ isOpen, onClose, title, subtitle, icon: Icon, children, 
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-h-[90vh] flex flex-col animate-scale-up"
+        className="bg-white rounded-2xl shadow-2xl shadow-slate-900/20 border border-slate-100 w-full max-h-[90vh] flex flex-col animate-scale-up"
         style={{ maxWidth }}
         onClick={e => e.stopPropagation()}
       >

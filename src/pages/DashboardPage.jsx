@@ -340,7 +340,7 @@ export function DashboardPage() {
             <button
               onClick={handleRefreshAll}
               disabled={isSyncing}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              className="btn-gold inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold px-3 py-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               title="Sync labour entries (Google Sheet) & production data (Supabase)"
             >
               <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} />
@@ -349,7 +349,7 @@ export function DashboardPage() {
 
             <button
               onClick={() => navigate('/reports')}
-              className="inline-flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-2 transition-colors"
+              className="btn-gold inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold px-3 py-2 transition-colors"
             >
               <FileSpreadsheet size={14} />
               <span>Export Reports</span>
@@ -357,7 +357,7 @@ export function DashboardPage() {
 
             <button
               onClick={openNewEntry}
-              className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
+              className="inline-flex items-center gap-1.5 btn-lime font-semibold text-sm rounded-lg shadow-sm px-4 py-2 transition-colors"
             >
               <PlusCircle size={16} />
               <span>New Work Entry</span>

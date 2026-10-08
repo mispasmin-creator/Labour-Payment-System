@@ -328,7 +328,8 @@ export async function fetchAllData(forceRemote = false) {
 
   try {
     const sep = url.includes('?') ? '&' : '?';
-    const response = await fetchWithTimeout(`${url}${sep}action=getAllData`, { redirect: 'follow' }, 10000);
+    // Manual Sync (forceRemote) bypasses the 45s server-side cache so sheet edits show up immediately
+    const response = await fetchWithTimeout(`${url}${sep}action=getAllData${forceRemote ? '&fresh=1' : ''}`, { redirect: 'follow' }, 10000);
     if (response.ok) {
       const json = await response.json();
       if (json && (json.entries || json.master || json.users)) {

@@ -23,6 +23,7 @@ export class ErrorBoundary extends React.Component {
   handleResetSession = () => {
     try {
       localStorage.removeItem('labour_sys_auth_user');
+      sessionStorage.removeItem('labour_sys_auth_user');
     } catch (e) {}
     window.location.href = '/login';
   };
@@ -30,20 +31,20 @@ export class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6 font-sans">
-          <div className="max-w-[520px] w-full bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center text-slate-50 shadow-2xl">
+        <div className="min-h-screen flex items-center justify-center bg-[#121212] p-6 font-sans">
+          <div className="max-w-[520px] w-full bg-[#1A1A1A] border border-white/10 rounded-2xl p-8 text-center text-[#E0E0E0] shadow-2xl">
             <div className="w-16 h-16 rounded-full bg-rose-500/15 text-rose-500 inline-flex items-center justify-center mb-5">
               <AlertTriangle size={32} />
             </div>
 
             <h2 className="text-xl font-extrabold mb-2 text-white">Something Went Wrong</h2>
 
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
+            <p className="text-sm text-[#8C8C8C] mb-6 leading-relaxed">
               The application encountered a display error. Don't worry, your data is safe in Google Sheets.
             </p>
 
             {this.state.error && (
-              <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 text-left mb-6 text-xs text-rose-400 font-mono overflow-x-auto max-h-[100px]">
+              <div className="bg-[#121212] border border-white/10 rounded-lg p-3 text-left mb-6 text-xs text-rose-400 font-mono overflow-x-auto max-h-[100px]">
                 {this.state.error.toString()}
               </div>
             )}
@@ -59,7 +60,7 @@ export class ErrorBoundary extends React.Component {
 
               <button
                 onClick={this.handleResetSession}
-                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-slate-300 border border-slate-600 rounded-lg px-5 py-2.5 font-semibold text-sm transition-colors"
+                className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/15 text-[#BDBDBD] border border-white/20 rounded-lg px-5 py-2.5 font-semibold text-sm transition-colors"
               >
                 <LogOut size={16} />
                 <span>Re-login</span>

@@ -7,8 +7,104 @@ html, body {
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-#root {
-  min-height: 100vh;
+body {
+  background-color: #F4F8F2;
+  color: #1B2420;
+}
+
+::selection {
+  background: #DDF27B;
+  color: #1B2420;
+}
+
+/* Soft rounded cards inside the main area (dropdowns/popovers keep their own style) */
+main .bg-white.rounded-xl:not(.absolute):not(.fixed):not(input):not(select):not(textarea):not(button),
+main .bg-white.rounded-2xl:not(.absolute):not(.fixed):not(input):not(select):not(textarea):not(button) {
+  border-radius: 1.125rem;
+  border-color: #E8EFE3;
+  box-shadow: 0 2px 14px -3px rgba(31, 80, 50, 0.08);
+}
+
+main .metric-mint.bg-white {
+  background-color: #CFF3DC;
+  border-color: #B3EACB;
+}
+
+/* Sidebar never scrolls: tighten spacing on shorter screens instead */
+@media (max-height: 820px) {
+  .sidebar-item { padding-top: 0.625rem; padding-bottom: 0.625rem; }
+  .sidebar-nav { padding-top: 0.5rem; padding-bottom: 0.5rem; gap: 0.25rem; }
+}
+@media (max-height: 680px) {
+  .sidebar-item { padding-top: 0.375rem; padding-bottom: 0.375rem; font-size: 13px; }
+  .sidebar-item > span > span:first-child { width: 1.75rem; height: 1.75rem; }
+}
+
+/* Simple, clean data tables (screen only; print keeps its own .report-table rules) */
+@media screen {
+  main table:not(.report-table) {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  main table:not(.report-table) thead th {
+    background-color: #F4F8F2;
+    color: #5E6F64;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.7rem 1rem;
+    border: 0;
+    border-bottom: 1px solid #E3EADE;
+    box-shadow: none;
+  }
+  main table:not(.report-table) tbody td {
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    border: 0;
+    border-bottom: 1px solid #EEF3EA;
+    font-variant-numeric: tabular-nums;
+  }
+  main table:not(.report-table) tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  main table:not(.report-table) tbody tr:hover > td {
+    background-color: #F6FAF3;
+  }
+}
+
+.app-bg {
+  background:
+    radial-gradient(900px 520px at 0% -10%, rgba(179, 234, 203, 0.55), transparent 62%),
+    radial-gradient(700px 420px at 100% 0%, rgba(221, 242, 123, 0.35), transparent 60%),
+    #F4F8F2;
+}
+
+.glass-bar {
+  background-color: #FFFFFF;
+}
+
+/* Primary call-to-action: lime pill with dark text */
+.btn-gradient,
+.btn-lime {
+  background-color: #DDF27B;
+  background-image: none;
+  color: #1B2420;
+}
+.btn-gradient:hover,
+.btn-lime:hover {
+  background-color: #D2EA5C;
+}
+
+/* Secondary outlined button (Sync / Export) */
+.btn-gold {
+  border: 1px solid #DCE6D5;
+  color: #3F4E45;
+  background-color: #FFFFFF;
+}
+.btn-gold:hover {
+  background-color: #F1F7EC;
+  border-color: #B3EACB;
 }
 
 /* Custom Scrollbar */
@@ -17,14 +113,14 @@ html, body {
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #EFF3EB;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #C9D8C2;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #8BDDAD;
 }
 
 @keyframes fadeIn {
@@ -64,6 +160,11 @@ html, body {
 }
 
 @media print {
+  * {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
   @page {
     size: auto;
     margin: 6mm 8mm;

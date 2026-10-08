@@ -5,7 +5,10 @@ import {
   Users,
   Briefcase,
   CheckCircle2,
-  Eye
+  Eye,
+  Calendar,
+  Clock,
+  IndianRupee
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { INITIAL_MASTER_DATA } from '../../utils/mockData';
@@ -16,6 +19,60 @@ import { Modal } from './Modal';
 
 const DEFAULT_SHIFTS = ['Shift 1', 'Shift 2', 'Shift 3', 'Shift 4'];
 const DEFAULT_FIRMS = ['PMMPL', 'RKL', 'Purab', 'Refrasynth', 'Refratech'];
+
+const INPUT_CLS =
+  'w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 focus:bg-white transition-all';
+
+function Field({ label, required, hint, hintTone = 'muted', error, children }) {
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 whitespace-nowrap text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+        <span>
+          {label}
+          {required && <span className="text-rose-500 ml-0.5">*</span>}
+        </span>
+        {hint && (
+          <span className={`normal-case tracking-normal font-semibold ${hintTone === 'green' ? 'text-indigo-600' : 'text-slate-400'}`}>
+            ({hint})
+          </span>
+        )}
+      </label>
+      {children}
+      {error && <div className="text-xs text-rose-600 font-medium mt-1">{error}</div>}
+    </div>
+  );
+}
+
+function SectionTitle({ n, icon: Icon, title, hint, inline = false }) {
+  return (
+    <div className={`flex items-center gap-3 ${inline ? '' : 'mb-4'}`}>
+      <div className="w-7 h-7 rounded-full bg-[#DDF27B] text-[#1B2420] flex items-center justify-center shrink-0 text-xs font-extrabold">
+        {n}
+      </div>
+      <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+        <Icon size={18} />
+      </div>
+      <div className="leading-tight">
+        <div className="font-bold text-slate-900 text-sm">{title}</div>
+        {hint && <div className="text-xs text-slate-500 mt-0.5">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value, tone }) {
+  const tones = {
+    mint: 'bg-indigo-100 border-indigo-200',
+    lime: 'bg-amber-100 border-amber-200',
+    plain: 'bg-slate-50 border-slate-200',
+  };
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${tones[tone]}`}>
+      <div className="text-[11px] font-semibold text-slate-600">{label}</div>
+      <div className="text-xl font-extrabold text-slate-900 tracking-tight tabular-nums">{value}</div>
+    </div>
+  );
+}
 
 function buildInitialFormData(activeFirms, inchargesList, activeWorks) {
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -304,12 +361,24 @@ export function NewEntryModal() {
     }
   };
 
+  const fmtINR = n => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
   const footer = (
     <>
+      <div className="mr-auto hidden sm:flex items-center gap-2 text-xs text-slate-500 font-medium">
+        <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-full px-3 py-1.5 font-semibold">
+          <Users size={13} />
+          {labourCount} {labourCount === 1 ? 'Person' : 'Persons'}
+        </span>
+        <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 rounded-full px-3 py-1.5 font-semibold">
+          Total {fmtINR(formData.totalAmount)}
+        </span>
+      </div>
+
       <button
         type="button"
         onClick={closeNewEntry}
-        className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-sm font-semibold px-5 py-2.5 transition-colors"
+        className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl text-sm font-semibold px-5 py-2.5 transition-colors"
       >
         Cancel
       </button>
@@ -319,13 +388,13 @@ export function NewEntryModal() {
           type="submit"
           form="new-entry-form"
           disabled={isSubmitting}
-          className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-sm px-6 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="btn-lime inline-flex items-center justify-center gap-2 font-bold text-sm rounded-xl shadow-sm px-6 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
           <CheckCircle2 size={18} />
           <span>{isSubmitting ? 'Submitting Entry...' : 'Submit Work Entry'}</span>
         </button>
       ) : (
-        <div className="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 px-4 py-2.5 rounded-lg text-center font-bold text-sm">
+        <div className="inline-flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-800 px-4 py-2.5 rounded-xl text-center font-bold text-sm">
           <Eye size={16} />
           <span>View-Only Access (Submission Disabled)</span>
         </div>
@@ -338,73 +407,60 @@ export function NewEntryModal() {
       isOpen={isNewEntryOpen}
       onClose={closeNewEntry}
       title="New Work Entry"
-      subtitle="Log a new shift, work activity and assign labourers"
+      subtitle="Log a shift, the work done and assign labourers"
       icon={Briefcase}
-      maxWidth="900px"
+      maxWidth="940px"
       footer={footer}
     >
       <form id="new-entry-form" onSubmit={handleSubmit}>
-        <div className="flex flex-col gap-5">
-            {/* General Info Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 text-xs font-bold">
-                  1
-                </div>
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <Briefcase size={18} />
-                </div>
-                <span className="font-bold text-slate-800 text-sm">Shift & Supervisor Details</span>
-              </div>
+        <div className="flex flex-col gap-4">
+          {/* Live summary */}
+          <div className="grid grid-cols-3 gap-3">
+            <SummaryTile label="Labourers" value={`${labourCount}`} tone="mint" />
+            <SummaryTile label="Total Amount" value={fmtINR(formData.totalAmount)} tone="lime" />
+            <SummaryTile label="Per Person" value={fmtINR(formData.rate)} tone="plain" />
+          </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Work Date <span className="text-rose-600">*</span>
-                  </label>
+          {/* 1. Shift & supervisor */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5">
+            <SectionTitle n={1} icon={Briefcase} title="Shift & Supervisor" hint="When, where and who is in charge" />
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Field label="Work Date" required error={errors.date}>
+                <div className="relative">
+                  <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="date"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                    className={`${INPUT_CLS} pl-10`}
                     value={formData.date}
                     onChange={e => setFormData({ ...formData, date: e.target.value })}
                   />
-                  {errors.date && <div className="text-xs text-rose-600 font-medium mt-1">{errors.date}</div>}
                 </div>
+              </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Shift <span className="text-rose-600">*</span>
-                  </label>
-                  <SearchableSelect
-                    options={shiftsList}
-                    value={formData.shift}
-                    onChange={val => setFormData({ ...formData, shift: val })}
-                    placeholder="-- Select Shift --"
-                    searchPlaceholder="Search shift..."
-                  />
-                </div>
+              <Field label="Shift" required>
+                <SearchableSelect
+                  options={shiftsList}
+                  value={formData.shift}
+                  onChange={val => setFormData({ ...formData, shift: val })}
+                  placeholder="-- Select Shift --"
+                  searchPlaceholder="Search shift..."
+                />
+              </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Firm Name <span className="text-rose-600">*</span>
-                  </label>
-                  <SearchableSelect
-                    options={activeFirms}
-                    value={formData.firmName}
-                    onChange={val => setFormData({ ...formData, firmName: val })}
-                    placeholder="-- Select Firm --"
-                    searchPlaceholder="Search firm name..."
-                    error={errors.firmName}
-                  />
-                  {errors.firmName && <div className="text-xs text-rose-600 font-medium mt-1">{errors.firmName}</div>}
-                </div>
-              </div>
+              <Field label="Firm Name" required error={errors.firmName}>
+                <SearchableSelect
+                  options={activeFirms}
+                  value={formData.firmName}
+                  onChange={val => setFormData({ ...formData, firmName: val })}
+                  placeholder="-- Select Firm --"
+                  searchPlaceholder="Search firm name..."
+                  error={errors.firmName}
+                />
+              </Field>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Incharge / Supervisor <span className="text-rose-600">*</span>
-                  </label>
+              <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Incharge / Supervisor" required error={errors.incharge}>
                   <SearchableSelect
                     options={inchargesList}
                     value={formData.incharge}
@@ -413,13 +469,9 @@ export function NewEntryModal() {
                     searchPlaceholder="Search supervisor..."
                     error={errors.incharge}
                   />
-                  {errors.incharge && <div className="text-xs text-rose-600 font-medium mt-1">{errors.incharge}</div>}
-                </div>
+                </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Work Type / Activity <span className="text-rose-600">*</span>
-                  </label>
+                <Field label="Work Type / Activity" required error={errors.work}>
                   <SearchableSelect
                     options={activeWorks}
                     value={formData.work}
@@ -428,176 +480,163 @@ export function NewEntryModal() {
                     searchPlaceholder="Search work activity..."
                     error={errors.work}
                   />
-                  {errors.work && <div className="text-xs text-rose-600 font-medium mt-1">{errors.work}</div>}
-                </div>
+                </Field>
               </div>
+            </div>
+          </section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Hours Worked
-                  </label>
+          {/* 2. Output & payment */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5">
+            <SectionTitle n={2} icon={IndianRupee} title="Output & Payment" hint="Hours, quantity and amount for this work" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Field label="Hours Worked" error={errors.hours}>
+                <div className="relative">
+                  <Clock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="number"
                     step="0.5"
                     min="1"
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                    className={`${INPUT_CLS} pl-10`}
                     value={formData.hours}
                     onChange={e => setFormData({ ...formData, hours: e.target.value === '' ? '' : Number(e.target.value) })}
                   />
-                  {errors.hours && <div className="text-xs text-rose-600 font-medium mt-1">{errors.hours}</div>}
                 </div>
+              </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Quantity / Output {isTon && <span className="text-rose-600">*</span>}
-                    <span className={`ml-1.5 font-semibold normal-case ${isTon ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {isTon ? '(MT / Tons)' : '(optional)'}
-                    </span>
-                  </label>
+              <Field
+                label="Quantity"
+                required={isTon}
+                hint={isTon ? 'Tons' : 'optional'}
+                hintTone={isTon ? 'green' : 'muted'}
+                error={errors.qty}
+              >
+                <div className="relative">
                   <input
                     type="number"
-                    min={isTon ? "0.01" : "0"}
+                    min={isTon ? '0.01' : '0'}
                     step="any"
-                    placeholder={isTon ? "Enter quantity in tons..." : "Enter quantity..."}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                    placeholder={isTon ? 'Quantity in tons' : 'Quantity'}
+                    className={`${INPUT_CLS} pr-12`}
                     value={formData.qty}
                     onChange={e => setFormData({ ...formData, qty: e.target.value === '' ? '' : Number(e.target.value) })}
                   />
-                  {errors.qty && <div className="text-xs text-rose-600 font-medium mt-1">{errors.qty}</div>}
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 pointer-events-none">
+                    {isTon ? 'MT' : 'Qty'}
+                  </span>
                 </div>
+              </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Total Amount <span className="text-rose-600">*</span>
-                    <span className="ml-1.5 font-semibold normal-case text-emerald-600">(₹ Total)</span>
-                  </label>
+              <Field label="Total Amount" required error={errors.totalAmount}>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-indigo-600 pointer-events-none">₹</span>
                   <input
                     type="number"
                     min="0.01"
                     step="any"
-                    placeholder="Enter total amount (₹)..."
-                    className="w-full px-3 py-2.5 bg-emerald-50/40 border border-emerald-300 rounded-lg text-slate-800 font-semibold text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:bg-white transition-all"
+                    placeholder="Total amount"
+                    className={`${INPUT_CLS} pl-8 font-semibold !bg-indigo-50/60 !border-indigo-200`}
                     value={formData.totalAmount}
                     onChange={e => handleTotalAmountChange(e.target.value)}
                   />
-                  {errors.totalAmount && <div className="text-xs text-rose-600 font-medium mt-1">{errors.totalAmount}</div>}
                 </div>
+              </Field>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Amount per Person <span className="text-rose-600">*</span>
-                    <span className="ml-1.5 font-semibold normal-case text-indigo-600">(₹ / Person)</span>
-                  </label>
+              <Field label="Per Person" required error={errors.rate}>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500 pointer-events-none">₹</span>
                   <input
                     type="number"
                     min="0.01"
                     step="any"
-                    placeholder="Amount per person (₹)..."
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-semibold text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
+                    placeholder="Per person"
+                    className={`${INPUT_CLS} pl-8 font-semibold`}
                     value={formData.rate}
                     onChange={e => handleRateChange(e.target.value)}
                   />
-                  {errors.rate && <div className="text-xs text-rose-600 font-medium mt-1">{errors.rate}</div>}
                 </div>
-              </div>
+              </Field>
+            </div>
 
-              {/* Work Remark Input Field */}
-              <div className="mt-4">
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Work Remark
-                  <span className="ml-1.5 font-normal normal-case text-slate-400">(optional comment/description)</span>
-                </label>
+            <div className="mt-4">
+              <Field label="Work Remark" hint="optional comment" hintTone="muted">
                 <input
                   type="text"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:bg-white transition-all"
-                  placeholder="Enter remark (e.g. Extra maintenance work, kiln cleaning, overtime, etc.)..."
+                  className={INPUT_CLS}
+                  placeholder="e.g. Extra maintenance work, kiln cleaning, overtime..."
                   value={formData.workRemark}
                   onChange={e => setFormData({ ...formData, workRemark: e.target.value })}
                 />
-              </div>
+              </Field>
+            </div>
+          </section>
+
+          {/* 3. Labourers */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-5">
+            <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+              <SectionTitle
+                n={3}
+                icon={Users}
+                title="Deployed Labourers"
+                hint={`${labourCount} ${labourCount === 1 ? 'person' : 'persons'} assigned`}
+                inline
+              />
+
+              <button
+                type="button"
+                onClick={addLabourSlot}
+                className="btn-lime rounded-xl text-xs font-bold px-3.5 py-2 inline-flex items-center gap-1.5 transition-colors"
+              >
+                <PlusCircle size={15} />
+                <span>Add Labour Slot</span>
+              </button>
             </div>
 
-            {/* Dynamic Labourers Card */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-2xs p-6">
-              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 text-xs font-bold">
-                    2
-                  </div>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                    <Users size={18} />
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-800 text-sm">Deployed Labourers</span>
-                    <span className="text-xs text-emerald-600 font-bold ml-2">
-                      ({labourCount} {labourCount === 1 ? 'Person' : 'Persons'})
-                    </span>
-                    {Number(formData.totalAmount) > 0 && (
-                      <span className="text-xs text-slate-500 font-medium ml-2">
-                        • Total: <strong className="text-emerald-700 font-bold">₹{Number(formData.totalAmount).toLocaleString('en-IN')}</strong>
-                      </span>
+            {errors.labourNames && (
+              <div className="bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl text-rose-800 text-sm mb-3">
+                {errors.labourNames}
+              </div>
+            )}
+
+            <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {formData.labourNames.map((name, index) => (
+                  <div
+                    key={index}
+                    className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 flex items-center gap-2.5 shadow-2xs hover:border-indigo-300 transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#DDF27B] text-[#1B2420] font-bold text-xs flex items-center justify-center shrink-0">
+                      {index + 1}
+                    </div>
+
+                    <SearchableSelect
+                      compact={true}
+                      options={availableLabourers}
+                      value={name}
+                      onChange={val => handleLabourNameChange(index, val)}
+                      placeholder="-- Choose Labourer --"
+                      searchPlaceholder="Search labourer..."
+                      allowCustom={true}
+                      className="flex-1"
+                    />
+
+                    {formData.labourNames.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeLabourSlot(index)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg p-1.5 transition-colors shrink-0"
+                        title="Remove Labourer"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     )}
                   </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addLabourSlot}
-                  className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-lg text-xs font-semibold px-3 py-1.5 inline-flex items-center gap-1.5"
-                >
-                  <PlusCircle size={15} />
-                  <span>Add Labour Slot</span>
-                </button>
-              </div>
-
-              {errors.labourNames && (
-                <div className="bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg text-rose-800 text-sm mb-3">
-                  {errors.labourNames}
-                </div>
-              )}
-
-              <div className="bg-indigo-50/40 border border-dashed border-indigo-200 rounded-xl p-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {formData.labourNames.map((name, index) => (
-                    <div
-                      key={index}
-                      className="bg-white border border-slate-200 rounded-lg px-3.5 py-2.5 flex items-center gap-2.5 shadow-2xs hover:border-indigo-300 transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center shrink-0">
-                        {index + 1}
-                      </div>
-
-                      <SearchableSelect
-                        compact={true}
-                        options={availableLabourers}
-                        value={name}
-                        onChange={val => handleLabourNameChange(index, val)}
-                        placeholder="-- Choose Labourer --"
-                        searchPlaceholder="Search labourer..."
-                        allowCustom={true}
-                        className="flex-1"
-                      />
-
-                      {formData.labourNames.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeLabourSlot(index)}
-                          className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md p-1 transition-colors shrink-0"
-                          title="Remove Labourer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
-          </div>
+          </section>
+        </div>
       </form>
     </Modal>
   );
 }
-
-
